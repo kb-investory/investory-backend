@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'war'
+}
+
+group 'com.kbinvestory'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    junitVersion = '5.10.2'
+    springVersion = '5.3.39'
+}
+
+sourceCompatibility = '17'
+targetCompatibility = '17'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    implementation platform("org.springframework:spring-framework-bom:${springVersion}")
+    implementation 'org.springframework:spring-context'
+    implementation 'org.springframework:spring-webmvc'
+
+    compileOnly('javax.servlet:javax.servlet-api:4.0.1')
+
+    testImplementation("org.junit.jupiter:junit-jupiter-api:${junitVersion}")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
+}
+
+test {
+    useJUnitPlatform()
+}
