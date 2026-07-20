@@ -1,4 +1,4 @@
-package com.kbinvestory.backend.config;
+package com.kbinvestory.backend.global.config;
 
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;

@@ -60,3 +60,14 @@ logs/
 application-local.yml
 application-local.yaml
 application-local.properties
+
+### AI agent instruction files ###
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.claude/
+.cursorrules
+.cursor/
+.clinerules
+.windsurfrules
+.github/copilot-instructions.md

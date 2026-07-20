@@ -1,9 +1,9 @@
-package com.kbinvestory.backend.config;
+package com.kbinvestory.backend.global.initializer;
 
 import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
 import javax.servlet.ServletRegistration;
 
+import com.kbinvestory.backend.global.config.WebConfig;
 import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
