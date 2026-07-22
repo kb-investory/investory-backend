@@ -13,6 +13,7 @@ repositories {
 ext {
     junitVersion = '5.10.2'
     springVersion = '5.3.39'
+    springSecurityVersion = '5.8.16'
     jacksonVersion = '2.17.2'
 }
 
@@ -35,6 +36,11 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitVersion}")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
+
+    // security
+    implementation(platform("org.springframework.security:spring-security-bom:${springSecurityVersion}"))
+    implementation("org.springframework.security:spring-security-web")
+    implementation("org.springframework.security:spring-security-config")
 
     // lombok
     compileOnly("org.projectlombok:lombok:1.18.34")
