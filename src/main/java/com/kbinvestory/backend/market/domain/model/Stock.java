@@ -7,6 +7,7 @@ import lombok.Getter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Objects;
 
 @Getter
 public class Stock {
@@ -57,5 +58,19 @@ public class Stock {
     public static Stock of(Long id, String code, String name, MarketType market,
                            String sector, LocalDate listedDate, Instant createdAt, Instant updatedAt) {
         return new Stock(id, code, name, market, sector, listedDate, createdAt, updatedAt);
+    }
+
+    // 종목의 자연키(market, code)로 동등성을 판단한다 — 저장 전(id null)에도 같은 종목인지 비교 가능
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Stock)) return false;
+        Stock stock = (Stock) o;
+        return market == stock.market && code.equals(stock.code);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(market, code);
     }
 }
