@@ -10,10 +10,14 @@ import com.kbinvestory.backend.account.domain.repositories.AccountConnectionRepo
 import com.kbinvestory.backend.account.domain.repositories.BrokerageProviderRepository;
 import com.kbinvestory.backend.account.domain.services.dto.command.CreateBrokerConnectionCommand;
 import com.kbinvestory.backend.account.domain.services.dto.result.BrokerConnectionResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AccountConnectionService {
+
+    private static final Logger log = LoggerFactory.getLogger(AccountConnectionService.class);
 
     private final BrokerageProviderRepository brokerageProviderRepository;
     private final AccountConnectionRepository accountConnectionRepository;
@@ -38,6 +42,7 @@ public class AccountConnectionService {
 
         BrokerAuthInfo authInfo = brokerAuthPort.authenticate(provider.getCode(), command.loginId(), command.password());
         if (!authInfo.success()) {
+            log.warn("증권사 인증 실패: providerId={}, reason={}", provider.getId(), authInfo.failureReason());
             throw new AccountConnectionException(AccountErrorCode.BROKER_AUTH_FAILED);
         }
 

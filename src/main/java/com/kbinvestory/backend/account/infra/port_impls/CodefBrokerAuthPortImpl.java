@@ -10,6 +10,8 @@ import com.kbinvestory.backend.account.infra.exception.AccountInfraException;
 import io.codef.api.EasyCodef;
 import io.codef.api.EasyCodefServiceType;
 import io.codef.api.EasyCodefUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +21,8 @@ import java.util.List;
 @Component
 public class CodefBrokerAuthPortImpl implements BrokerAuthPort {
 
+    private static final Logger log = LoggerFactory.getLogger(CodefBrokerAuthPortImpl.class);
+
     private static final String COUNTRY_CODE = "KR";
     private static final String BUSINESS_TYPE_SECURITIES = "ST";
     private static final String CLIENT_TYPE_INTEGRATED = "A"; // 통합: 보험, 증권
@@ -26,15 +30,25 @@ public class CodefBrokerAuthPortImpl implements BrokerAuthPort {
 
     private final EasyCodef easyCodef;
     private final String publicKey;
+    private final EasyCodefServiceType serviceType;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CodefBrokerAuthPortImpl(@Value("${codef.demo.client-id}") String clientId,
                                     @Value("${codef.demo.client-secret}") String clientSecret,
-                                    @Value("${codef.demo.public-key}") String publicKey) {
+                                    @Value("${codef.demo.public-key}") String publicKey,
+                                    @Value("${codef.service-type}") String serviceType) {
+        String trimmedClientId = clientId.trim();
+        String trimmedClientSecret = clientSecret.trim();
+        String trimmedPublicKey = publicKey.replaceAll("\\s+", "");
+
+        log.debug("CODEF 클라이언트 설정 로드: clientIdLength={}, publicKeyLength={}, serviceType={}",
+                trimmedClientId.length(), trimmedPublicKey.length(), serviceType);
+
         this.easyCodef = new EasyCodef();
-        this.easyCodef.setClientInfoForDemo(clientId, clientSecret);
-        this.easyCodef.setPublicKey(publicKey);
-        this.publicKey = publicKey;
+        this.easyCodef.setClientInfoForDemo(trimmedClientId, trimmedClientSecret);
+        this.easyCodef.setPublicKey(trimmedPublicKey);
+        this.publicKey = trimmedPublicKey;
+        this.serviceType = EasyCodefServiceType.valueOf(serviceType.trim().toUpperCase());
     }
 
     @Override
@@ -49,11 +63,22 @@ public class CodefBrokerAuthPortImpl implements BrokerAuthPort {
         account.put("loginType", LOGIN_TYPE_ID_PASSWORD);
         account.put("id", loginId);
         account.put("password", encryptPassword(password));
+        // CODEF 공식 예제가 해당 없는 필드도 빈 문자열로 항상 포함시켜 보내므로 동일하게 맞춤
+        account.put("add_password", "");
+        account.put("birthDate", "");
+        account.put("loginTypeLevel", "");
+        account.put("clientTypeLevel", "");
+        account.put("cardNo", "");
+        account.put("cardPassword", "");
 
         HashMap<String, Object> parameterMap = new HashMap<>();
         parameterMap.put("accountList", List.of(account));
 
+        log.debug("CODEF 계정등록 요청: organization={}, businessType={}, clientType={}, loginType={}, idLength={}",
+                organization, BUSINESS_TYPE_SECURITIES, CLIENT_TYPE_INTEGRATED, LOGIN_TYPE_ID_PASSWORD, loginId.length());
+
         String rawResponse = requestCreateAccount(parameterMap);
+        log.debug("CODEF 계정등록 원본 응답: {}", rawResponse);
         return parseResponse(rawResponse);
     }
 
@@ -67,7 +92,7 @@ public class CodefBrokerAuthPortImpl implements BrokerAuthPort {
 
     private String requestCreateAccount(HashMap<String, Object> parameterMap) {
         try {
-            return easyCodef.createAccount(EasyCodefServiceType.DEMO, parameterMap);
+            return easyCodef.createAccount(serviceType, parameterMap);
         } catch (Exception e) {
             throw new AccountInfraException(AccountInfraErrorCode.CODEF_REQUEST_FAILED, e);
         }
