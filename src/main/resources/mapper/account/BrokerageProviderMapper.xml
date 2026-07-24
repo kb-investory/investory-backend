@@ -28,4 +28,17 @@
         ORDER BY provider_id
     </select>
 
+    <select id="findById" resultMap="brokerageProviderRowResultMap">
+        SELECT
+            provider_id,
+            provider_code,
+            provider_name,
+            active_yn,
+            created_at,
+            updated_at
+        FROM brokerage_providers
+        WHERE provider_id = #{providerId}
+          AND active_yn = TRUE
+    </select>
+
 </mapper>

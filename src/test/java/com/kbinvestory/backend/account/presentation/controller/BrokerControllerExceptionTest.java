@@ -1,7 +1,10 @@
 package com.kbinvestory.backend.account.presentation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kbinvestory.backend.account.domain.model.BrokerageProvider;
+import com.kbinvestory.backend.account.domain.repositories.BrokerageProviderRepository;
 import com.kbinvestory.backend.account.domain.services.BrokerService;
+import com.kbinvestory.backend.account.domain.services.dto.query.GetBrokersQuery;
 import com.kbinvestory.backend.account.infra.exception.AccountInfraErrorCode;
 import com.kbinvestory.backend.account.infra.exception.AccountInfraException;
 import com.kbinvestory.backend.global.error.ErrorResponse;
@@ -12,6 +15,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,9 +27,18 @@ class BrokerControllerExceptionTest {
 
     @Test
     void 인프라_예외는_GlobalExceptionHandler_응답_포맷으로_변환된다() throws Exception {
-        BrokerService brokerService = new BrokerService(query -> {
-            throw new AccountInfraException(AccountInfraErrorCode.BROKERAGE_PROVIDER_QUERY_FAILED,
-                    new RuntimeException("DB down"));
+        BrokerService brokerService = new BrokerService(new BrokerageProviderRepository() {
+            @Override
+            public List<BrokerageProvider> search(GetBrokersQuery query) {
+                throw new AccountInfraException(AccountInfraErrorCode.BROKERAGE_PROVIDER_QUERY_FAILED,
+                        new RuntimeException("DB down"));
+            }
+
+            @Override
+            public Optional<BrokerageProvider> findById(Long providerId) {
+                throw new AccountInfraException(AccountInfraErrorCode.BROKERAGE_PROVIDER_QUERY_FAILED,
+                        new RuntimeException("DB down"));
+            }
         });
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(brokerService))
                 .setControllerAdvice(new GlobalExceptionHandler())

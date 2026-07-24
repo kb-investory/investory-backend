@@ -39,5 +39,10 @@ class BrokerageProviderRepositoryImplTest {
         public List<BrokerageProviderRow> search(GetBrokersQuery query) {
             throw toThrow;
         }
+
+        @Override
+        public BrokerageProviderRow findById(Long providerId) {
+            throw toThrow;
+        }
     }
 }
