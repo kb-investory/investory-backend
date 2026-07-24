@@ -26,12 +26,17 @@ public class FakeAccountConnectionRepository implements AccountConnectionReposit
 
     @Override
     public AccountConnection save(AccountConnection accountConnection) {
-        AccountConnection saved = accountConnection.getConnectionId() == null
-                ? AccountConnection.of(sequence++, accountConnection.getUserId(), accountConnection.getProviderId(),
-                        accountConnection.getExternalConnectionKey(), accountConnection.getConnectionStatus(),
-                        accountConnection.getConnectedAt(), accountConnection.getLastSyncedAt(),
-                        accountConnection.getDisconnectedAt(), accountConnection.getCreatedAt(), accountConnection.getUpdatedAt())
-                : accountConnection;
+        // 실제 DB의 upsert(user_id, provider_id 유니크 키 기준)를 흉내냄
+        Optional<AccountConnection> existing = findByUserIdAndProviderId(
+                accountConnection.getUserId(), accountConnection.getProviderId());
+        Long connectionId = existing.map(AccountConnection::getConnectionId).orElseGet(() -> sequence++);
+
+        AccountConnection saved = AccountConnection.of(connectionId, accountConnection.getUserId(), accountConnection.getProviderId(),
+                accountConnection.getExternalConnectionKey(), accountConnection.getConnectionStatus(),
+                accountConnection.getConnectedAt(), accountConnection.getLastSyncedAt(),
+                accountConnection.getDisconnectedAt(), accountConnection.getCreatedAt(), accountConnection.getUpdatedAt());
+
+        existing.ifPresent(connections::remove);
         connections.add(saved);
         return saved;
     }

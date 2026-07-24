@@ -32,11 +32,18 @@
           AND provider_id = #{providerId}
     </select>
 
-    <insert id="insert" useGeneratedKeys="true" keyProperty="connectionId">
+    <insert id="upsert" useGeneratedKeys="true" keyProperty="connectionId">
         INSERT INTO account_connections
             (user_id, provider_id, external_connection_key, connection_status, connected_at, created_at, updated_at)
         VALUES
             (#{userId}, #{providerId}, #{externalConnectionKey}, #{connectionStatus}, #{connectedAt}, #{createdAt}, #{updatedAt})
+        ON DUPLICATE KEY UPDATE
+            connection_id = LAST_INSERT_ID(connection_id),
+            external_connection_key = VALUES(external_connection_key),
+            connection_status = VALUES(connection_status),
+            connected_at = VALUES(connected_at),
+            disconnected_at = NULL,
+            updated_at = VALUES(updated_at)
     </insert>
 
 </mapper>

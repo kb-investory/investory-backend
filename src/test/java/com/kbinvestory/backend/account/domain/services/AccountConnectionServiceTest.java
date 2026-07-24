@@ -13,6 +13,8 @@ import com.kbinvestory.backend.account.domain.services.dto.result.BrokerConnecti
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -62,6 +64,20 @@ class AccountConnectionServiceTest {
                 () -> service.connect(new CreateBrokerConnectionCommand(100L, 1L, "myid", "mypw")));
 
         assertEquals(AccountErrorCode.ALREADY_CONNECTED, exception.getErrorCode());
+    }
+
+    @Test
+    void 연동이_해제된_상태면_재연동을_허용한다() {
+        accountConnectionRepository.add(AccountConnection.of(1L, 100L, 1L, "OLD_ID",
+                ConnectionStatus.DISCONNECTED, Instant.now(), null, Instant.now(), Instant.now(), Instant.now()));
+        AccountConnectionService service = new AccountConnectionService(
+                brokerageProviderRepository, accountConnectionRepository,
+                (providerCode, loginId, password) -> new BrokerAuthInfo(true, "NEW_ID", null));
+
+        BrokerConnectionResult result = service.connect(new CreateBrokerConnectionCommand(100L, 1L, "myid", "mypw"));
+
+        assertEquals(ConnectionStatus.CONNECTED, result.status());
+        assertEquals(1L, result.connectionId());
     }
 
     @Test

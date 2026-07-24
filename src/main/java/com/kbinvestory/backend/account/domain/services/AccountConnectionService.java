@@ -1,5 +1,6 @@
 package com.kbinvestory.backend.account.domain.services;
 
+import com.kbinvestory.backend.account.domain.constant.ConnectionStatus;
 import com.kbinvestory.backend.account.domain.exception.AccountConnectionException;
 import com.kbinvestory.backend.account.domain.exception.AccountErrorCode;
 import com.kbinvestory.backend.account.domain.model.AccountConnection;
@@ -36,6 +37,7 @@ public class AccountConnectionService {
                 .orElseThrow(() -> new AccountConnectionException(AccountErrorCode.PROVIDER_NOT_FOUND));
 
         accountConnectionRepository.findByUserIdAndProviderId(command.userId(), command.providerId())
+                .filter(existing -> existing.getConnectionStatus() == ConnectionStatus.CONNECTED)
                 .ifPresent(existing -> {
                     throw new AccountConnectionException(AccountErrorCode.ALREADY_CONNECTED);
                 });

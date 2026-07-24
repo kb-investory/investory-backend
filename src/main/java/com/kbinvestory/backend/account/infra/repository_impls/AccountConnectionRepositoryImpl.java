@@ -34,7 +34,7 @@ public class AccountConnectionRepositoryImpl implements AccountConnectionReposit
     public AccountConnection save(AccountConnection accountConnection) {
         try {
             AccountConnectionRow row = AccountConnectionRow.from(accountConnection);
-            accountConnectionMapper.insert(row);
+            accountConnectionMapper.upsert(row);
             return row.toDomain();
         } catch (DataAccessException e) {
             throw new AccountInfraException(AccountInfraErrorCode.ACCOUNT_CONNECTION_SAVE_FAILED, e);

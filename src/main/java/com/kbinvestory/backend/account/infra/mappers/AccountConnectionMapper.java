@@ -7,5 +7,5 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface AccountConnectionMapper {
     AccountConnectionRow findByUserIdAndProviderId(@Param("userId") Long userId, @Param("providerId") Long providerId);
-    void insert(AccountConnectionRow row);
+    void upsert(AccountConnectionRow row);
 }

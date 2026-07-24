@@ -51,7 +51,7 @@ class AccountConnectionRepositoryImplTest {
         }
 
         @Override
-        public void insert(AccountConnectionRow row) {
+        public void upsert(AccountConnectionRow row) {
             throw toThrow;
         }
     }
