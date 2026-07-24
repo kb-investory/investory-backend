@@ -68,6 +68,9 @@ dependencies {
     implementation("javax.validation:validation-api:2.0.1.Final")
     implementation("org.hibernate.validator:hibernate-validator:6.2.5.Final")
     implementation("org.glassfish:javax.el:3.0.0") // 추가: 없으면 런타임에 ExpressionFactory 에러
+
+    // codef: 증권사 계좌 연동(계정등록 등) 연동용 공식 SDK. 비밀번호 RSA 암호화 등을 직접 구현하지 않기 위해 사용
+    implementation("io.codef.api:easycodef-java:1.0.6")
 }
 
 test {

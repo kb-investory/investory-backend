@@ -5,6 +5,8 @@ import com.kbinvestory.backend.account.domain.services.dto.query.GetBrokersQuery
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class FakeBrokerageProviderRepository implements BrokerageProviderRepository {
@@ -21,6 +23,13 @@ public class FakeBrokerageProviderRepository implements BrokerageProviderReposit
                 .filter(BrokerageProvider::isActive)
                 .filter(provider -> matchesKeyword(provider, query.keyword()))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<BrokerageProvider> findById(Long providerId) {
+        return providers.stream()
+                .filter(provider -> Objects.equals(provider.getId(), providerId))
+                .findFirst();
     }
 
     private boolean matchesKeyword(BrokerageProvider provider, String keyword) {
