@@ -7,7 +7,7 @@
         </encoder>
     </appender>
 
-    <logger name="com.kbinvestory.backend" level="DEBUG"/>
+    <logger name="com.investory" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

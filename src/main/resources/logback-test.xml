@@ -8,11 +8,11 @@
     </appender>
 
     <!-- 우리 애플리케이션 코드는 테스트 중 DEBUG로 자세히 -->
-    <logger name="com.kbinvestory.backend" level="DEBUG"/>
+    <logger name="com.investory" level="DEBUG"/>
 
     <!-- MyBatis가 실행하는 SQL과 바인딩 파라미터를 보고 싶을 때 사용 -->
     <!-- Mapper 인터페이스 패키지명에 맞게 수정하세요 -->
-    <logger name="com.kbinvestory.backend.mapper" level="DEBUG"/>
+    <logger name="com.investory.mapper" level="DEBUG"/>
 
     <!-- HikariCP 커넥션 풀 상태 확인용 (필요 없으면 지워도 됨) -->
     <logger name="com.zaxxer.hikari" level="INFO"/>
