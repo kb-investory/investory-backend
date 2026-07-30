@@ -8,7 +8,10 @@ import org.springframework.stereotype.Controller;
 @Configuration
 @ComponentScan(
         basePackages = "com.investory",
-        excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Controller.class)
+        excludeFilters = {
+                @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Controller.class),
+                @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SwaggerConfig.class)
+        }
 )
 public class RootConfig {
 }
