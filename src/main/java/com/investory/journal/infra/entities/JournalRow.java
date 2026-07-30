@@ -15,12 +15,14 @@ import java.time.LocalDate;
 public class JournalRow {
     private Long journalId;
     private LocalDate journalDate;
+    private String marketThought;
     private MarketMood marketMood;
     private int tradeNoteCount;
     private Instant createdAt;
+    private Instant updatedAt;
     private Instant editableUntilAt;
 
     public Journal toDomain() {
-        return Journal.of(journalId, journalDate, marketMood, tradeNoteCount, createdAt, editableUntilAt);
+        return Journal.of(journalId, journalDate, marketThought, marketMood, tradeNoteCount, createdAt, updatedAt, editableUntilAt);
     }
 }

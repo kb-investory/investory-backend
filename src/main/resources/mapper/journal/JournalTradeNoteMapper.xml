@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.journal.infra.mappers.JournalTradeNoteMapper">
+
+    <resultMap id="journalTradeNoteRowResultMap" type="com.investory.journal.infra.entities.JournalTradeNoteRow">
+        <id column="journal_trade_note_id" property="journalTradeNoteId"/>
+        <result column="journal_id" property="journalId"/>
+        <result column="trade_id" property="tradeId"/>
+        <result column="rationale_text" property="rationaleText"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findByTradeIds" resultMap="journalTradeNoteRowResultMap">
+        SELECT
+            journal_trade_note_id,
+            journal_id,
+            trade_id,
+            rationale_text,
+            created_at,
+            updated_at
+        FROM journal_trade_notes
+        WHERE trade_id IN
+        <foreach collection="list" item="tradeId" open="(" separator="," close=")">
+            #{tradeId}
+        </foreach>
+    </select>
+
+</mapper>
