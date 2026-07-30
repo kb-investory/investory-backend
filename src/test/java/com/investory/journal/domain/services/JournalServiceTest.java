@@ -1,16 +1,15 @@
 package com.investory.journal.domain.services;
 
-import com.investory.journal.domain.constant.MarketMood;
 import com.investory.journal.domain.constant.TradeSide;
 import com.investory.journal.domain.exception.JournalErrorCode;
 import com.investory.journal.domain.exception.JournalException;
-import com.investory.journal.domain.models.Journal;
-import com.investory.journal.domain.models.JournalTradeNote;
+import com.investory.journal.domain.models.JournalFixture;
+import com.investory.journal.domain.models.JournalTradeNoteFixture;
 import com.investory.journal.domain.ports.FakeMarketDataPort;
 import com.investory.journal.domain.ports.FakeTradeLedgerPort;
-import com.investory.journal.domain.ports.dto.SecurityInfo;
+import com.investory.journal.domain.ports.dto.SecurityInfoFixture;
 import com.investory.journal.domain.ports.dto.TradeCountInfo;
-import com.investory.journal.domain.ports.dto.TradeInfo;
+import com.investory.journal.domain.ports.dto.TradeInfoFixture;
 import com.investory.journal.domain.repositories.FakeJournalRepository;
 import com.investory.journal.domain.repositories.FakeJournalTradeNoteRepository;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
@@ -20,10 +19,8 @@ import com.investory.journal.domain.services.dto.result.JournalEntryResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
@@ -55,7 +52,7 @@ class JournalServiceTest {
     @Test
     void ledger의_tradeCount와_journal의_tradeNoteCount를_병합해서_반환한다() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
-        journalRepository.add(journal(journalDate, journalDate.atTime(20, 0), 3600));
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate, 20, 0), inFuture(3600)));
         tradeLedgerPort.add(new TradeCountInfo(journalDate, 5));
 
         List<JournalEntryResult> results = getEntries(journalDate, journalDate);
@@ -68,7 +65,7 @@ class JournalServiceTest {
     @Test
     void ledger에_해당_날짜_거래_기록이_없으면_tradeCount는_0이다() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
-        journalRepository.add(journal(journalDate, journalDate.atTime(20, 0), 3600));
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate, 20, 0), inFuture(3600)));
 
         List<JournalEntryResult> results = getEntries(journalDate, journalDate);
 
@@ -78,7 +75,7 @@ class JournalServiceTest {
     @Test
     void 일지_대상_날짜와_같은_날_작성했으면_isBackfilled는_false다() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
-        journalRepository.add(journal(journalDate, journalDate.atTime(23, 59), 3600));
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate, 23, 59), inFuture(3600)));
 
         List<JournalEntryResult> results = getEntries(journalDate, journalDate);
 
@@ -88,7 +85,7 @@ class JournalServiceTest {
     @Test
     void 일지_대상_날짜보다_늦게_작성했으면_isBackfilled는_true다() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
-        journalRepository.add(journal(journalDate, journalDate.plusDays(3).atStartOfDay(), 3600));
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate.plusDays(3), 0, 0), inFuture(3600)));
 
         List<JournalEntryResult> results = getEntries(journalDate, journalDate);
 
@@ -98,7 +95,7 @@ class JournalServiceTest {
     @Test
     void 현재_시각이_editableUntilAt_이전이면_isEditable은_true다() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
-        journalRepository.add(journal(journalDate, journalDate.atTime(10, 0), 3600));
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate, 10, 0), inFuture(3600)));
 
         List<JournalEntryResult> results = getEntries(journalDate, journalDate);
 
@@ -108,7 +105,7 @@ class JournalServiceTest {
     @Test
     void 현재_시각이_editableUntilAt_이후면_isEditable은_false다() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
-        journalRepository.add(journal(journalDate, journalDate.atTime(10, 0), -3600));
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate, 10, 0), inFuture(-3600)));
 
         List<JournalEntryResult> results = getEntries(journalDate, journalDate);
 
@@ -129,7 +126,7 @@ class JournalServiceTest {
     @Test
     void 일지가_있으면_journal_필드를_채워서_반환한다() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
-        journalRepository.add(journal(journalDate, journalDate.atTime(18, 20), 3600));
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate, 18, 20), inFuture(3600)));
 
         JournalDetailResult result = journalService.getDetail(new GetJournalDetailQuery(USER_ID, journalDate));
 
@@ -162,18 +159,18 @@ class JournalServiceTest {
     @Test
     void 거래에_종목정보와_근거를_병합해서_반환한다() {
         LocalDate date = LocalDate.of(2026, 7, 10);
-        Instant tradedAt1 = date.atTime(10, 15).toInstant(ZoneOffset.UTC);
-        Instant tradedAt2 = date.atTime(14, 10).toInstant(ZoneOffset.UTC);
+        Instant tradedAt1 = utc(date, 10, 15);
+        Instant tradedAt2 = utc(date, 14, 10);
         tradeLedgerPort.add(
-                new TradeInfo(501L, 101L, TradeSide.BUY, 10, new BigDecimal("72000"), tradedAt1),
-                new TradeInfo(502L, 102L, TradeSide.SELL, 3, new BigDecimal("195000"), tradedAt2)
+                TradeInfoFixture.trade(501L, 101L, TradeSide.BUY, tradedAt1),
+                TradeInfoFixture.trade(502L, 102L, TradeSide.SELL, tradedAt2)
         );
         marketDataPort.add(
-                new SecurityInfo(101L, "005930", "삼성전자"),
-                new SecurityInfo(102L, "000660", "SK하이닉스")
+                SecurityInfoFixture.samsungElectronics(101L),
+                SecurityInfoFixture.skHynix(102L)
         );
-        journalTradeNoteRepository.add(JournalTradeNote.of(
-                701L, 305L, 501L, "HBM 시장의 장기 성장 가능성이 높다고 판단했다.", tradedAt1, tradedAt1));
+        journalTradeNoteRepository.add(JournalTradeNoteFixture.note(
+                501L, "HBM 시장의 장기 성장 가능성이 높다고 판단했다.", tradedAt1));
 
         JournalDetailResult result = journalService.getDetail(new GetJournalDetailQuery(USER_ID, date));
 
@@ -191,8 +188,7 @@ class JournalServiceTest {
     @Test
     void 거래의_종목_정보를_찾을_수_없으면_예외를_던진다() {
         LocalDate date = LocalDate.of(2026, 7, 10);
-        Instant tradedAt = date.atTime(10, 15).toInstant(ZoneOffset.UTC);
-        tradeLedgerPort.add(new TradeInfo(501L, 999L, TradeSide.BUY, 10, new BigDecimal("72000"), tradedAt));
+        tradeLedgerPort.add(TradeInfoFixture.trade(501L, 999L, TradeSide.BUY, utc(date, 10, 15)));
         // marketDataPort에 999L 종목 정보를 등록하지 않음
 
         JournalException exception = assertThrows(JournalException.class,
@@ -205,18 +201,11 @@ class JournalServiceTest {
         return journalService.getEntries(new GetJournalEntriesQuery(USER_ID, startDate, endDate));
     }
 
-    // editableUntilAtOffsetSeconds: editableUntilAt = now + offset (음수면 이미 지난 시각)
-    private Journal journal(LocalDate journalDate, LocalDateTime createdAtLocal, long editableUntilAtOffsetSeconds) {
-        Instant createdAt = createdAtLocal.toInstant(ZoneOffset.UTC);
-        return Journal.of(
-                1L,
-                journalDate,
-                "시장에 대한 생각",
-                MarketMood.CALM,
-                2,
-                createdAt,
-                createdAt,
-                Instant.now().plusSeconds(editableUntilAtOffsetSeconds)
-        );
+    private static Instant utc(LocalDate date, int hour, int minute) {
+        return date.atTime(hour, minute).toInstant(ZoneOffset.UTC);
+    }
+
+    private static Instant inFuture(long offsetSeconds) {
+        return Instant.now().plusSeconds(offsetSeconds);
     }
 }
