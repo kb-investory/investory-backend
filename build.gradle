@@ -3,7 +3,7 @@ plugins {
     id 'war'
 }
 
-group 'com.kbinvestory'
+group 'com.investory'
 version '1.0-SNAPSHOT'
 
 repositories {
