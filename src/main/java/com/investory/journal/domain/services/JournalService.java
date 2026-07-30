@@ -51,7 +51,7 @@ public class JournalService {
             throw new JournalException(JournalErrorCode.INVALID_DATE_RANGE);
         }
 
-        List<Journal> journals = journalRepository.findByUserAndDateRange(query);
+        List<Journal> journals = journalRepository.findByUserAndDateRange(query.userId(), query.startDate(), query.endDate());
         Map<LocalDate, Integer> tradeCountsByDate = tradeLedgerPort
                 .countTradesByDateRange(query.userId(), query.startDate(), query.endDate())
                 .stream()
@@ -64,7 +64,7 @@ public class JournalService {
     }
 
     public JournalDetailResult getDetail(GetJournalDetailQuery query) {
-        Optional<Journal> journal = journalRepository.findByUserAndDate(query);
+        Optional<Journal> journal = journalRepository.findByUserAndDate(query.userId(), query.date());
         List<TradeInfo> trades = tradeLedgerPort.findTradesOn(query.userId(), query.date());
 
         Map<Long, SecurityInfo> securitiesBySecurityId;

@@ -1,7 +1,5 @@
 package com.investory.journal.infra.repository_impls;
 
-import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
-import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
 import com.investory.journal.infra.entities.JournalRow;
 import com.investory.journal.infra.exception.JournalInfraException;
 import com.investory.journal.infra.mappers.JournalMapper;
@@ -22,7 +20,7 @@ class JournalRepositoryImplTest {
         JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
 
         JournalInfraException exception = assertThrows(JournalInfraException.class,
-                () -> repository.findByUserAndDateRange(new GetJournalEntriesQuery(1L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31))));
+                () -> repository.findByUserAndDateRange(1L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
 
         assertSame(cause, exception.getCause());
     }
@@ -33,7 +31,7 @@ class JournalRepositoryImplTest {
         JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
 
         JournalInfraException exception = assertThrows(JournalInfraException.class,
-                () -> repository.findByUserAndDate(new GetJournalDetailQuery(1L, LocalDate.of(2026, 7, 1))));
+                () -> repository.findByUserAndDate(1L, LocalDate.of(2026, 7, 1)));
 
         assertSame(cause, exception.getCause());
     }
@@ -46,12 +44,12 @@ class JournalRepositoryImplTest {
         }
 
         @Override
-        public List<JournalRow> findByUserAndDateRange(GetJournalEntriesQuery query) {
+        public List<JournalRow> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
             throw toThrow;
         }
 
         @Override
-        public List<JournalRow> findByUserAndDate(GetJournalDetailQuery query) {
+        public List<JournalRow> findByUserAndDate(Long userId, LocalDate date) {
             throw toThrow;
         }
     }

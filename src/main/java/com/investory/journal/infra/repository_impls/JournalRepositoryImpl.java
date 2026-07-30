@@ -2,14 +2,13 @@ package com.investory.journal.infra.repository_impls;
 
 import com.investory.journal.domain.models.Journal;
 import com.investory.journal.domain.repositories.JournalRepository;
-import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
-import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
 import com.investory.journal.infra.entities.JournalRow;
 import com.investory.journal.infra.exception.JournalInfraException;
 import com.investory.journal.infra.mappers.JournalMapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -24,9 +23,9 @@ public class JournalRepositoryImpl implements JournalRepository {
     }
 
     @Override
-    public List<Journal> findByUserAndDateRange(GetJournalEntriesQuery query) {
+    public List<Journal> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
         try {
-            return journalMapper.findByUserAndDateRange(query).stream()
+            return journalMapper.findByUserAndDateRange(userId, startDate, endDate).stream()
                     .map(JournalRow::toDomain)
                     .collect(Collectors.toList());
         } catch (DataAccessException e) {
@@ -35,9 +34,9 @@ public class JournalRepositoryImpl implements JournalRepository {
     }
 
     @Override
-    public Optional<Journal> findByUserAndDate(GetJournalDetailQuery query) {
+    public Optional<Journal> findByUserAndDate(Long userId, LocalDate date) {
         try {
-            return journalMapper.findByUserAndDate(query).stream()
+            return journalMapper.findByUserAndDate(userId, date).stream()
                     .map(JournalRow::toDomain)
                     .findFirst();
         } catch (DataAccessException e) {

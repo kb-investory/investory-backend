@@ -1,9 +1,8 @@
 package com.investory.journal.domain.repositories;
 
 import com.investory.journal.domain.models.Journal;
-import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
-import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -18,17 +17,17 @@ public class FakeJournalRepository implements JournalRepository {
     }
 
     @Override
-    public List<Journal> findByUserAndDateRange(GetJournalEntriesQuery query) {
+    public List<Journal> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
         return journals.stream()
-                .filter(journal -> !journal.getJournalDate().isBefore(query.startDate())
-                        && !journal.getJournalDate().isAfter(query.endDate()))
+                .filter(journal -> !journal.getJournalDate().isBefore(startDate)
+                        && !journal.getJournalDate().isAfter(endDate))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Optional<Journal> findByUserAndDate(GetJournalDetailQuery query) {
+    public Optional<Journal> findByUserAndDate(Long userId, LocalDate date) {
         return journals.stream()
-                .filter(journal -> journal.getJournalDate().isEqual(query.date()))
+                .filter(journal -> journal.getJournalDate().isEqual(date))
                 .findFirst();
     }
 }
