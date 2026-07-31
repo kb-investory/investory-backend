@@ -48,6 +48,17 @@ public class JournalRepositoryImpl implements JournalRepository {
     }
 
     @Override
+    public Optional<Journal> findById(Long journalId) {
+        try {
+            return journalMapper.findById(journalId).stream()
+                    .map(JournalRow::toDomain)
+                    .findFirst();
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("투자일지를 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
     public Journal save(Journal journal) {
         JournalRow row = JournalRow.from(journal);
         try {

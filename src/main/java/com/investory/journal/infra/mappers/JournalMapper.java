@@ -15,5 +15,7 @@ public interface JournalMapper {
 
     List<JournalRow> findByUserAndDate(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+    List<JournalRow> findById(@Param("journalId") Long journalId);
+
     void insert(JournalRow row);
 }

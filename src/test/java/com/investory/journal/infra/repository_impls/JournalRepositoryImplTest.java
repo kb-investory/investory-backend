@@ -44,6 +44,17 @@ class JournalRepositoryImplTest {
     }
 
     @Test
+    void findById_DB_예외는_JournalInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
+
+        JournalInfraException exception = assertThrows(JournalInfraException.class,
+                () -> repository.findById(305L));
+
+        assertSame(cause, exception.getCause());
+    }
+
+    @Test
     void save_DB_예외는_JournalInfraException으로_변환된다() {
         DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
         JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
@@ -84,6 +95,11 @@ class JournalRepositoryImplTest {
 
         @Override
         public List<JournalRow> findByUserAndDate(Long userId, LocalDate date) {
+            throw toThrow;
+        }
+
+        @Override
+        public List<JournalRow> findById(Long journalId) {
             throw toThrow;
         }
 

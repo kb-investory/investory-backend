@@ -15,6 +15,7 @@ import com.investory.journal.domain.repositories.FakeJournalRepository;
 import com.investory.journal.domain.repositories.FakeJournalTradeNoteRepository;
 import com.investory.journal.domain.services.dto.command.CreateJournalCommand;
 import com.investory.journal.domain.services.dto.command.TradeNoteCommand;
+import com.investory.journal.domain.services.dto.query.GetJournalByIdQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
 import com.investory.journal.domain.services.dto.result.CreateJournalResult;
@@ -200,6 +201,38 @@ class JournalServiceTest {
                 () -> journalService.getDetail(new GetJournalDetailQuery(USER_ID, date)));
 
         assertEquals(JournalErrorCode.SECURITY_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void journalId로_본인_소유_일지를_조회하면_canCreate는_항상_false다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        journalRepository.add(JournalFixture.journal(305L, USER_ID, journalDate, utc(journalDate, 18, 20), inFuture(3600)));
+
+        JournalDetailResult result = journalService.getByJournalId(new GetJournalByIdQuery(USER_ID, 305L));
+
+        assertFalse(result.canCreate());
+        assertEquals(305L, result.journal().journalId());
+        assertEquals("시장에 대한 생각", result.journal().marketThought());
+    }
+
+    @Test
+    void 존재하지_않는_journalId면_JOURNAL_NOT_FOUND_예외를_던진다() {
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.getByJournalId(new GetJournalByIdQuery(USER_ID, 999L)));
+
+        assertEquals(JournalErrorCode.JOURNAL_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 타인_소유_journalId면_JOURNAL_NOT_FOUND_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        Long otherUserId = 200L;
+        journalRepository.add(JournalFixture.journal(305L, otherUserId, journalDate, utc(journalDate, 18, 20), inFuture(3600)));
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.getByJournalId(new GetJournalByIdQuery(USER_ID, 305L)));
+
+        assertEquals(JournalErrorCode.JOURNAL_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test

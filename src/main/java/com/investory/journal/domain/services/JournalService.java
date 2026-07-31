@@ -13,6 +13,7 @@ import com.investory.journal.domain.repositories.JournalRepository;
 import com.investory.journal.domain.repositories.JournalTradeNoteRepository;
 import com.investory.journal.domain.services.dto.command.CreateJournalCommand;
 import com.investory.journal.domain.services.dto.command.TradeNoteCommand;
+import com.investory.journal.domain.services.dto.query.GetJournalByIdQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
 import com.investory.journal.domain.services.dto.result.CreateJournalResult;
@@ -71,7 +72,18 @@ public class JournalService {
 
     public JournalDetailResult getDetail(GetJournalDetailQuery query) {
         Optional<Journal> journal = journalRepository.findByUserAndDate(query.userId(), query.date());
-        List<TradeInfo> trades = tradeLedgerPort.findTradesOn(query.userId(), query.date());
+        return buildDetailResult(query.userId(), query.date(), journal);
+    }
+
+    public JournalDetailResult getByJournalId(GetJournalByIdQuery query) {
+        Journal journal = journalRepository.findById(query.journalId())
+                .filter(j -> j.getUserId().equals(query.userId()))
+                .orElseThrow(() -> new JournalException(JournalErrorCode.JOURNAL_NOT_FOUND));
+        return buildDetailResult(query.userId(), journal.getJournalDate(), Optional.of(journal));
+    }
+
+    private JournalDetailResult buildDetailResult(Long userId, LocalDate journalDate, Optional<Journal> journal) {
+        List<TradeInfo> trades = tradeLedgerPort.findTradesOn(userId, journalDate);
 
         Map<Long, SecurityInfo> securitiesBySecurityId;
         Map<Long, JournalTradeNote> notesByTradeId;
@@ -98,10 +110,10 @@ public class JournalService {
                 .collect(Collectors.toList());
 
         Instant now = Instant.now();
-        boolean canCreate = journal.isEmpty() && !query.date().isAfter(LocalDate.ofInstant(now, ZoneOffset.UTC));
+        boolean canCreate = journal.isEmpty() && !journalDate.isAfter(LocalDate.ofInstant(now, ZoneOffset.UTC));
         JournalInfoResult journalInfo = journal.map(j -> JournalInfoResult.from(j, now)).orElse(null);
 
-        return new JournalDetailResult(query.date(), canCreate, journalInfo, tradeResults);
+        return new JournalDetailResult(journalDate, canCreate, journalInfo, tradeResults);
     }
 
     // journal 저장과 journal_trade_notes 저장을 하나의 트랜잭션으로 묶는다 — 하나라도 실패하면 전체 롤백.

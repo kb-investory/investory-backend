@@ -51,6 +51,23 @@
         GROUP BY ij.journal_id, ij.user_id, ij.journal_date, ij.market_thought, ij.market_mood, ij.created_at, ij.updated_at, ij.editable_until_at
     </select>
 
+    <select id="findById" resultMap="journalRowResultMap">
+        SELECT
+            ij.journal_id,
+            ij.user_id,
+            ij.journal_date,
+            ij.market_thought,
+            ij.market_mood,
+            ij.created_at,
+            ij.updated_at,
+            ij.editable_until_at,
+            COUNT(jtn.journal_trade_note_id) AS trade_note_count
+        FROM investment_journals ij
+        LEFT JOIN journal_trade_notes jtn ON jtn.journal_id = ij.journal_id
+        WHERE ij.journal_id = #{journalId}
+        GROUP BY ij.journal_id, ij.user_id, ij.journal_date, ij.market_thought, ij.market_mood, ij.created_at, ij.updated_at, ij.editable_until_at
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="journalId">
         INSERT INTO investment_journals
             (user_id, journal_date, market_thought, market_mood, created_at, updated_at, editable_until_at)
