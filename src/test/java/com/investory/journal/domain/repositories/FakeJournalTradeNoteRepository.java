@@ -23,4 +23,13 @@ public class FakeJournalTradeNoteRepository implements JournalTradeNoteRepositor
                 .filter(note -> tradeIds.contains(note.getTradeId()))
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public void saveAll(List<JournalTradeNote> notes) {
+        this.notes.addAll(notes);
+    }
+
+    public List<JournalTradeNote> getSaved() {
+        return List.copyOf(notes);
+    }
 }

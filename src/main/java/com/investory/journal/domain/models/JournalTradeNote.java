@@ -18,7 +18,6 @@ public class JournalTradeNote {
 
     private JournalTradeNote(Long journalTradeNoteId, Long journalId, Long tradeId,
                               String rationaleText, Instant createdAt, Instant updatedAt) {
-        requireNonNull(journalTradeNoteId);
         requireNonNull(journalId);
         requireNonNull(tradeId);
         requireNonNull(rationaleText);
@@ -37,6 +36,12 @@ public class JournalTradeNote {
         if (value == null) {
             throw new JournalException(JournalErrorCode.INVALID_JOURNAL_DATA);
         }
+    }
+
+    // 신규 저장: journalTradeNoteId는 아직 없고(DB가 생성), createdAt/updatedAt은 저장 시점.
+    public static JournalTradeNote create(Long journalId, Long tradeId, String rationaleText) {
+        Instant now = Instant.now();
+        return new JournalTradeNote(null, journalId, tradeId, rationaleText, now, now);
     }
 
     // 영속화된 데이터로부터 복원 (매퍼 등에서 사용)

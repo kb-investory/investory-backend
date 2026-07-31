@@ -14,6 +14,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 public class JournalRow {
     private Long journalId;
+    private Long userId;
     private LocalDate journalDate;
     private String marketThought;
     private MarketMood marketMood;
@@ -23,6 +24,20 @@ public class JournalRow {
     private Instant editableUntilAt;
 
     public Journal toDomain() {
-        return Journal.of(journalId, journalDate, marketThought, marketMood, tradeNoteCount, createdAt, updatedAt, editableUntilAt);
+        return Journal.of(journalId, userId, journalDate, marketThought, marketMood, tradeNoteCount, createdAt, updatedAt, editableUntilAt);
+    }
+
+    public static JournalRow from(Journal journal) {
+        JournalRow row = new JournalRow();
+        row.journalId = journal.getJournalId();
+        row.userId = journal.getUserId();
+        row.journalDate = journal.getJournalDate();
+        row.marketThought = journal.getMarketThought();
+        row.marketMood = journal.getMarketMood();
+        row.tradeNoteCount = journal.getTradeNoteCount();
+        row.createdAt = journal.getCreatedAt();
+        row.updatedAt = journal.getUpdatedAt();
+        row.editableUntilAt = journal.getEditableUntilAt();
+        return row;
     }
 }

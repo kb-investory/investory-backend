@@ -11,8 +11,11 @@ import com.investory.journal.domain.ports.dto.TradeCountInfo;
 import com.investory.journal.domain.ports.dto.TradeInfo;
 import com.investory.journal.domain.repositories.JournalRepository;
 import com.investory.journal.domain.repositories.JournalTradeNoteRepository;
+import com.investory.journal.domain.services.dto.command.CreateJournalCommand;
+import com.investory.journal.domain.services.dto.command.TradeNoteCommand;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
+import com.investory.journal.domain.services.dto.result.CreateJournalResult;
 import com.investory.journal.domain.services.dto.result.JournalDetailResult;
 import com.investory.journal.domain.services.dto.result.JournalEntryResult;
 import com.investory.journal.domain.services.dto.result.JournalInfoResult;
@@ -23,9 +26,11 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -59,7 +64,7 @@ public class JournalService {
 
         Instant now = Instant.now();
         return journals.stream()
-                .map(journal -> toResult(journal, tradeCountsByDate, now))
+                .map(journal -> JournalEntryResult.from(journal, tradeCountsByDate.getOrDefault(journal.getJournalDate(), 0), now))
                 .collect(Collectors.toList());
     }
 
@@ -93,9 +98,65 @@ public class JournalService {
 
         Instant now = Instant.now();
         boolean canCreate = journal.isEmpty() && !query.date().isAfter(LocalDate.ofInstant(now, ZoneOffset.UTC));
-        JournalInfoResult journalInfo = journal.map(j -> toJournalInfoResult(j, now)).orElse(null);
+        JournalInfoResult journalInfo = journal.map(j -> JournalInfoResult.from(j, now)).orElse(null);
 
         return new JournalDetailResult(query.date(), canCreate, journalInfo, tradeResults);
+    }
+
+    // TODO: 코드베이스 전체에 @EnableTransactionManagement가 켜져 있지 않아(global/database/DatabaseConfig.java,
+    // 공유 영역이라 이번 작업 범위에서 손대지 않음) @Transactional을 붙여도 무시된다. 그래서 journal 저장과
+    // journal_trade_notes 저장이 원자적이지 않다 — 아래에서 두 저장 이전에 모든 비즈니스 검증을 끝내두어
+    // (미래 날짜, 중복 일지, 요청 내 중복 tradeId, tradeId 소유권/날짜 불일치) 실제로 원자성이 깨질 수 있는
+    // 경우를 "검증을 통과한 데이터인데 두 번째 INSERT 시점에 DB 연결이 끊기는" 것 같은 순수 인프라 장애로
+    // 최대한 좁혀뒀다. @EnableTransactionManagement가 추가되면 이 메서드 전체를 @Transactional로 감쌀 것.
+    public CreateJournalResult save(CreateJournalCommand command) {
+        if (command.journalDate().isAfter(LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC))) {
+            throw new JournalException(JournalErrorCode.FUTURE_DATE_NOT_ALLOWED);
+        }
+        if (journalRepository.findByUserAndDate(command.userId(), command.journalDate()).isPresent()) {
+            throw new JournalException(JournalErrorCode.JOURNAL_ALREADY_EXISTS);
+        }
+
+        List<TradeNoteCommand> tradeNotes = command.tradeNotes() == null ? List.of() : command.tradeNotes();
+        validateNoDuplicateTradeIds(tradeNotes);
+        if (!tradeNotes.isEmpty()) {
+            validateTradesBelongToUserAndDate(command.userId(), command.journalDate(), tradeNotes);
+        }
+
+        Journal journal = Journal.create(command.userId(), command.journalDate(), command.marketThought(), command.marketMood());
+        Journal saved = journalRepository.save(journal);
+
+        if (!tradeNotes.isEmpty()) {
+            List<JournalTradeNote> notes = tradeNotes.stream()
+                    .map(tradeNote -> JournalTradeNote.create(saved.getJournalId(), tradeNote.tradeId(), tradeNote.rationaleText()))
+                    .collect(Collectors.toList());
+            journalTradeNoteRepository.saveAll(notes);
+        }
+
+        return new CreateJournalResult(saved.getJournalId(), saved.getCreatedAt());
+    }
+
+    private void validateNoDuplicateTradeIds(List<TradeNoteCommand> tradeNotes) {
+        Set<Long> seen = new HashSet<>();
+        for (TradeNoteCommand tradeNote : tradeNotes) {
+            if (!seen.add(tradeNote.tradeId())) {
+                throw new JournalException(JournalErrorCode.DUPLICATE_TRADE_ID);
+            }
+        }
+    }
+
+    // "로그인 사용자의 거래여야 함"과 "거래 날짜가 journalDate와 같아야 함"을 하나로 합쳐서 검증한다.
+    // findTradesOn(userId, journalDate) 결과에 없는 tradeId는 남의 거래든 날짜가 다른 거래든 이 호출
+    // 하나로는 구별할 수 없어서, 둘 다 TRADE_DATE_MISMATCH로 처리한다.
+    private void validateTradesBelongToUserAndDate(Long userId, LocalDate journalDate, List<TradeNoteCommand> tradeNotes) {
+        Set<Long> validTradeIds = tradeLedgerPort.findTradesOn(userId, journalDate).stream()
+                .map(TradeInfo::tradeId)
+                .collect(Collectors.toSet());
+        for (TradeNoteCommand tradeNote : tradeNotes) {
+            if (!validTradeIds.contains(tradeNote.tradeId())) {
+                throw new JournalException(JournalErrorCode.TRADE_DATE_MISMATCH);
+            }
+        }
     }
 
     private TradeDetailResult toTradeDetailResult(TradeInfo trade,
@@ -104,62 +165,9 @@ public class JournalService {
         SecurityInfo security = Optional.ofNullable(securitiesBySecurityId.get(trade.securityId()))
                 .orElseThrow(() -> new JournalException(JournalErrorCode.SECURITY_NOT_FOUND));
         TradeNoteResult note = Optional.ofNullable(notesByTradeId.get(trade.tradeId()))
-                .map(this::toTradeNoteResult)
+                .map(TradeNoteResult::from)
                 .orElse(null);
 
-        return new TradeDetailResult(
-                trade.tradeId(),
-                trade.securityId(),
-                security.securityCode(),
-                security.securityName(),
-                trade.tradeSide(),
-                trade.quantity(),
-                trade.unitPrice(),
-                trade.tradedAt(),
-                note
-        );
-    }
-
-    private TradeNoteResult toTradeNoteResult(JournalTradeNote note) {
-        return new TradeNoteResult(
-                note.getJournalTradeNoteId(),
-                note.getRationaleText(),
-                note.getCreatedAt(),
-                note.getUpdatedAt()
-        );
-    }
-
-    private JournalInfoResult toJournalInfoResult(Journal journal, Instant now) {
-        boolean isBackfilled = LocalDate.ofInstant(journal.getCreatedAt(), ZoneOffset.UTC).isAfter(journal.getJournalDate());
-        boolean isEditable = now.isBefore(journal.getEditableUntilAt());
-
-        return new JournalInfoResult(
-                journal.getJournalId(),
-                journal.getMarketThought(),
-                journal.getMarketMood(),
-                journal.getCreatedAt(),
-                journal.getUpdatedAt(),
-                journal.getEditableUntilAt(),
-                isBackfilled,
-                isEditable
-        );
-    }
-
-    private JournalEntryResult toResult(Journal journal, Map<LocalDate, Integer> tradeCountsByDate, Instant now) {
-        int tradeCount = tradeCountsByDate.getOrDefault(journal.getJournalDate(), 0);
-        boolean isBackfilled = LocalDate.ofInstant(journal.getCreatedAt(), ZoneOffset.UTC).isAfter(journal.getJournalDate());
-        boolean isEditable = now.isBefore(journal.getEditableUntilAt());
-
-        return new JournalEntryResult(
-                journal.getJournalId(),
-                journal.getJournalDate(),
-                journal.getMarketMood(),
-                tradeCount,
-                journal.getTradeNoteCount(),
-                journal.getCreatedAt(),
-                journal.getEditableUntilAt(),
-                isBackfilled,
-                isEditable
-        );
+        return TradeDetailResult.from(trade, security, note);
     }
 }

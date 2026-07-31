@@ -21,4 +21,15 @@ public class JournalTradeNoteRow {
     public JournalTradeNote toDomain() {
         return JournalTradeNote.of(journalTradeNoteId, journalId, tradeId, rationaleText, createdAt, updatedAt);
     }
+
+    public static JournalTradeNoteRow from(JournalTradeNote note) {
+        JournalTradeNoteRow row = new JournalTradeNoteRow();
+        row.journalTradeNoteId = note.getJournalTradeNoteId();
+        row.journalId = note.getJournalId();
+        row.tradeId = note.getTradeId();
+        row.rationaleText = note.getRationaleText();
+        row.createdAt = note.getCreatedAt();
+        row.updatedAt = note.getUpdatedAt();
+        return row;
+    }
 }

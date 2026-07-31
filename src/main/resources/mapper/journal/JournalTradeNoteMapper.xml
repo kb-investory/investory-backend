@@ -26,4 +26,13 @@
         </foreach>
     </select>
 
+    <insert id="insertAll">
+        INSERT INTO journal_trade_notes
+            (journal_id, trade_id, rationale_text, created_at, updated_at)
+        VALUES
+        <foreach collection="notes" item="row" separator=",">
+            (#{row.journalId}, #{row.tradeId}, #{row.rationaleText}, #{row.createdAt}, #{row.updatedAt})
+        </foreach>
+    </insert>
+
 </mapper>

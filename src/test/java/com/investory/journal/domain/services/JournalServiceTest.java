@@ -1,5 +1,6 @@
 package com.investory.journal.domain.services;
 
+import com.investory.journal.domain.constant.MarketMood;
 import com.investory.journal.domain.constant.TradeSide;
 import com.investory.journal.domain.exception.JournalErrorCode;
 import com.investory.journal.domain.exception.JournalException;
@@ -12,8 +13,11 @@ import com.investory.journal.domain.ports.dto.TradeCountInfo;
 import com.investory.journal.domain.ports.dto.TradeInfoFixture;
 import com.investory.journal.domain.repositories.FakeJournalRepository;
 import com.investory.journal.domain.repositories.FakeJournalTradeNoteRepository;
+import com.investory.journal.domain.services.dto.command.CreateJournalCommand;
+import com.investory.journal.domain.services.dto.command.TradeNoteCommand;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
+import com.investory.journal.domain.services.dto.result.CreateJournalResult;
 import com.investory.journal.domain.services.dto.result.JournalDetailResult;
 import com.investory.journal.domain.services.dto.result.JournalEntryResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +30,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -195,6 +200,75 @@ class JournalServiceTest {
                 () -> journalService.getDetail(new GetJournalDetailQuery(USER_ID, date)));
 
         assertEquals(JournalErrorCode.SECURITY_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 정상_저장하면_journalId와_createdAt을_반환한다() {
+        LocalDate journalDate = LocalDate.of(2020, 1, 1);
+
+        CreateJournalResult result = journalService.save(new CreateJournalCommand(
+                USER_ID, journalDate, "시장에 대한 생각", MarketMood.CAUTIOUS, List.of()));
+
+        assertNotNull(result.journalId());
+        assertNotNull(result.createdAt());
+    }
+
+    @Test
+    void tradeNotes와_함께_저장하면_journal_trade_note도_함께_저장된다() {
+        LocalDate journalDate = LocalDate.of(2020, 1, 1);
+        tradeLedgerPort.add(TradeInfoFixture.trade(501L, 101L, TradeSide.BUY, utc(journalDate, 10, 0)));
+
+        CreateJournalResult result = journalService.save(new CreateJournalCommand(
+                USER_ID, journalDate, "시장에 대한 생각", MarketMood.CAUTIOUS,
+                List.of(new TradeNoteCommand(501L, "판단 근거"))));
+
+        assertEquals(1, journalTradeNoteRepository.getSaved().size());
+        assertEquals(result.journalId(), journalTradeNoteRepository.getSaved().get(0).getJournalId());
+        assertEquals(501L, journalTradeNoteRepository.getSaved().get(0).getTradeId());
+    }
+
+    @Test
+    void 미래_날짜면_예외를_던진다() {
+        LocalDate futureDate = LocalDate.of(2099, 1, 1);
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.save(new CreateJournalCommand(USER_ID, futureDate, "생각", null, List.of())));
+
+        assertEquals(JournalErrorCode.FUTURE_DATE_NOT_ALLOWED, exception.getErrorCode());
+    }
+
+    @Test
+    void 동일_날짜에_이미_일지가_있으면_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2020, 1, 1);
+        journalRepository.add(JournalFixture.journal(journalDate, utc(journalDate, 10, 0), inFuture(3600)));
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.save(new CreateJournalCommand(USER_ID, journalDate, "생각", null, List.of())));
+
+        assertEquals(JournalErrorCode.JOURNAL_ALREADY_EXISTS, exception.getErrorCode());
+    }
+
+    @Test
+    void 요청_내_tradeId가_중복되면_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2020, 1, 1);
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.save(new CreateJournalCommand(USER_ID, journalDate, "생각", null,
+                        List.of(new TradeNoteCommand(501L, "근거1"), new TradeNoteCommand(501L, "근거2")))));
+
+        assertEquals(JournalErrorCode.DUPLICATE_TRADE_ID, exception.getErrorCode());
+    }
+
+    @Test
+    void tradeId가_사용자_거래_목록에_없으면_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2020, 1, 1);
+        // tradeLedgerPort에 아무 거래도 등록하지 않음 — 소유권/날짜 검증 실패로 취급
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.save(new CreateJournalCommand(USER_ID, journalDate, "생각", null,
+                        List.of(new TradeNoteCommand(999L, "근거")))));
+
+        assertEquals(JournalErrorCode.TRADE_DATE_MISMATCH, exception.getErrorCode());
     }
 
     private List<JournalEntryResult> getEntries(LocalDate startDate, LocalDate endDate) {

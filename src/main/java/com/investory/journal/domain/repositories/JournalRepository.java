@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface JournalRepository {
     List<Journal> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate);
     Optional<Journal> findByUserAndDate(Long userId, LocalDate date);
+    Journal save(Journal journal);
 }

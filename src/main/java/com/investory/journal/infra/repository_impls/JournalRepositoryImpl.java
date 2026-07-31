@@ -1,11 +1,14 @@
 package com.investory.journal.infra.repository_impls;
 
+import com.investory.journal.domain.exception.JournalErrorCode;
+import com.investory.journal.domain.exception.JournalException;
 import com.investory.journal.domain.models.Journal;
 import com.investory.journal.domain.repositories.JournalRepository;
 import com.investory.journal.infra.entities.JournalRow;
 import com.investory.journal.infra.exception.JournalInfraException;
 import com.investory.journal.infra.mappers.JournalMapper;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -42,5 +45,19 @@ public class JournalRepositoryImpl implements JournalRepository {
         } catch (DataAccessException e) {
             throw new JournalInfraException("특정 날짜의 투자일지를 조회하는 중 오류가 발생했습니다.", e);
         }
+    }
+
+    @Override
+    public Journal save(Journal journal) {
+        JournalRow row = JournalRow.from(journal);
+        try {
+            journalMapper.insert(row);
+        } catch (DuplicateKeyException e) {
+            // 사전에 findByUserAndDate로 확인하지만 check-then-act라 동시 요청 레이스가 가능함 — 안전망.
+            throw new JournalException(JournalErrorCode.JOURNAL_ALREADY_EXISTS);
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("투자일지를 저장하는 중 오류가 발생했습니다.", e);
+        }
+        return row.toDomain();
     }
 }

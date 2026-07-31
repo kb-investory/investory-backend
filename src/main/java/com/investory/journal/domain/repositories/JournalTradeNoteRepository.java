@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface JournalTradeNoteRepository {
     List<JournalTradeNote> findByTradeIds(List<Long> tradeIds);
+    void saveAll(List<JournalTradeNote> notes);
 }

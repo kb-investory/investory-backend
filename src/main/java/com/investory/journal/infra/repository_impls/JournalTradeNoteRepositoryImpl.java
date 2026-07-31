@@ -34,4 +34,20 @@ public class JournalTradeNoteRepositoryImpl implements JournalTradeNoteRepositor
             throw new JournalInfraException("거래 판단 근거를 조회하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public void saveAll(List<JournalTradeNote> notes) {
+        // 빈 리스트로 INSERT ... VALUES <foreach>를 만들면 SQL 문법 오류가 나므로 매퍼 호출 전에 막는다.
+        if (notes.isEmpty()) {
+            return;
+        }
+        List<JournalTradeNoteRow> rows = notes.stream()
+                .map(JournalTradeNoteRow::from)
+                .collect(Collectors.toList());
+        try {
+            journalTradeNoteMapper.insertAll(rows);
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("거래 판단 근거를 저장하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }
