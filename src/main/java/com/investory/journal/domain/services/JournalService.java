@@ -22,6 +22,7 @@ import com.investory.journal.domain.services.dto.result.JournalInfoResult;
 import com.investory.journal.domain.services.dto.result.TradeDetailResult;
 import com.investory.journal.domain.services.dto.result.TradeNoteResult;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -103,12 +104,8 @@ public class JournalService {
         return new JournalDetailResult(query.date(), canCreate, journalInfo, tradeResults);
     }
 
-    // TODO: 코드베이스 전체에 @EnableTransactionManagement가 켜져 있지 않아(global/database/DatabaseConfig.java,
-    // 공유 영역이라 이번 작업 범위에서 손대지 않음) @Transactional을 붙여도 무시된다. 그래서 journal 저장과
-    // journal_trade_notes 저장이 원자적이지 않다 — 아래에서 두 저장 이전에 모든 비즈니스 검증을 끝내두어
-    // (미래 날짜, 중복 일지, 요청 내 중복 tradeId, tradeId 소유권/날짜 불일치) 실제로 원자성이 깨질 수 있는
-    // 경우를 "검증을 통과한 데이터인데 두 번째 INSERT 시점에 DB 연결이 끊기는" 것 같은 순수 인프라 장애로
-    // 최대한 좁혀뒀다. @EnableTransactionManagement가 추가되면 이 메서드 전체를 @Transactional로 감쌀 것.
+    // journal 저장과 journal_trade_notes 저장을 하나의 트랜잭션으로 묶는다 — 하나라도 실패하면 전체 롤백.
+    @Transactional
     public CreateJournalResult save(CreateJournalCommand command) {
         if (command.journalDate().isAfter(LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC))) {
             throw new JournalException(JournalErrorCode.FUTURE_DATE_NOT_ALLOWED);
