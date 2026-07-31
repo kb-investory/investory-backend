@@ -82,4 +82,10 @@ public class Journal {
     public boolean isEditable(Instant now) {
         return now.isBefore(editableUntilAt);
     }
+
+    // 본문 수정: updatedAt만 새로 찍고 journalId/journalDate/createdAt/editableUntilAt은 그대로 유지.
+    public Journal update(String marketThought, MarketMood marketMood) {
+        return new Journal(journalId, userId, journalDate, marketThought, marketMood,
+                tradeNoteCount, createdAt, Instant.now(), editableUntilAt);
+    }
 }

@@ -75,4 +75,12 @@
             (#{userId}, #{journalDate}, #{marketThought}, #{marketMood}, #{createdAt}, #{updatedAt}, #{editableUntilAt})
     </insert>
 
+    <update id="update">
+        UPDATE investment_journals
+        SET market_thought = #{marketThought},
+            market_mood = #{marketMood},
+            updated_at = #{updatedAt}
+        WHERE journal_id = #{journalId}
+    </update>
+
 </mapper>

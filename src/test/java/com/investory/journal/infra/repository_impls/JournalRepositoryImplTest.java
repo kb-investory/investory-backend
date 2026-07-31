@@ -76,6 +76,17 @@ class JournalRepositoryImplTest {
         assertEquals(JournalErrorCode.JOURNAL_ALREADY_EXISTS, exception.getErrorCode());
     }
 
+    @Test
+    void update_DB_예외는_JournalInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
+
+        JournalInfraException exception = assertThrows(JournalInfraException.class,
+                () -> repository.update(sampleJournal()));
+
+        assertSame(cause, exception.getCause());
+    }
+
     private Journal sampleJournal() {
         LocalDate journalDate = LocalDate.of(2026, 7, 10);
         return JournalFixture.journal(journalDate, Instant.now(), Instant.now().plusSeconds(3600));
@@ -105,6 +116,11 @@ class JournalRepositoryImplTest {
 
         @Override
         public void insert(JournalRow row) {
+            throw toThrow;
+        }
+
+        @Override
+        public void update(JournalRow row) {
             throw toThrow;
         }
     }

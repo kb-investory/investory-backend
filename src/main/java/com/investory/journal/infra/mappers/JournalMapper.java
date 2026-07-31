@@ -18,4 +18,6 @@ public interface JournalMapper {
     List<JournalRow> findById(@Param("journalId") Long journalId);
 
     void insert(JournalRow row);
+
+    void update(JournalRow row);
 }

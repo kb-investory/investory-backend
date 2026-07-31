@@ -55,4 +55,10 @@ public class FakeJournalRepository implements JournalRepository {
         journals.add(saved);
         return saved;
     }
+
+    @Override
+    public void update(Journal journal) {
+        journals.removeIf(existing -> existing.getJournalId().equals(journal.getJournalId()));
+        journals.add(journal);
+    }
 }

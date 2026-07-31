@@ -16,12 +16,14 @@ import com.investory.journal.domain.services.dto.command.TradeNoteCommand;
 import com.investory.journal.domain.services.dto.query.GetJournalByIdQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
+import com.investory.journal.domain.services.dto.command.UpdateJournalCommand;
 import com.investory.journal.domain.services.dto.result.CreateJournalResult;
 import com.investory.journal.domain.services.dto.result.JournalDetailResult;
 import com.investory.journal.domain.services.dto.result.JournalEntryResult;
 import com.investory.journal.domain.services.dto.result.JournalInfoResult;
 import com.investory.journal.domain.services.dto.result.TradeDetailResult;
 import com.investory.journal.domain.services.dto.result.TradeNoteResult;
+import com.investory.journal.domain.services.dto.result.UpdateJournalResult;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -143,6 +145,46 @@ public class JournalService {
         }
 
         return new CreateJournalResult(saved.getJournalId(), saved.getCreatedAt());
+    }
+
+    // journal 수정과 journal_trade_notes 반영(upsert+삭제)을 하나의 트랜잭션으로 묶는다.
+    @Transactional
+    public UpdateJournalResult update(UpdateJournalCommand command) {
+        Journal journal = journalRepository.findById(command.journalId())
+                .filter(j -> j.getUserId().equals(command.userId()))
+                .orElseThrow(() -> new JournalException(JournalErrorCode.JOURNAL_NOT_FOUND));
+
+        if (!journal.isEditable(Instant.now())) {
+            throw new JournalException(JournalErrorCode.JOURNAL_NOT_EDITABLE);
+        }
+
+        List<TradeNoteCommand> tradeNotes = command.tradeNotes() == null ? List.of() : command.tradeNotes();
+        validateNoDuplicateTradeIds(tradeNotes);
+        if (!tradeNotes.isEmpty()) {
+            validateTradesBelongToUserAndDate(command.userId(), journal.getJournalDate(), tradeNotes);
+        }
+
+        Journal updated = journal.update(command.marketThought(), command.marketMood());
+        journalRepository.update(updated);
+
+        List<JournalTradeNote> currentNotes = journalTradeNoteRepository.findByJournalId(command.journalId());
+        Set<Long> requestedTradeIds = tradeNotes.stream().map(TradeNoteCommand::tradeId).collect(Collectors.toSet());
+        List<Long> tradeIdsToDelete = currentNotes.stream()
+                .map(JournalTradeNote::getTradeId)
+                .filter(tradeId -> !requestedTradeIds.contains(tradeId))
+                .collect(Collectors.toList());
+        if (!tradeIdsToDelete.isEmpty()) {
+            journalTradeNoteRepository.deleteByTradeIds(tradeIdsToDelete);
+        }
+
+        if (!tradeNotes.isEmpty()) {
+            List<JournalTradeNote> notesToSave = tradeNotes.stream()
+                    .map(tradeNote -> JournalTradeNote.create(command.journalId(), tradeNote.tradeId(), tradeNote.rationaleText()))
+                    .collect(Collectors.toList());
+            journalTradeNoteRepository.saveAll(notesToSave); // upsert — 있으면 갱신, 없으면 생성
+        }
+
+        return new UpdateJournalResult(updated.getJournalId(), updated.getUpdatedAt());
     }
 
     private void validateNoDuplicateTradeIds(List<TradeNoteCommand> tradeNotes) {

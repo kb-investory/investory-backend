@@ -37,6 +37,17 @@ class JournalTradeNoteRepositoryImplTest {
     }
 
     @Test
+    void findByJournalId_DB_예외는_JournalInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        JournalTradeNoteRepositoryImpl repository = new JournalTradeNoteRepositoryImpl(new FailingJournalTradeNoteMapper(cause));
+
+        JournalInfraException exception = assertThrows(JournalInfraException.class,
+                () -> repository.findByJournalId(305L));
+
+        assertSame(cause, exception.getCause());
+    }
+
+    @Test
     void saveAll_DB_예외는_JournalInfraException으로_변환된다() {
         DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
         JournalTradeNoteRepositoryImpl repository = new JournalTradeNoteRepositoryImpl(new FailingJournalTradeNoteMapper(cause));
@@ -55,6 +66,25 @@ class JournalTradeNoteRepositoryImplTest {
         // NeverCalledJournalTradeNoteMapper가 호출되면 fail()이 터지므로, 여기까지 도달하면 통과
     }
 
+    @Test
+    void deleteByTradeIds_DB_예외는_JournalInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        JournalTradeNoteRepositoryImpl repository = new JournalTradeNoteRepositoryImpl(new FailingJournalTradeNoteMapper(cause));
+
+        JournalInfraException exception = assertThrows(JournalInfraException.class,
+                () -> repository.deleteByTradeIds(List.of(501L)));
+
+        assertSame(cause, exception.getCause());
+    }
+
+    @Test
+    void tradeIds가_비어있으면_삭제_매퍼를_호출하지_않는다() {
+        JournalTradeNoteRepositoryImpl repository = new JournalTradeNoteRepositoryImpl(new NeverCalledJournalTradeNoteMapper());
+
+        repository.deleteByTradeIds(List.of());
+        // NeverCalledJournalTradeNoteMapper가 호출되면 fail()이 터지므로, 여기까지 도달하면 통과
+    }
+
     private static class FailingJournalTradeNoteMapper implements JournalTradeNoteMapper {
         private final RuntimeException toThrow;
 
@@ -68,7 +98,17 @@ class JournalTradeNoteRepositoryImplTest {
         }
 
         @Override
+        public List<JournalTradeNoteRow> findByJournalId(Long journalId) {
+            throw toThrow;
+        }
+
+        @Override
         public void insertAll(List<JournalTradeNoteRow> notes) {
+            throw toThrow;
+        }
+
+        @Override
+        public void deleteByTradeIds(List<Long> tradeIds) {
             throw toThrow;
         }
     }
@@ -81,8 +121,19 @@ class JournalTradeNoteRepositoryImplTest {
         }
 
         @Override
+        public List<JournalTradeNoteRow> findByJournalId(Long journalId) {
+            fail("이 테스트에서는 호출되면 안 된다");
+            return List.of();
+        }
+
+        @Override
         public void insertAll(List<JournalTradeNoteRow> notes) {
             fail("빈 notes에 대해서는 매퍼가 호출되면 안 된다");
+        }
+
+        @Override
+        public void deleteByTradeIds(List<Long> tradeIds) {
+            fail("빈 tradeIds에 대해서는 매퍼가 호출되면 안 된다");
         }
     }
 }

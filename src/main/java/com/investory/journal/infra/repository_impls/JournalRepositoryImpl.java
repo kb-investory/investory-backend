@@ -71,4 +71,14 @@ public class JournalRepositoryImpl implements JournalRepository {
         }
         return row.toDomain();
     }
+
+    @Override
+    public void update(Journal journal) {
+        JournalRow row = JournalRow.from(journal);
+        try {
+            journalMapper.update(row);
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("투자일지를 수정하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

@@ -36,6 +36,17 @@ public class JournalTradeNoteRepositoryImpl implements JournalTradeNoteRepositor
     }
 
     @Override
+    public List<JournalTradeNote> findByJournalId(Long journalId) {
+        try {
+            return journalTradeNoteMapper.findByJournalId(journalId).stream()
+                    .map(JournalTradeNoteRow::toDomain)
+                    .collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("거래 판단 근거를 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
     public void saveAll(List<JournalTradeNote> notes) {
         // 빈 리스트로 INSERT ... VALUES <foreach>를 만들면 SQL 문법 오류가 나므로 매퍼 호출 전에 막는다.
         if (notes.isEmpty()) {
@@ -48,6 +59,19 @@ public class JournalTradeNoteRepositoryImpl implements JournalTradeNoteRepositor
             journalTradeNoteMapper.insertAll(rows);
         } catch (DataAccessException e) {
             throw new JournalInfraException("거래 판단 근거를 저장하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public void deleteByTradeIds(List<Long> tradeIds) {
+        // 빈 리스트로 IN (...) 절을 만들면 SQL 문법 오류가 나므로 매퍼 호출 전에 막는다.
+        if (tradeIds.isEmpty()) {
+            return;
+        }
+        try {
+            journalTradeNoteMapper.deleteByTradeIds(tradeIds);
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("거래 판단 근거를 삭제하는 중 오류가 발생했습니다.", e);
         }
     }
 }

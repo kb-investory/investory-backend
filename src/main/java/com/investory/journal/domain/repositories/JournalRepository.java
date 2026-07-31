@@ -11,4 +11,5 @@ public interface JournalRepository {
     Optional<Journal> findByUserAndDate(Long userId, LocalDate date);
     Optional<Journal> findById(Long journalId);
     Journal save(Journal journal);
+    void update(Journal journal);
 }

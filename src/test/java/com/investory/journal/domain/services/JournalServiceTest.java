@@ -5,6 +5,7 @@ import com.investory.journal.domain.constant.TradeSide;
 import com.investory.journal.domain.exception.JournalErrorCode;
 import com.investory.journal.domain.exception.JournalException;
 import com.investory.journal.domain.models.JournalFixture;
+import com.investory.journal.domain.models.JournalTradeNote;
 import com.investory.journal.domain.models.JournalTradeNoteFixture;
 import com.investory.journal.domain.ports.FakeMarketDataPort;
 import com.investory.journal.domain.ports.FakeTradeLedgerPort;
@@ -15,12 +16,14 @@ import com.investory.journal.domain.repositories.FakeJournalRepository;
 import com.investory.journal.domain.repositories.FakeJournalTradeNoteRepository;
 import com.investory.journal.domain.services.dto.command.CreateJournalCommand;
 import com.investory.journal.domain.services.dto.command.TradeNoteCommand;
+import com.investory.journal.domain.services.dto.command.UpdateJournalCommand;
 import com.investory.journal.domain.services.dto.query.GetJournalByIdQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
 import com.investory.journal.domain.services.dto.result.CreateJournalResult;
 import com.investory.journal.domain.services.dto.result.JournalDetailResult;
 import com.investory.journal.domain.services.dto.result.JournalEntryResult;
+import com.investory.journal.domain.services.dto.result.UpdateJournalResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -299,6 +302,87 @@ class JournalServiceTest {
 
         JournalException exception = assertThrows(JournalException.class,
                 () -> journalService.save(new CreateJournalCommand(USER_ID, journalDate, "생각", null,
+                        List.of(new TradeNoteCommand(999L, "근거")))));
+
+        assertEquals(JournalErrorCode.TRADE_DATE_MISMATCH, exception.getErrorCode());
+    }
+
+    @Test
+    void 정상_수정하면_journal_본문과_거래_근거가_생성_유지_삭제로_반영된다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        journalRepository.add(JournalFixture.journal(305L, USER_ID, journalDate, utc(journalDate, 10, 0), inFuture(3600)));
+        journalTradeNoteRepository.add(
+                JournalTradeNoteFixture.note(501L, "기존 근거", utc(journalDate, 10, 15)),
+                JournalTradeNoteFixture.note(502L, "삭제될 근거", utc(journalDate, 10, 20)));
+        tradeLedgerPort.add(
+                TradeInfoFixture.trade(501L, 101L, TradeSide.BUY, utc(journalDate, 10, 15)),
+                TradeInfoFixture.trade(503L, 102L, TradeSide.SELL, utc(journalDate, 14, 0)));
+
+        UpdateJournalResult result = journalService.update(new UpdateJournalCommand(
+                USER_ID, 305L, "바뀐 생각", MarketMood.CONFIDENT,
+                List.of(new TradeNoteCommand(501L, "수정된 근거"), new TradeNoteCommand(503L, "새 근거"))));
+
+        assertEquals(305L, result.journalId());
+        assertNotNull(result.updatedAt());
+
+        List<JournalTradeNote> saved = journalTradeNoteRepository.getSaved();
+        assertEquals(2, saved.size());
+        assertTrue(saved.stream().anyMatch(note -> note.getTradeId().equals(501L) && note.getRationaleText().equals("수정된 근거")));
+        assertTrue(saved.stream().anyMatch(note -> note.getTradeId().equals(503L)));
+        assertFalse(saved.stream().anyMatch(note -> note.getTradeId().equals(502L)));
+    }
+
+    @Test
+    void 존재하지_않는_journalId를_수정하려하면_JOURNAL_NOT_FOUND_예외를_던진다() {
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.update(new UpdateJournalCommand(USER_ID, 999L, "생각", MarketMood.CALM, List.of())));
+
+        assertEquals(JournalErrorCode.JOURNAL_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 타인_소유_journalId를_수정하려하면_JOURNAL_NOT_FOUND_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        Long otherUserId = 200L;
+        journalRepository.add(JournalFixture.journal(305L, otherUserId, journalDate, utc(journalDate, 10, 0), inFuture(3600)));
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.update(new UpdateJournalCommand(USER_ID, 305L, "생각", MarketMood.CALM, List.of())));
+
+        assertEquals(JournalErrorCode.JOURNAL_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 수정_가능_시간이_지났으면_JOURNAL_NOT_EDITABLE_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        journalRepository.add(JournalFixture.journal(305L, USER_ID, journalDate, utc(journalDate, 10, 0), inFuture(-3600)));
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.update(new UpdateJournalCommand(USER_ID, 305L, "생각", MarketMood.CALM, List.of())));
+
+        assertEquals(JournalErrorCode.JOURNAL_NOT_EDITABLE, exception.getErrorCode());
+    }
+
+    @Test
+    void 수정_요청_내_tradeId가_중복되면_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        journalRepository.add(JournalFixture.journal(305L, USER_ID, journalDate, utc(journalDate, 10, 0), inFuture(3600)));
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.update(new UpdateJournalCommand(USER_ID, 305L, "생각", MarketMood.CALM,
+                        List.of(new TradeNoteCommand(501L, "근거1"), new TradeNoteCommand(501L, "근거2")))));
+
+        assertEquals(JournalErrorCode.DUPLICATE_TRADE_ID, exception.getErrorCode());
+    }
+
+    @Test
+    void 수정_요청의_tradeId가_사용자_거래_목록에_없으면_예외를_던진다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        journalRepository.add(JournalFixture.journal(305L, USER_ID, journalDate, utc(journalDate, 10, 0), inFuture(3600)));
+        // tradeLedgerPort에 아무 거래도 등록하지 않음 — 소유권/날짜 검증 실패로 취급
+
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.update(new UpdateJournalCommand(USER_ID, 305L, "생각", MarketMood.CALM,
                         List.of(new TradeNoteCommand(999L, "근거")))));
 
         assertEquals(JournalErrorCode.TRADE_DATE_MISMATCH, exception.getErrorCode());
