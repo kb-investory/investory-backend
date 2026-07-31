@@ -128,21 +128,12 @@ public class JournalService {
             throw new JournalException(JournalErrorCode.JOURNAL_ALREADY_EXISTS);
         }
 
-        List<TradeNoteCommand> tradeNotes = command.tradeNotes() == null ? List.of() : command.tradeNotes();
-        validateNoDuplicateTradeIds(tradeNotes);
-        if (!tradeNotes.isEmpty()) {
-            validateTradesBelongToUserAndDate(command.userId(), command.journalDate(), tradeNotes);
-        }
+        List<TradeNoteCommand> tradeNotes = validateTradeNotes(command.userId(), command.journalDate(), command.tradeNotes());
 
         Journal journal = Journal.create(command.userId(), command.journalDate(), command.marketThought(), command.marketMood());
         Journal saved = journalRepository.save(journal);
 
-        if (!tradeNotes.isEmpty()) {
-            List<JournalTradeNote> notes = tradeNotes.stream()
-                    .map(tradeNote -> JournalTradeNote.create(saved.getJournalId(), tradeNote.tradeId(), tradeNote.rationaleText()))
-                    .collect(Collectors.toList());
-            journalTradeNoteRepository.saveAll(notes);
-        }
+        saveTradeNotes(saved.getJournalId(), tradeNotes);
 
         return new CreateJournalResult(saved.getJournalId(), saved.getCreatedAt());
     }
@@ -158,16 +149,40 @@ public class JournalService {
             throw new JournalException(JournalErrorCode.JOURNAL_NOT_EDITABLE);
         }
 
-        List<TradeNoteCommand> tradeNotes = command.tradeNotes() == null ? List.of() : command.tradeNotes();
-        validateNoDuplicateTradeIds(tradeNotes);
-        if (!tradeNotes.isEmpty()) {
-            validateTradesBelongToUserAndDate(command.userId(), journal.getJournalDate(), tradeNotes);
-        }
+        List<TradeNoteCommand> tradeNotes = validateTradeNotes(command.userId(), journal.getJournalDate(), command.tradeNotes());
 
         Journal updated = journal.update(command.marketThought(), command.marketMood());
         journalRepository.update(updated);
 
-        List<JournalTradeNote> currentNotes = journalTradeNoteRepository.findByJournalId(command.journalId());
+        deleteRemovedTradeNotes(command.journalId(), tradeNotes);
+        saveTradeNotes(command.journalId(), tradeNotes);
+
+        return new UpdateJournalResult(updated.getJournalId(), updated.getUpdatedAt());
+    }
+
+    // null-safety + 중복/소유권 검증을 한 번에 묶어, save/update 양쪽에서 공유한다.
+    private List<TradeNoteCommand> validateTradeNotes(Long userId, LocalDate journalDate, List<TradeNoteCommand> tradeNotes) {
+        List<TradeNoteCommand> notes = tradeNotes == null ? List.of() : tradeNotes;
+        validateNoDuplicateTradeIds(notes);
+        if (!notes.isEmpty()) {
+            validateTradesBelongToUserAndDate(userId, journalDate, notes);
+        }
+        return notes;
+    }
+
+    private void saveTradeNotes(Long journalId, List<TradeNoteCommand> tradeNotes) {
+        if (tradeNotes.isEmpty()) {
+            return;
+        }
+        List<JournalTradeNote> notes = tradeNotes.stream()
+                .map(tradeNote -> JournalTradeNote.create(journalId, tradeNote.tradeId(), tradeNote.rationaleText()))
+                .collect(Collectors.toList());
+        journalTradeNoteRepository.saveAll(notes); // upsert — 있으면 갱신, 없으면 생성
+    }
+
+    // 요청에서 빠진(=삭제 대상) 기존 근거만 골라 지운다. update에서만 필요 — save는 항상 근거가 없는 상태에서 시작한다.
+    private void deleteRemovedTradeNotes(Long journalId, List<TradeNoteCommand> tradeNotes) {
+        List<JournalTradeNote> currentNotes = journalTradeNoteRepository.findByJournalId(journalId);
         Set<Long> requestedTradeIds = tradeNotes.stream().map(TradeNoteCommand::tradeId).collect(Collectors.toSet());
         List<Long> tradeIdsToDelete = currentNotes.stream()
                 .map(JournalTradeNote::getTradeId)
@@ -176,15 +191,6 @@ public class JournalService {
         if (!tradeIdsToDelete.isEmpty()) {
             journalTradeNoteRepository.deleteByTradeIds(tradeIdsToDelete);
         }
-
-        if (!tradeNotes.isEmpty()) {
-            List<JournalTradeNote> notesToSave = tradeNotes.stream()
-                    .map(tradeNote -> JournalTradeNote.create(command.journalId(), tradeNote.tradeId(), tradeNote.rationaleText()))
-                    .collect(Collectors.toList());
-            journalTradeNoteRepository.saveAll(notesToSave); // upsert — 있으면 갱신, 없으면 생성
-        }
-
-        return new UpdateJournalResult(updated.getJournalId(), updated.getUpdatedAt());
     }
 
     private void validateNoDuplicateTradeIds(List<TradeNoteCommand> tradeNotes) {
