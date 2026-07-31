@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.broker.infra.mappers.BrokerProviderMapper">
+
+    <resultMap id="brokerProviderRowResultMap" type="com.investory.broker.infra.entities.BrokerProviderRow">
+        <id column="broker_id" property="brokerId"/>
+        <result column="broker_code" property="brokerCode"/>
+        <result column="broker_name" property="brokerName"/>
+        <result column="is_active" property="isActive"/>
+    </resultMap>
+
+    <select id="findAllActive" resultMap="brokerProviderRowResultMap">
+        SELECT
+            broker_id,
+            broker_code,
+            broker_name,
+            is_active
+        FROM broker_providers
+        WHERE is_active = TRUE
+        ORDER BY broker_id
+    </select>
+
+</mapper>
