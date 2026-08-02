@@ -4,15 +4,18 @@ import com.investory.journal.domain.services.JournalService;
 import com.investory.journal.domain.services.dto.query.GetJournalByIdQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
+import com.investory.journal.domain.services.dto.query.GetTradeTimelineQuery;
 import com.investory.journal.domain.services.dto.result.CreateJournalResult;
 import com.investory.journal.domain.services.dto.result.JournalDetailResult;
 import com.investory.journal.domain.services.dto.result.JournalEntryResult;
+import com.investory.journal.domain.services.dto.result.TradeTimelineResult;
 import com.investory.journal.domain.services.dto.result.UpdateJournalResult;
 import com.investory.journal.presentation.dto.request.CreateJournalRequest;
 import com.investory.journal.presentation.dto.request.UpdateJournalRequest;
 import com.investory.journal.presentation.dto.response.CreateJournalResponse;
 import com.investory.journal.presentation.dto.response.JournalDetailResponse;
 import com.investory.journal.presentation.dto.response.JournalEntryListResponse;
+import com.investory.journal.presentation.dto.response.TradeTimelineResponse;
 import com.investory.journal.presentation.dto.response.UpdateJournalResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -74,5 +77,17 @@ public class JournalController {
     public UpdateJournalResponse update(@PathVariable Long journalId, @RequestBody UpdateJournalRequest request) {
         UpdateJournalResult result = journalService.update(request.toCommand(TEMP_USER_ID, journalId));
         return UpdateJournalResponse.from(result);
+    }
+
+    @GetMapping("/trades")
+    public TradeTimelineResponse getTrades(
+            @RequestParam Long securityId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        TradeTimelineResult result = journalService.getTradeTimeline(
+                new GetTradeTimelineQuery(TEMP_USER_ID, securityId, startDate, endDate, page, size));
+        return TradeTimelineResponse.from(result);
     }
 }

@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.investory.journal.domain.constant.MarketMood;
+import com.investory.journal.domain.constant.TradeSide;
 import com.investory.journal.domain.models.JournalFixture;
 import com.investory.journal.domain.ports.FakeMarketDataPort;
 import com.investory.journal.domain.ports.FakeTradeLedgerPort;
+import com.investory.journal.domain.ports.dto.SecurityInfoFixture;
+import com.investory.journal.domain.ports.dto.TradeTimelineInfoFixture;
 import com.investory.journal.domain.repositories.FakeJournalRepository;
 import com.investory.journal.domain.repositories.FakeJournalTradeNoteRepository;
 import com.investory.journal.domain.services.JournalService;
@@ -138,6 +141,24 @@ class JournalControllerTest {
 
         JsonNode json = readJson(result);
         assertEquals("JNL_009", json.get("errorCode").asText());
+    }
+
+    @Test
+    void 종목별_거래_타임라인을_조회하면_종목정보와_거래목록을_반환한다() throws Exception {
+        FakeMarketDataPort marketDataPort = new FakeMarketDataPort();
+        marketDataPort.add(SecurityInfoFixture.samsungElectronics(101L));
+        FakeTradeLedgerPort tradeLedgerPort = new FakeTradeLedgerPort();
+        tradeLedgerPort.add(101L, TradeTimelineInfoFixture.trade(501L, TradeSide.BUY, Instant.now()));
+        MockMvc mockMvc = mockMvc(new FakeJournalRepository(), new FakeJournalTradeNoteRepository(), tradeLedgerPort, marketDataPort);
+
+        MvcResult result = mockMvc.perform(get("/journal/trades").param("securityId", "101"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = readJson(result);
+        assertEquals("005930", json.get("security").get("securityCode").asText());
+        assertEquals(1, json.get("trades").size());
+        assertEquals(501, json.get("trades").get(0).get("tradeId").asLong());
     }
 
     private MockMvc mockMvc(FakeJournalRepository journalRepository, FakeJournalTradeNoteRepository journalTradeNoteRepository,
