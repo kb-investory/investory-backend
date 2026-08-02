@@ -55,6 +55,26 @@ class JournalRepositoryImplTest {
     }
 
     @Test
+    void findByIds_DB_예외는_JournalInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
+
+        JournalInfraException exception = assertThrows(JournalInfraException.class,
+                () -> repository.findByIds(List.of(305L)));
+
+        assertSame(cause, exception.getCause());
+    }
+
+    @Test
+    void journalIds가_비어있으면_매퍼를_호출하지_않고_빈_리스트를_반환한다() {
+        JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(new RuntimeException("호출되면 안 됨")));
+
+        List<Journal> result = repository.findByIds(List.of());
+
+        assertEquals(List.of(), result);
+    }
+
+    @Test
     void save_DB_예외는_JournalInfraException으로_변환된다() {
         DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
         JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
@@ -111,6 +131,11 @@ class JournalRepositoryImplTest {
 
         @Override
         public List<JournalRow> findById(Long journalId) {
+            throw toThrow;
+        }
+
+        @Override
+        public List<JournalRow> findByIds(List<Long> journalIds) {
             throw toThrow;
         }
 

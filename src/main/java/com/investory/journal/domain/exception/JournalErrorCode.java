@@ -12,7 +12,8 @@ public enum JournalErrorCode implements ErrorCode {
     INVALID_JOURNAL_DATA(ErrorType.INVALID_INPUT, "JNL_006", "투자일지 데이터가 올바르지 않습니다."),
     SECURITY_NOT_FOUND(ErrorType.NOT_FOUND, "JNL_007", "거래 종목 정보를 찾을 수 없습니다."),
     FUTURE_DATE_NOT_ALLOWED(ErrorType.INVALID_INPUT, "JNL_008", "미래 날짜의 투자일지는 작성할 수 없습니다."),
-    JOURNAL_NOT_FOUND(ErrorType.NOT_FOUND, "JNL_009", "투자일지를 찾을 수 없습니다.");
+    JOURNAL_NOT_FOUND(ErrorType.NOT_FOUND, "JNL_009", "투자일지를 찾을 수 없습니다."),
+    INVALID_PAGE_PARAMS(ErrorType.INVALID_INPUT, "JNL_010", "페이지 조회 조건이 올바르지 않습니다.");
 
     private final ErrorType errorType;
     private final String code;
