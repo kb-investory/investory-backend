@@ -20,4 +20,14 @@
         ORDER BY broker_id
     </select>
 
+    <select id="findById" resultMap="brokerProviderRowResultMap">
+        SELECT
+            broker_id,
+            broker_code,
+            broker_name,
+            is_active
+        FROM broker_providers
+        WHERE broker_id = #{brokerId}
+    </select>
+
 </mapper>
