@@ -85,10 +85,24 @@ public class JournalService {
     }
 
     public JournalDetailResult getByJournalId(GetJournalByIdQuery query) {
-        Journal journal = journalRepository.findById(query.journalId())
-                .filter(j -> j.getUserId().equals(query.userId()))
-                .orElseThrow(() -> new JournalException(JournalErrorCode.JOURNAL_NOT_FOUND));
+        Journal journal = findOwnedJournal(query.journalId(), query.userId());
         return buildDetailResult(query.userId(), journal.getJournalDate(), Optional.of(journal));
+    }
+
+    // journalId로 순수 조회만 한다 — 소유권 판단은 하지 않는다.
+    private Journal findJournal(Long journalId) {
+        return journalRepository.findById(journalId)
+                .orElseThrow(() -> new JournalException(JournalErrorCode.JOURNAL_NOT_FOUND));
+    }
+
+    // journalId로 조회한 뒤 요청한 userId 소유인지까지 확인한다. journalId 기반 진입점(조회/수정 등)은
+    // 전부 이걸 통해서만 journal을 얻는다 — 존재 여부와 소유권 판단을 한 곳에 모아두기 위함.
+    private Journal findOwnedJournal(Long journalId, Long userId) {
+        Journal journal = findJournal(journalId);
+        if (!journal.getUserId().equals(userId)) {
+            throw new JournalException(JournalErrorCode.JOURNAL_NOT_FOUND);
+        }
+        return journal;
     }
 
     public TradeTimelineResult getTradeTimeline(GetTradeTimelineQuery query) {
@@ -210,9 +224,7 @@ public class JournalService {
     // journal 수정과 journal_trade_notes 반영(upsert+삭제)을 하나의 트랜잭션으로 묶는다.
     @Transactional
     public UpdateJournalResult update(UpdateJournalCommand command) {
-        Journal journal = journalRepository.findById(command.journalId())
-                .filter(j -> j.getUserId().equals(command.userId()))
-                .orElseThrow(() -> new JournalException(JournalErrorCode.JOURNAL_NOT_FOUND));
+        Journal journal = findOwnedJournal(command.journalId(), command.userId());
 
         if (!journal.isEditable(Instant.now())) {
             throw new JournalException(JournalErrorCode.JOURNAL_NOT_EDITABLE);
