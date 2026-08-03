@@ -12,6 +12,7 @@ import com.investory.journal.domain.ports.FakeTradeLedgerPort;
 import com.investory.journal.domain.ports.dto.SecurityInfoFixture;
 import com.investory.journal.domain.ports.dto.TradeCountInfo;
 import com.investory.journal.domain.ports.dto.TradeInfoFixture;
+import com.investory.journal.domain.ports.dto.TradeTimelineInfoFixture;
 import com.investory.journal.domain.repositories.FakeJournalRepository;
 import com.investory.journal.domain.repositories.FakeJournalTradeNoteRepository;
 import com.investory.journal.domain.services.dto.command.CreateJournalCommand;
@@ -20,9 +21,11 @@ import com.investory.journal.domain.services.dto.command.UpdateJournalCommand;
 import com.investory.journal.domain.services.dto.query.GetJournalByIdQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalDetailQuery;
 import com.investory.journal.domain.services.dto.query.GetJournalEntriesQuery;
+import com.investory.journal.domain.services.dto.query.GetTradeTimelineQuery;
 import com.investory.journal.domain.services.dto.result.CreateJournalResult;
 import com.investory.journal.domain.services.dto.result.JournalDetailResult;
 import com.investory.journal.domain.services.dto.result.JournalEntryResult;
+import com.investory.journal.domain.services.dto.result.TradeTimelineResult;
 import com.investory.journal.domain.services.dto.result.UpdateJournalResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -386,6 +389,86 @@ class JournalServiceTest {
                         List.of(new TradeNoteCommand(999L, "근거")))));
 
         assertEquals(JournalErrorCode.TRADE_DATE_MISMATCH, exception.getErrorCode());
+    }
+
+    @Test
+    void 종목별_거래_타임라인을_조회하면_종목정보와_근거를_포함해_반환한다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        Instant tradedAt1 = utc(journalDate, 10, 15);
+        Instant tradedAt2 = utc(journalDate, 14, 10);
+        marketDataPort.add(SecurityInfoFixture.samsungElectronics(101L));
+        tradeLedgerPort.add(101L,
+                TradeTimelineInfoFixture.trade(501L, TradeSide.BUY, tradedAt1),
+                TradeTimelineInfoFixture.trade(502L, TradeSide.SELL, tradedAt2));
+        journalRepository.add(JournalFixture.journal(305L, USER_ID, journalDate, utc(journalDate, 9, 0), inFuture(3600)));
+        journalTradeNoteRepository.add(JournalTradeNoteFixture.note(501L, "HBM 시장의 장기 성장 가능성이 높다고 판단했다.", tradedAt1));
+
+        TradeTimelineResult result = journalService.getTradeTimeline(
+                new GetTradeTimelineQuery(USER_ID, 101L, null, null, 0, 20));
+
+        assertEquals("005930", result.security().securityCode());
+        assertEquals("삼성전자", result.security().securityName());
+        assertEquals(2, result.trades().size());
+        assertEquals(2, result.totalElements());
+        assertEquals(1, result.totalPages());
+
+        var withNote = result.trades().stream().filter(t -> t.tradeId().equals(501L)).findFirst().orElseThrow();
+        assertEquals(305L, withNote.note().journalId());
+        assertEquals(journalDate, withNote.note().journalDate());
+        assertEquals("HBM 시장의 장기 성장 가능성이 높다고 판단했다.", withNote.note().rationaleText());
+
+        var withoutNote = result.trades().stream().filter(t -> t.tradeId().equals(502L)).findFirst().orElseThrow();
+        assertNull(withoutNote.note());
+    }
+
+    @Test
+    void 존재하지_않는_종목을_조회하면_SECURITY_NOT_FOUND_예외를_던진다() {
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.getTradeTimeline(new GetTradeTimelineQuery(USER_ID, 999L, null, null, 0, 20)));
+
+        assertEquals(JournalErrorCode.SECURITY_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void startDate가_endDate보다_늦으면_예외를_던진다_타임라인() {
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.getTradeTimeline(new GetTradeTimelineQuery(
+                        USER_ID, 101L, LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 10), 0, 20)));
+
+        assertEquals(JournalErrorCode.INVALID_DATE_RANGE, exception.getErrorCode());
+    }
+
+    @Test
+    void page가_음수이면_예외를_던진다() {
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.getTradeTimeline(new GetTradeTimelineQuery(USER_ID, 101L, null, null, -1, 20)));
+
+        assertEquals(JournalErrorCode.INVALID_PAGE_PARAMS, exception.getErrorCode());
+    }
+
+    @Test
+    void size가_1보다_작으면_예외를_던진다() {
+        JournalException exception = assertThrows(JournalException.class,
+                () -> journalService.getTradeTimeline(new GetTradeTimelineQuery(USER_ID, 101L, null, null, 0, 0)));
+
+        assertEquals(JournalErrorCode.INVALID_PAGE_PARAMS, exception.getErrorCode());
+    }
+
+    @Test
+    void totalElements와_size로_totalPages를_올림_계산한다() {
+        LocalDate journalDate = LocalDate.of(2026, 7, 10);
+        marketDataPort.add(SecurityInfoFixture.samsungElectronics(101L));
+        tradeLedgerPort.add(101L,
+                TradeTimelineInfoFixture.trade(501L, TradeSide.BUY, utc(journalDate, 9, 0)),
+                TradeTimelineInfoFixture.trade(502L, TradeSide.BUY, utc(journalDate, 10, 0)),
+                TradeTimelineInfoFixture.trade(503L, TradeSide.BUY, utc(journalDate, 11, 0)));
+
+        TradeTimelineResult result = journalService.getTradeTimeline(
+                new GetTradeTimelineQuery(USER_ID, 101L, null, null, 0, 2));
+
+        assertEquals(2, result.trades().size());
+        assertEquals(3, result.totalElements());
+        assertEquals(2, result.totalPages());
     }
 
     private List<JournalEntryResult> getEntries(LocalDate startDate, LocalDate endDate) {

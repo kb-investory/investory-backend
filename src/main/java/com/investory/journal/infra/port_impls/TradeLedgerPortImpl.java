@@ -3,6 +3,7 @@ package com.investory.journal.infra.port_impls;
 import com.investory.journal.domain.ports.TradeLedgerPort;
 import com.investory.journal.domain.ports.dto.TradeCountInfo;
 import com.investory.journal.domain.ports.dto.TradeInfo;
+import com.investory.journal.domain.ports.dto.TradeTimelineInfo;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -21,5 +22,17 @@ public class TradeLedgerPortImpl implements TradeLedgerPort {
     @Override
     public List<TradeInfo> findTradesOn(Long userId, LocalDate date) {
         return List.of();
+    }
+
+    // TODO: ledger.trades 구현 후 실제 조회로 교체. ledger가 아직 없어 항상 빈 리스트를 반환한다.
+    @Override
+    public List<TradeTimelineInfo> findTradesBySecurity(Long userId, Long securityId, LocalDate startDate, LocalDate endDate, int page, int size) {
+        return List.of();
+    }
+
+    // TODO: ledger.trades 구현 후 실제 집계 호출로 교체. ledger가 아직 없어 항상 0을 반환한다.
+    @Override
+    public long countTradesBySecurity(Long userId, Long securityId, LocalDate startDate, LocalDate endDate) {
+        return 0;
     }
 }

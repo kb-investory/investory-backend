@@ -59,6 +59,20 @@ public class JournalRepositoryImpl implements JournalRepository {
     }
 
     @Override
+    public List<Journal> findByIds(List<Long> journalIds) {
+        if (journalIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            return journalMapper.findByIds(journalIds).stream()
+                    .map(JournalRow::toDomain)
+                    .collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("투자일지 목록을 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
     public Journal save(Journal journal) {
         JournalRow row = JournalRow.from(journal);
         try {

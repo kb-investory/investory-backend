@@ -40,6 +40,13 @@ public class FakeJournalRepository implements JournalRepository {
     }
 
     @Override
+    public List<Journal> findByIds(List<Long> journalIds) {
+        return journals.stream()
+                .filter(journal -> journalIds.contains(journal.getJournalId()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Journal save(Journal journal) {
         Journal saved = Journal.of(
                 nextId++,

@@ -17,6 +17,8 @@ public interface JournalMapper {
 
     List<JournalRow> findById(@Param("journalId") Long journalId);
 
+    List<JournalRow> findByIds(@Param("journalIds") List<Long> journalIds);
+
     void insert(JournalRow row);
 
     void update(JournalRow row);
