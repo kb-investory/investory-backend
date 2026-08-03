@@ -11,8 +11,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 // broker의 TradeIngestionPort 구현체가 직접 호출하는 진입점. broker는 원시 데이터만 넘기고,
 // 종목 해석·중복 제거는 여기서 처리한다.
@@ -21,16 +23,20 @@ public class TradeIngestionService {
 
     private final TradeRepository tradeRepository;
     private final MarketDataPort marketDataPort;
+    private final TradeMatchingService tradeMatchingService;
 
-    public TradeIngestionService(TradeRepository tradeRepository, MarketDataPort marketDataPort) {
+    public TradeIngestionService(TradeRepository tradeRepository, MarketDataPort marketDataPort,
+                                  TradeMatchingService tradeMatchingService) {
         this.tradeRepository = tradeRepository;
         this.marketDataPort = marketDataPort;
+        this.tradeMatchingService = tradeMatchingService;
     }
 
     @Transactional
     public IngestResult ingestTrades(IngestRawTradesCommand command) {
         int successCount = 0;
         List<String> skippedReasons = new ArrayList<>();
+        Set<Long> touchedSecurityIds = new HashSet<>();
 
         for (RawTradeRecord raw : command.rawTrades()) {
             // 이미 적재된 거래는 조용히 건너뛴다 (재동기화에도 안전한 멱등 처리)
@@ -56,6 +62,12 @@ public class TradeIngestionService {
             );
             tradeRepository.save(trade);
             successCount++;
+            touchedSecurityIds.add(security.get().securityId());
+        }
+
+        // 새로 적재된 종목에 대해서만 FIFO 매칭을 재계산한다 (전부 중복/스킵이면 재계산 안 함)
+        for (Long securityId : touchedSecurityIds) {
+            tradeMatchingService.rematch(command.accountId(), securityId);
         }
 
         return new IngestResult(successCount, skippedReasons.size(), skippedReasons);
