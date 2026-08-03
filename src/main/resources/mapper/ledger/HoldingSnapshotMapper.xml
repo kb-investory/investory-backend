@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.ledger.infra.mappers.HoldingSnapshotMapper">
+
+    <resultMap id="holdingSnapshotRowResultMap" type="com.investory.ledger.infra.entities.HoldingSnapshotRow">
+        <result column="account_id" property="accountId"/>
+        <result column="security_id" property="securityId"/>
+        <result column="snapshot_date" property="snapshotDate"/>
+        <result column="quantity" property="quantity"/>
+        <result column="average_cost" property="averageCost"/>
+        <result column="market_value" property="marketValue"/>
+        <result column="unrealized_pnl" property="unrealizedPnl"/>
+    </resultMap>
+
+    <!-- 계좌·종목 조합별 가장 최근 snapshot_date 행만 반환 (MySQL 8 윈도우 함수 없이도 동작) -->
+    <select id="findLatestByAccountIds" resultMap="holdingSnapshotRowResultMap">
+        SELECT hs.account_id, hs.security_id, hs.snapshot_date, hs.quantity,
+               hs.average_cost, hs.market_value, hs.unrealized_pnl
+        FROM holding_snapshots hs
+        INNER JOIN (
+            SELECT account_id, security_id, MAX(snapshot_date) AS snapshot_date
+            FROM holding_snapshots
+            WHERE account_id IN
+            <foreach collection="accountIds" item="accountId" open="(" separator="," close=")">
+                #{accountId}
+            </foreach>
+            GROUP BY account_id, security_id
+        ) latest
+            ON latest.account_id = hs.account_id
+           AND latest.security_id = hs.security_id
+           AND latest.snapshot_date = hs.snapshot_date
+        WHERE hs.account_id IN
+        <foreach collection="accountIds" item="accountId" open="(" separator="," close=")">
+            #{accountId}
+        </foreach>
+        <if test="securityId != null">
+            AND hs.security_id = #{securityId}
+        </if>
+    </select>
+
+    <!-- upsert: (account_id, security_id, snapshot_date) 유니크 제약을 이용해 있으면 갱신, 없으면 생성 -->
+    <insert id="upsert">
+        INSERT INTO holding_snapshots
+            (account_id, security_id, snapshot_date, quantity, average_cost, market_value, unrealized_pnl, created_at)
+        VALUES
+            (#{accountId}, #{securityId}, #{snapshotDate}, #{quantity}, #{averageCost}, #{marketValue}, #{unrealizedPnl}, NOW())
+        ON DUPLICATE KEY UPDATE
+            quantity = VALUES(quantity),
+            average_cost = VALUES(average_cost),
+            market_value = VALUES(market_value),
+            unrealized_pnl = VALUES(unrealized_pnl)
+    </insert>
+
+</mapper>
