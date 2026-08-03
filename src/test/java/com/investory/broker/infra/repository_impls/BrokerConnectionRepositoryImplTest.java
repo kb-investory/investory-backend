@@ -42,6 +42,11 @@ class BrokerConnectionRepositoryImplTest {
         }
 
         @Override
+        public List<BrokerConnectionRow> findByIdAndUserId(Long connectionId, Long userId) {
+            throw toThrow;
+        }
+
+        @Override
         public void insert(BrokerConnectionRow row) {
             throw toThrow;
         }

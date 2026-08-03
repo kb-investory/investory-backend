@@ -4,13 +4,17 @@ import com.investory.broker.domain.services.BrokerConnectionService;
 import com.investory.broker.domain.services.BrokerProviderService;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.BrokerProviderResult;
+import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
+import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
 import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
+import com.investory.broker.presentation.dto.response.BrokerConnectionDetailResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionListResponse;
 import com.investory.broker.presentation.dto.response.BrokerProviderListResponse;
 import com.investory.broker.presentation.dto.response.CreateBrokerConnectionResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,5 +55,12 @@ public class BrokerController {
     public CreateBrokerConnectionResponse createConnection(@RequestBody CreateBrokerConnectionRequest request) {
         CreateBrokerConnectionResult result = brokerConnectionService.createConnection(request.toCommand(TEMP_USER_ID));
         return CreateBrokerConnectionResponse.from(result);
+    }
+
+    @GetMapping("/connections/{connectionId}")
+    public BrokerConnectionDetailResponse getConnectionDetail(@PathVariable Long connectionId) {
+        BrokerConnectionDetailResult result = brokerConnectionService.getConnectionDetail(
+                new GetBrokerConnectionDetailQuery(TEMP_USER_ID, connectionId));
+        return BrokerConnectionDetailResponse.from(result);
     }
 }

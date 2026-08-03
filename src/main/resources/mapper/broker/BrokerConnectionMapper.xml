@@ -52,6 +52,25 @@
                  bc.connection_status, bc.connected_at, bc.last_synced_at
     </select>
 
+    <select id="findByIdAndUserId" resultMap="brokerConnectionRowResultMap">
+        SELECT
+            bc.connection_id,
+            bc.broker_id,
+            bp.broker_code,
+            bp.broker_name,
+            bc.connection_status,
+            bc.connected_at,
+            bc.last_synced_at,
+            COUNT(ia.connection_id) AS account_count
+        FROM broker_connections bc
+        JOIN broker_providers bp ON bp.broker_id = bc.broker_id
+        LEFT JOIN investment_accounts ia ON ia.connection_id = bc.connection_id
+        WHERE bc.connection_id = #{connectionId}
+          AND bc.user_id = #{userId}
+        GROUP BY bc.connection_id, bc.broker_id, bp.broker_code, bp.broker_name,
+                 bc.connection_status, bc.connected_at, bc.last_synced_at
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="connectionId">
         INSERT INTO broker_connections
             (user_id, broker_id, source_type, mock_profile_code, connection_status, connected_at)

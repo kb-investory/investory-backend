@@ -11,6 +11,8 @@ public interface BrokerConnectionRepository {
 
     Optional<BrokerConnection> findActiveByUserIdAndBrokerId(Long userId, Long brokerId);
 
+    Optional<BrokerConnection> findByIdAndUserId(Long connectionId, Long userId);
+
     Long insert(Long userId, Long brokerId, String mockProfileCode, Instant connectedAt);
 
     void updateLastSyncedAt(Long connectionId, Instant lastSyncedAt);
