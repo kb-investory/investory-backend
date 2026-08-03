@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investory.broker.domain.model.BrokerConnectionFixture;
 import com.investory.broker.domain.model.BrokerProviderFixture;
+import com.investory.broker.domain.ports.FakeBrokerFeedPort;
 import com.investory.broker.domain.ports.FakeHoldingIngestionPort;
 import com.investory.broker.domain.ports.FakeTradeIngestionPort;
 import com.investory.broker.domain.repositories.FakeAccountSyncBatchRepository;
@@ -12,7 +13,6 @@ import com.investory.broker.domain.repositories.FakeBrokerProviderRepository;
 import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
 import com.investory.broker.domain.services.BrokerConnectionService;
 import com.investory.broker.domain.services.BrokerProviderService;
-import com.investory.broker.infra.clients.FakeBrokerDataClient;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.global.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class BrokerControllerTest {
                 new FakeAccountSyncBatchRepository(),
                 new FakeTradeIngestionPort(),
                 new FakeHoldingIngestionPort(),
-                new FakeBrokerDataClient()
+                new FakeBrokerFeedPort()
         );
     }
 

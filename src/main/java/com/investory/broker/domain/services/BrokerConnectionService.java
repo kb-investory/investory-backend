@@ -6,10 +6,13 @@ import com.investory.broker.domain.constant.SyncStatus;
 import com.investory.broker.domain.exception.BrokerErrorCode;
 import com.investory.broker.domain.exception.BrokerException;
 import com.investory.broker.domain.model.BrokerProvider;
+import com.investory.broker.domain.ports.BrokerFeedPort;
 import com.investory.broker.domain.ports.HoldingIngestionPort;
 import com.investory.broker.domain.ports.TradeIngestionPort;
+import com.investory.broker.domain.ports.dto.BrokerLoginResult;
 import com.investory.broker.domain.ports.dto.IngestResult;
-import com.investory.broker.domain.ports.dto.RawHoldingRecord;
+import com.investory.broker.domain.ports.dto.RawAccountRecord;
+import com.investory.broker.domain.ports.dto.RawHoldingBatch;
 import com.investory.broker.domain.ports.dto.RawTradeRecord;
 import com.investory.broker.domain.repositories.AccountSyncBatchRepository;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
@@ -18,30 +21,15 @@ import com.investory.broker.domain.repositories.InvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
-import com.investory.broker.infra.clients.BrokerDataClient;
-import com.investory.broker.infra.clients.mockbroker.AccountBasicResponse;
-import com.investory.broker.infra.clients.mockbroker.AccountListResponse;
-import com.investory.broker.infra.clients.mockbroker.MockLoginResponse;
-import com.investory.broker.infra.clients.mockbroker.ProductsResponse;
-import com.investory.broker.infra.clients.mockbroker.TransactionsResponse;
-import com.investory.broker.infra.exception.BrokerInfraException;
-import com.investory.core.exception.ErrorType;
+import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.core.exception.FieldError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestClientException;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -50,11 +38,6 @@ import java.util.stream.Collectors;
 public class BrokerConnectionService {
 
     private static final Logger log = LoggerFactory.getLogger(BrokerConnectionService.class);
-
-    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-    private static final DateTimeFormatter TRANS_DTIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    private static final DateTimeFormatter YYYYMMDD_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final String EARLIEST_FROM_DATE = "20000101";
     private static final int ERROR_MESSAGE_MAX_LENGTH = 500;
 
     private final BrokerConnectionRepository brokerConnectionRepository;
@@ -63,7 +46,7 @@ public class BrokerConnectionService {
     private final AccountSyncBatchRepository accountSyncBatchRepository;
     private final TradeIngestionPort tradeIngestionPort;
     private final HoldingIngestionPort holdingIngestionPort;
-    private final BrokerDataClient brokerDataClient;
+    private final BrokerFeedPort brokerFeedPort;
 
     public BrokerConnectionService(
             BrokerConnectionRepository brokerConnectionRepository,
@@ -72,14 +55,14 @@ public class BrokerConnectionService {
             AccountSyncBatchRepository accountSyncBatchRepository,
             TradeIngestionPort tradeIngestionPort,
             HoldingIngestionPort holdingIngestionPort,
-            BrokerDataClient brokerDataClient) {
+            BrokerFeedPort brokerFeedPort) {
         this.brokerConnectionRepository = brokerConnectionRepository;
         this.brokerProviderRepository = brokerProviderRepository;
         this.investmentAccountRepository = investmentAccountRepository;
         this.accountSyncBatchRepository = accountSyncBatchRepository;
         this.tradeIngestionPort = tradeIngestionPort;
         this.holdingIngestionPort = holdingIngestionPort;
-        this.brokerDataClient = brokerDataClient;
+        this.brokerFeedPort = brokerFeedPort;
     }
 
     public List<BrokerConnectionResult> getConnections(Long userId) {
@@ -99,7 +82,7 @@ public class BrokerConnectionService {
             throw new BrokerException(BrokerErrorCode.ALREADY_CONNECTED);
         }
 
-        MockLoginResponse login = authenticate(command.loginId(), command.password());
+        BrokerLoginResult login = authenticate(command.loginId(), command.password());
 
         Instant connectedAt = Instant.now();
         Long connectionId = brokerConnectionRepository.insert(command.userId(), command.brokerId(), command.loginId(), connectedAt);
@@ -150,13 +133,11 @@ public class BrokerConnectionService {
         }
     }
 
-    private MockLoginResponse authenticate(String loginId, String password) {
+    private BrokerLoginResult authenticate(String loginId, String password) {
         try {
-            return brokerDataClient.login(loginId, password);
-        } catch (HttpClientErrorException.Unauthorized e) {
+            return brokerFeedPort.login(loginId, password);
+        } catch (BrokerFeedAuthFailedException e) {
             throw new BrokerException(BrokerErrorCode.BROKER_AUTH_FAILED);
-        } catch (RestClientException e) {
-            throw new BrokerInfraException(ErrorType.EXTERNAL_ERROR, "목 증권사 서버 인증 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -165,31 +146,23 @@ public class BrokerConnectionService {
     // 실패 사실만 호출자에게 돌려준다 (배치 상태를 FAILED로 남기기 위함).
     private SyncOutcome runSync(Long userId, Long connectionId, String accessToken, String orgCode) {
         try {
-            AccountListResponse accountList = brokerDataClient.getAccounts(accessToken, orgCode);
-            String toDate = LocalDate.now(SEOUL_ZONE).format(YYYYMMDD_FORMAT);
+            List<RawAccountRecord> accounts = brokerFeedPort.fetchAccounts(accessToken, orgCode);
 
             int accountCount = 0;
             int insertedTradeCount = 0;
             int holdingCount = 0;
 
-            for (AccountListResponse.AccountListItem item : accountList.accountList()) {
-                Long accountId = createInvestmentAccount(accessToken, connectionId, item);
+            for (RawAccountRecord account : accounts) {
+                Long accountId = createInvestmentAccount(connectionId, account);
                 accountCount++;
 
-                List<TransactionsResponse.TransactionItem> transactions =
-                        brokerDataClient.getAllTransactions(accessToken, item.accountNum(), EARLIEST_FROM_DATE, toDate);
-                List<RawTradeRecord> rawTrades = transactions.stream()
-                        .map(this::toRawTradeRecord)
-                        .collect(Collectors.toList());
-                IngestResult tradeResult = tradeIngestionPort.ingestTrades(userId, accountId, rawTrades);
+                List<RawTradeRecord> trades = brokerFeedPort.fetchTrades(accessToken, account.accountNum());
+                IngestResult tradeResult = tradeIngestionPort.ingestTrades(userId, accountId, trades);
                 insertedTradeCount += tradeResult.successCount();
 
-                ProductsResponse products = brokerDataClient.getProducts(accessToken, item.accountNum());
-                List<RawHoldingRecord> rawHoldings = products.prodList().stream()
-                        .map(this::toRawHoldingRecord)
-                        .collect(Collectors.toList());
+                RawHoldingBatch holdingBatch = brokerFeedPort.fetchHoldings(accessToken, account.accountNum());
                 IngestResult holdingResult = holdingIngestionPort.ingestHoldings(
-                        userId, accountId, parseYyyyMmDd(products.baseDate()), rawHoldings);
+                        userId, accountId, holdingBatch.baseDate(), holdingBatch.holdings());
                 holdingCount += holdingResult.successCount();
             }
 
@@ -201,44 +174,15 @@ public class BrokerConnectionService {
         }
     }
 
-    private Long createInvestmentAccount(String accessToken, Long connectionId, AccountListResponse.AccountListItem item) {
-        AccountBasicResponse basic = brokerDataClient.getAccountBasic(accessToken, item.accountNum());
-        String currencyCode = !basic.basicList().isEmpty() ? basic.basicList().get(0).currencyCode() : "KRW";
-
+    private Long createInvestmentAccount(Long connectionId, RawAccountRecord account) {
         return investmentAccountRepository.insert(
                 connectionId,
-                item.accountNum(),
-                maskAccountNo(item.accountNum()),
-                item.accountName(),
-                mapAccountType(item.accountType()),
-                currencyCode
+                account.accountNum(),
+                maskAccountNo(account.accountNum()),
+                account.accountName(),
+                mapAccountType(account.accountType()),
+                account.currencyCode()
         );
-    }
-
-    private RawTradeRecord toRawTradeRecord(TransactionsResponse.TransactionItem item) {
-        String tradeSide = item.transTypeDetail() != null && item.transTypeDetail().contains("매수") ? "BUY" : "SELL";
-        BigDecimal transactionCostAmount = item.transAmt().subtract(item.settleAmt()).abs();
-        Instant tradedAt = LocalDateTime.parse(item.transDtime(), TRANS_DTIME_FORMAT).atZone(SEOUL_ZONE).toInstant();
-        return new RawTradeRecord(
-                item.transNo(),
-                item.prodCode(),
-                tradeSide,
-                item.transNum(),
-                item.baseAmt(),
-                transactionCostAmount,
-                tradedAt
-        );
-    }
-
-    private RawHoldingRecord toRawHoldingRecord(ProductsResponse.ProductItem item) {
-        BigDecimal holdingNum = item.holdingNum();
-        BigDecimal averagePurchasePrice = BigDecimal.ZERO;
-        BigDecimal currentPrice = BigDecimal.ZERO;
-        if (holdingNum != null && holdingNum.compareTo(BigDecimal.ZERO) != 0) {
-            averagePurchasePrice = item.purchaseAmt().divide(holdingNum, 4, RoundingMode.HALF_UP);
-            currentPrice = item.evalAmt().divide(holdingNum, 4, RoundingMode.HALF_UP);
-        }
-        return new RawHoldingRecord(item.prodCode(), holdingNum, averagePurchasePrice, currentPrice);
     }
 
     // 마이데이터 account_type 코드 중 "101"(종합위탁계좌)만 문서화되어 있어 일단 전부 STOCK으로 매핑한다.
@@ -253,10 +197,6 @@ public class BrokerConnectionService {
         String first = accountNo.substring(0, 3);
         String last = accountNo.substring(accountNo.length() - 4);
         return first + "*".repeat(accountNo.length() - 7) + last;
-    }
-
-    private LocalDate parseYyyyMmDd(String yyyymmdd) {
-        return LocalDate.parse(yyyymmdd, YYYYMMDD_FORMAT);
     }
 
     private String truncate(String message, int maxLength) {

@@ -15,7 +15,7 @@ import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
-import com.investory.broker.infra.clients.FakeBrokerDataClient;
+import com.investory.broker.domain.ports.FakeBrokerFeedPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +33,7 @@ class BrokerConnectionServiceTest {
     private FakeAccountSyncBatchRepository accountSyncBatchRepository;
     private FakeTradeIngestionPort tradeIngestionPort;
     private FakeHoldingIngestionPort holdingIngestionPort;
-    private FakeBrokerDataClient brokerDataClient;
+    private FakeBrokerFeedPort brokerFeedPort;
     private BrokerConnectionService brokerConnectionService;
 
     @BeforeEach
@@ -44,7 +44,7 @@ class BrokerConnectionServiceTest {
         accountSyncBatchRepository = new FakeAccountSyncBatchRepository();
         tradeIngestionPort = new FakeTradeIngestionPort();
         holdingIngestionPort = new FakeHoldingIngestionPort();
-        brokerDataClient = new FakeBrokerDataClient();
+        brokerFeedPort = new FakeBrokerFeedPort();
         brokerConnectionService = new BrokerConnectionService(
                 brokerConnectionRepository,
                 brokerProviderRepository,
@@ -52,7 +52,7 @@ class BrokerConnectionServiceTest {
                 accountSyncBatchRepository,
                 tradeIngestionPort,
                 holdingIngestionPort,
-                brokerDataClient
+                brokerFeedPort
         );
     }
 
@@ -110,7 +110,7 @@ class BrokerConnectionServiceTest {
     @Test
     void 목_서버_인증에_실패하면_예외가_발생한다() {
         brokerProviderRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
-        brokerDataClient.willFailLoginWithUnauthorized();
+        brokerFeedPort.willFailLoginWithUnauthorized();
         CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, 1L, "demo1", "wrong-password");
 
         BrokerException exception = assertThrows(BrokerException.class, () -> brokerConnectionService.createConnection(command));
@@ -130,7 +130,7 @@ class BrokerConnectionServiceTest {
     @Test
     void 동기화_도중_오류가_나면_연결은_유지되고_FAILED_상태를_반환한다() {
         brokerProviderRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
-        brokerDataClient.willFailSyncWith(new RuntimeException("목 서버 응답 오류"));
+        brokerFeedPort.willFailSyncWith(new RuntimeException("목 서버 응답 오류"));
         CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, 1L, "demo1", "1234");
 
         CreateBrokerConnectionResult result = brokerConnectionService.createConnection(command);
