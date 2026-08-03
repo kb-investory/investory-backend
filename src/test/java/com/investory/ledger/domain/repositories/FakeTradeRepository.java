@@ -62,6 +62,14 @@ public class FakeTradeRepository implements TradeRepository {
     }
 
     @Override
+    public List<Trade> findAllByAccountIdAndSecurityId(Long accountId, Long securityId) {
+        return trades.stream()
+                .filter(trade -> trade.getAccountId().equals(accountId) && trade.getSecurityId().equals(securityId))
+                .sorted(Comparator.comparing(Trade::getTradedAt))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Trade save(Trade trade) {
         Trade saved = withId(trade);
         trades.add(saved);

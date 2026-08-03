@@ -62,6 +62,17 @@ class TradeRepositoryImplTest {
     }
 
     @Test
+    void findAllByAccountIdAndSecurityId_DB_예외는_LedgerInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        TradeRepositoryImpl repository = new TradeRepositoryImpl(new FailingTradeMapper(cause));
+
+        LedgerInfraException exception = assertThrows(LedgerInfraException.class,
+                () -> repository.findAllByAccountIdAndSecurityId(1L, 101L));
+
+        assertSame(cause, exception.getCause());
+    }
+
+    @Test
     void save_DB_예외는_LedgerInfraException으로_변환된다() {
         DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
         TradeRepositoryImpl repository = new TradeRepositoryImpl(new FailingTradeMapper(cause));
@@ -98,6 +109,11 @@ class TradeRepositoryImplTest {
 
         @Override
         public List<TradeRow> findByAccountIdAndExternalTradeId(Long accountId, String externalTradeId) {
+            throw toThrow;
+        }
+
+        @Override
+        public List<TradeRow> findAllByAccountIdAndSecurityId(Long accountId, Long securityId) {
             throw toThrow;
         }
 

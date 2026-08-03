@@ -4,6 +4,7 @@ import com.investory.ledger.domain.constant.TradeSide;
 import com.investory.ledger.domain.model.Trade;
 import com.investory.ledger.domain.ports.FakeMarketDataPort;
 import com.investory.ledger.domain.ports.dto.SecurityInfo;
+import com.investory.ledger.domain.repositories.FakeTradeMatchRepository;
 import com.investory.ledger.domain.repositories.FakeTradeRepository;
 import com.investory.ledger.domain.repositories.TradeSearchCriteria;
 import com.investory.ledger.domain.services.dto.command.IngestRawTradesCommand;
@@ -27,13 +28,16 @@ class TradeIngestionServiceTest {
 
     private FakeTradeRepository tradeRepository;
     private FakeMarketDataPort marketDataPort;
+    private FakeTradeMatchRepository tradeMatchRepository;
     private TradeIngestionService tradeIngestionService;
 
     @BeforeEach
     void setUp() {
         tradeRepository = new FakeTradeRepository();
         marketDataPort = new FakeMarketDataPort();
-        tradeIngestionService = new TradeIngestionService(tradeRepository, marketDataPort);
+        tradeMatchRepository = new FakeTradeMatchRepository();
+        TradeMatchingService tradeMatchingService = new TradeMatchingService(tradeRepository, tradeMatchRepository);
+        tradeIngestionService = new TradeIngestionService(tradeRepository, marketDataPort, tradeMatchingService);
 
         marketDataPort.add(new SecurityInfo(SECURITY_ID, "005930", "삼성전자", "KOSPI", "반도체"));
     }
@@ -50,6 +54,7 @@ class TradeIngestionServiceTest {
         List<Trade> saved = tradeRepository.search(new TradeSearchCriteria(List.of(ACCOUNT_ID), null, null, null, null, 0, 10));
         assertEquals(1, saved.size());
         assertEquals(SECURITY_ID, saved.get(0).getSecurityId());
+        assertEquals(1, tradeMatchRepository.deleteCallCount());
     }
 
     @Test
@@ -64,6 +69,8 @@ class TradeIngestionServiceTest {
         assertEquals(0, result.skippedCount());
         List<Trade> saved = tradeRepository.search(new TradeSearchCriteria(List.of(ACCOUNT_ID), null, null, null, null, 0, 10));
         assertEquals(1, saved.size());
+        // 두 번째 호출은 전부 중복이라 새로 건드린 종목이 없어 재매칭이 트리거되지 않는다
+        assertEquals(1, tradeMatchRepository.deleteCallCount());
     }
 
     @Test
@@ -77,5 +84,6 @@ class TradeIngestionServiceTest {
         assertEquals(1, result.skippedCount());
         assertTrue(result.skippedReasons().get(0).contains("999999"));
         assertTrue(tradeRepository.search(new TradeSearchCriteria(List.of(ACCOUNT_ID), null, null, null, null, 0, 10)).isEmpty());
+        assertEquals(0, tradeMatchRepository.deleteCallCount());
     }
 }
