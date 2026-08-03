@@ -13,9 +13,11 @@ import java.time.Instant;
 @NoArgsConstructor
 public class BrokerConnectionRow {
     private Long connectionId;
+    private Long userId;
     private Long brokerId;
     private String brokerCode;
     private String brokerName;
+    private String mockProfileCode;
     private String connectionStatus;
     private Instant connectedAt;
     private Instant lastSyncedAt;

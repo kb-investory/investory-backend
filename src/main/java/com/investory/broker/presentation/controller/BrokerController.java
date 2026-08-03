@@ -4,10 +4,17 @@ import com.investory.broker.domain.services.BrokerConnectionService;
 import com.investory.broker.domain.services.BrokerProviderService;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.BrokerProviderResult;
+import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
+import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
 import com.investory.broker.presentation.dto.response.BrokerConnectionListResponse;
 import com.investory.broker.presentation.dto.response.BrokerProviderListResponse;
+import com.investory.broker.presentation.dto.response.CreateBrokerConnectionResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -37,5 +44,12 @@ public class BrokerController {
     public BrokerConnectionListResponse getConnections() {
         List<BrokerConnectionResult> results = brokerConnectionService.getConnections(TEMP_USER_ID);
         return BrokerConnectionListResponse.from(results);
+    }
+
+    @PostMapping("/connections")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CreateBrokerConnectionResponse createConnection(@RequestBody CreateBrokerConnectionRequest request) {
+        CreateBrokerConnectionResult result = brokerConnectionService.createConnection(request.toCommand(TEMP_USER_ID));
+        return CreateBrokerConnectionResponse.from(result);
     }
 }

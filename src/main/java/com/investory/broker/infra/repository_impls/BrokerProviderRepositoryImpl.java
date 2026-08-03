@@ -9,6 +9,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
@@ -26,6 +27,17 @@ public class BrokerProviderRepositoryImpl implements BrokerProviderRepository {
             return brokerProviderMapper.findAllActive().stream()
                     .map(BrokerProviderRow::toDomain)
                     .collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(e);
+        }
+    }
+
+    @Override
+    public Optional<BrokerProvider> findById(Long brokerId) {
+        try {
+            return brokerProviderMapper.findById(brokerId).stream()
+                    .map(BrokerProviderRow::toDomain)
+                    .findFirst();
         } catch (DataAccessException e) {
             throw new BrokerInfraException(e);
         }

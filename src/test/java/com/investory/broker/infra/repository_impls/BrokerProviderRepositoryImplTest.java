@@ -34,5 +34,10 @@ class BrokerProviderRepositoryImplTest {
         public List<BrokerProviderRow> findAllActive() {
             throw toThrow;
         }
+
+        @Override
+        public List<BrokerProviderRow> findById(Long brokerId) {
+            throw toThrow;
+        }
     }
 }

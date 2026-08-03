@@ -4,6 +4,7 @@ import com.investory.broker.domain.model.BrokerProvider;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class FakeBrokerProviderRepository implements BrokerProviderRepository {
@@ -19,5 +20,12 @@ public class FakeBrokerProviderRepository implements BrokerProviderRepository {
         return providers.stream()
                 .filter(BrokerProvider::isActive)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<BrokerProvider> findById(Long brokerId) {
+        return providers.stream()
+                .filter(provider -> provider.getBrokerId().equals(brokerId))
+                .findFirst();
     }
 }

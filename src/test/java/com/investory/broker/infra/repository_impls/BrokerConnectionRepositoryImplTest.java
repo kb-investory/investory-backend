@@ -6,6 +6,7 @@ import com.investory.broker.infra.mappers.BrokerConnectionMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -32,6 +33,21 @@ class BrokerConnectionRepositoryImplTest {
 
         @Override
         public List<BrokerConnectionRow> findAllByUserId(Long userId) {
+            throw toThrow;
+        }
+
+        @Override
+        public List<BrokerConnectionRow> findActiveByUserIdAndBrokerId(Long userId, Long brokerId) {
+            throw toThrow;
+        }
+
+        @Override
+        public void insert(BrokerConnectionRow row) {
+            throw toThrow;
+        }
+
+        @Override
+        public void updateLastSyncedAt(Long connectionId, Instant lastSyncedAt) {
             throw toThrow;
         }
     }
