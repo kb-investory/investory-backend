@@ -45,6 +45,17 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
     }
 
     @Override
+    public Optional<BrokerConnection> findByIdAndUserId(Long connectionId, Long userId) {
+        try {
+            return brokerConnectionMapper.findByIdAndUserId(connectionId, userId).stream()
+                    .map(BrokerConnectionRow::toDomain)
+                    .findFirst();
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(e);
+        }
+    }
+
+    @Override
     public Long insert(Long userId, Long brokerId, String mockProfileCode, Instant connectedAt) {
         BrokerConnectionRow row = new BrokerConnectionRow();
         row.setUserId(userId);

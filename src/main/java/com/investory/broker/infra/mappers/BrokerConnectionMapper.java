@@ -13,6 +13,8 @@ public interface BrokerConnectionMapper {
 
     List<BrokerConnectionRow> findActiveByUserIdAndBrokerId(@Param("userId") Long userId, @Param("brokerId") Long brokerId);
 
+    List<BrokerConnectionRow> findByIdAndUserId(@Param("connectionId") Long connectionId, @Param("userId") Long userId);
+
     void insert(BrokerConnectionRow row);
 
     void updateLastSyncedAt(@Param("connectionId") Long connectionId, @Param("lastSyncedAt") Instant lastSyncedAt);

@@ -5,6 +5,8 @@ import com.investory.broker.domain.constant.ConnectionStatus;
 import com.investory.broker.domain.constant.SyncStatus;
 import com.investory.broker.domain.exception.BrokerErrorCode;
 import com.investory.broker.domain.exception.BrokerException;
+import com.investory.broker.domain.model.AccountSyncBatch;
+import com.investory.broker.domain.model.BrokerConnection;
 import com.investory.broker.domain.model.BrokerProvider;
 import com.investory.broker.domain.ports.BrokerFeedPort;
 import com.investory.broker.domain.ports.HoldingIngestionPort;
@@ -19,6 +21,8 @@ import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.domain.repositories.BrokerProviderRepository;
 import com.investory.broker.domain.repositories.InvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
+import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
+import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
 import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
@@ -69,6 +73,18 @@ public class BrokerConnectionService {
         return brokerConnectionRepository.findAllByUserId(userId).stream()
                 .map(BrokerConnectionResult::from)
                 .collect(Collectors.toList());
+    }
+
+    public BrokerConnectionDetailResult getConnectionDetail(GetBrokerConnectionDetailQuery query) {
+        BrokerConnection connection = brokerConnectionRepository
+                .findByIdAndUserId(query.connectionId(), query.userId())
+                .orElseThrow(() -> new BrokerException(BrokerErrorCode.CONNECTION_NOT_FOUND));
+
+        AccountSyncBatch latestSyncBatch = accountSyncBatchRepository
+                .findLatestByConnectionId(connection.getConnectionId())
+                .orElse(null);
+
+        return BrokerConnectionDetailResult.of(connection, latestSyncBatch);
     }
 
     @Transactional
