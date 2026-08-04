@@ -6,16 +6,19 @@ import com.investory.broker.domain.services.InvestmentAccountService;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.BrokerProviderResult;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
+import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
+import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
 import com.investory.broker.presentation.dto.response.BrokerConnectionAccountsResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionDetailResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionListResponse;
 import com.investory.broker.presentation.dto.response.BrokerProviderListResponse;
 import com.investory.broker.presentation.dto.response.CreateBrokerConnectionResponse;
+import com.investory.broker.presentation.dto.response.SyncConnectionResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -78,5 +81,12 @@ public class BrokerController {
         ConnectionAccountsResult result = investmentAccountService.getAccountsByConnection(
                 new GetConnectionAccountsQuery(TEMP_USER_ID, connectionId));
         return BrokerConnectionAccountsResponse.from(result);
+    }
+
+    @PostMapping("/connections/{connectionId}/sync")
+    public SyncConnectionResponse syncConnection(@PathVariable Long connectionId) {
+        SyncConnectionResult result = brokerConnectionService.syncConnection(
+                new SyncBrokerConnectionCommand(TEMP_USER_ID, connectionId));
+        return SyncConnectionResponse.from(result);
     }
 }

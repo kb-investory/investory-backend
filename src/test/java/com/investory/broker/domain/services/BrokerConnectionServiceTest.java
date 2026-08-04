@@ -14,10 +14,12 @@ import com.investory.broker.domain.repositories.FakeBrokerConnectionRepository;
 import com.investory.broker.domain.repositories.FakeBrokerProviderRepository;
 import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
+import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
+import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.domain.ports.FakeBrokerFeedPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -177,5 +179,38 @@ class BrokerConnectionServiceTest {
         BrokerException exception = assertThrows(BrokerException.class, () -> brokerConnectionService.getConnectionDetail(query));
 
         assertEquals(BrokerErrorCode.CONNECTION_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 재동기화에_성공하면_SUCCESS와_집계_결과를_반환한다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        brokerConnectionRepository.addMockProfileCode(15L, "demo1");
+
+        SyncConnectionResult result = brokerConnectionService.syncConnection(new SyncBrokerConnectionCommand(1L, 15L));
+
+        assertEquals(15L, result.connectionId());
+        assertEquals(SyncStatus.SUCCESS, result.syncStatus());
+        assertEquals(0, result.accountCount());
+    }
+
+    @Test
+    void 존재하지_않는_연결을_재동기화하면_예외가_발생한다() {
+        SyncBrokerConnectionCommand command = new SyncBrokerConnectionCommand(1L, 999L);
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> brokerConnectionService.syncConnection(command));
+
+        assertEquals(BrokerErrorCode.CONNECTION_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 재동기화_도중_오류가_나면_배치는_FAILED로_기록되고_예외는_던지지_않는다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        brokerConnectionRepository.addMockProfileCode(15L, "demo1");
+        brokerFeedPort.willFailSyncWith(new RuntimeException("목 서버 응답 오류"));
+
+        SyncConnectionResult result = brokerConnectionService.syncConnection(new SyncBrokerConnectionCommand(1L, 15L));
+
+        assertEquals(SyncStatus.FAILED, result.syncStatus());
+        assertEquals(0, result.accountCount());
     }
 }

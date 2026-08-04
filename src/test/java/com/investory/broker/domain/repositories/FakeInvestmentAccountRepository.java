@@ -21,13 +21,23 @@ public class FakeInvestmentAccountRepository implements InvestmentAccountReposit
     }
 
     @Override
-    public Long insert(
+    public Long upsert(
             Long connectionId,
             String externalAccountId,
             String accountNoMasked,
             String accountName,
             AccountType accountType,
             String currencyCode) {
+        for (int i = 0; i < accounts.size(); i++) {
+            InvestmentAccount existing = accounts.get(i).account();
+            if (existing.getConnectionId().equals(connectionId) && existing.getExternalAccountId().equals(externalAccountId)) {
+                InvestmentAccount updated = InvestmentAccount.of(
+                        existing.getAccountId(), connectionId, externalAccountId,
+                        accountNoMasked, accountName, accountType, currencyCode);
+                accounts.set(i, new Owned(accounts.get(i).userId(), updated));
+                return existing.getAccountId();
+            }
+        }
         Long accountId = nextAccountId++;
         InvestmentAccount account = InvestmentAccount.of(
                 accountId, connectionId, externalAccountId, accountNoMasked, accountName, accountType, currencyCode);

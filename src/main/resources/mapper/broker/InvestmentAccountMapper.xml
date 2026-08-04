@@ -49,11 +49,17 @@
           AND bc.user_id = #{userId}
     </select>
 
-    <insert id="insert" useGeneratedKeys="true" keyProperty="accountId">
+    <insert id="upsert" useGeneratedKeys="true" keyProperty="accountId">
         INSERT INTO investment_accounts
             (connection_id, external_account_id, account_no_masked, account_name, account_type, currency_code)
         VALUES
             (#{connectionId}, #{externalAccountId}, #{accountNoMasked}, #{accountName}, #{accountType}, #{currencyCode})
+        ON DUPLICATE KEY UPDATE
+            account_id = LAST_INSERT_ID(account_id),
+            account_no_masked = VALUES(account_no_masked),
+            account_name = VALUES(account_name),
+            account_type = VALUES(account_type),
+            currency_code = VALUES(currency_code)
     </insert>
 
 </mapper>

@@ -21,10 +21,12 @@ import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.domain.repositories.BrokerProviderRepository;
 import com.investory.broker.domain.repositories.InvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
+import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
+import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.core.exception.FieldError;
 import org.slf4j.Logger;
@@ -101,10 +103,10 @@ public class BrokerConnectionService {
         BrokerLoginResult login = authenticate(command.loginId(), command.password());
 
         Instant connectedAt = Instant.now();
-        Long connectionId = brokerConnectionRepository.insert(command.userId(), command.brokerId(), command.loginId(), connectedAt);
+        Long connectionId = brokerConnectionRepository.insert(command.userId(), command.brokerId(), login.mockConnectionId(), connectedAt);
         Long syncBatchId = accountSyncBatchRepository.create(connectionId);
 
-        SyncOutcome outcome = runSync(command.userId(), connectionId, login.accessToken(), provider.getBrokerCode());
+        SyncOutcome outcome = runSync(command.userId(), connectionId, login.mockConnectionId(), provider.getBrokerCode());
 
         Instant lastSyncedAt = null;
         SyncStatus syncStatus;
@@ -130,6 +132,44 @@ public class BrokerConnectionService {
                 connectedAt,
                 lastSyncedAt,
                 syncResult
+        );
+    }
+
+    @Transactional
+    public SyncConnectionResult syncConnection(SyncBrokerConnectionCommand command) {
+        BrokerConnection connection = brokerConnectionRepository.findByIdAndUserId(command.connectionId(), command.userId())
+                .orElseThrow(() -> new BrokerException(BrokerErrorCode.CONNECTION_NOT_FOUND));
+        String mockProfileCode = brokerConnectionRepository.findMockProfileCodeByConnectionId(connection.getConnectionId())
+                .orElseThrow(() -> new BrokerException(BrokerErrorCode.CONNECTION_NOT_FOUND));
+
+        Long syncBatchId = accountSyncBatchRepository.create(connection.getConnectionId());
+        AccountSyncBatch createdBatch = accountSyncBatchRepository.findLatestByConnectionId(connection.getConnectionId())
+                .orElseThrow(() -> new BrokerException(BrokerErrorCode.CONNECTION_NOT_FOUND));
+
+        SyncOutcome outcome = runSync(command.userId(), connection.getConnectionId(), mockProfileCode, connection.getBrokerCode());
+
+        SyncStatus syncStatus;
+        Instant completedAt = null;
+        if (outcome.succeeded()) {
+            accountSyncBatchRepository.markSuccess(syncBatchId);
+            completedAt = Instant.now();
+            brokerConnectionRepository.updateLastSyncedAt(connection.getConnectionId(), completedAt);
+            syncStatus = SyncStatus.SUCCESS;
+        } else {
+            accountSyncBatchRepository.markFailed(syncBatchId, outcome.errorMessage());
+            syncStatus = SyncStatus.FAILED;
+        }
+
+        return new SyncConnectionResult(
+                syncBatchId,
+                connection.getConnectionId(),
+                syncStatus,
+                createdBatch.getRequestedAt(),
+                completedAt,
+                outcome.accountCount(),
+                outcome.insertedTradeCount(),
+                outcome.skippedTradeCount(),
+                outcome.holdingCount()
         );
     }
 
@@ -160,38 +200,42 @@ public class BrokerConnectionService {
     // 계좌 목록부터 계좌별 거래내역/보유상품까지 조회해서 investment_accounts에 저장하고,
     // 거래/보유종목은 ledger 쪽 Port로 저장 요청만 넘긴다. 도중에 실패해도 커넥션 자체는 롤백하지 않고
     // 실패 사실만 호출자에게 돌려준다 (배치 상태를 FAILED로 남기기 위함).
-    private SyncOutcome runSync(Long userId, Long connectionId, String accessToken, String orgCode) {
+    // createConnection/syncConnection 양쪽에서 재사용 — mockConnectionId만 있으면 되고
+    // 별도 재인증 단계가 필요 없어서(client-id/secret + connectionId 방식) 하나로 합쳐도 된다.
+    private SyncOutcome runSync(Long userId, Long connectionId, String mockConnectionId, String orgCode) {
         try {
-            List<RawAccountRecord> accounts = brokerFeedPort.fetchAccounts(accessToken, orgCode);
+            List<RawAccountRecord> accounts = brokerFeedPort.fetchAccounts(mockConnectionId, orgCode);
 
             int accountCount = 0;
             int insertedTradeCount = 0;
+            int skippedTradeCount = 0;
             int holdingCount = 0;
 
             for (RawAccountRecord account : accounts) {
                 Long accountId = createInvestmentAccount(connectionId, account);
                 accountCount++;
 
-                List<RawTradeRecord> trades = brokerFeedPort.fetchTrades(accessToken, account.accountNum());
+                List<RawTradeRecord> trades = brokerFeedPort.fetchTrades(mockConnectionId, account.accountNum());
                 IngestResult tradeResult = tradeIngestionPort.ingestTrades(userId, accountId, trades);
                 insertedTradeCount += tradeResult.successCount();
+                skippedTradeCount += tradeResult.skippedCount();
 
-                RawHoldingBatch holdingBatch = brokerFeedPort.fetchHoldings(accessToken, account.accountNum());
+                RawHoldingBatch holdingBatch = brokerFeedPort.fetchHoldings(mockConnectionId, account.accountNum());
                 IngestResult holdingResult = holdingIngestionPort.ingestHoldings(
                         userId, accountId, holdingBatch.baseDate(), holdingBatch.holdings());
                 holdingCount += holdingResult.successCount();
             }
 
-            return new SyncOutcome(true, null, accountCount, insertedTradeCount, holdingCount);
+            return new SyncOutcome(true, null, accountCount, insertedTradeCount, skippedTradeCount, holdingCount);
         } catch (Exception e) {
             log.error("증권사 동기화 중 오류가 발생했습니다. connectionId={}", connectionId, e);
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            return new SyncOutcome(false, truncate(message, ERROR_MESSAGE_MAX_LENGTH), 0, 0, 0);
+            return new SyncOutcome(false, truncate(message, ERROR_MESSAGE_MAX_LENGTH), 0, 0, 0, 0);
         }
     }
 
     private Long createInvestmentAccount(Long connectionId, RawAccountRecord account) {
-        return investmentAccountRepository.insert(
+        return investmentAccountRepository.upsert(
                 connectionId,
                 account.accountNum(),
                 maskAccountNo(account.accountNum()),
@@ -224,6 +268,7 @@ public class BrokerConnectionService {
         String errorMessage,
         int accountCount,
         int insertedTradeCount,
+        int skippedTradeCount,
         int holdingCount
     ) {
     }
