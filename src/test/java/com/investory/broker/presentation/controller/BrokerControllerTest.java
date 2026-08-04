@@ -6,6 +6,7 @@ import com.investory.broker.domain.model.BrokerConnectionFixture;
 import com.investory.broker.domain.model.BrokerProviderFixture;
 import com.investory.broker.domain.ports.FakeBrokerFeedPort;
 import com.investory.broker.domain.ports.FakeHoldingIngestionPort;
+import com.investory.broker.domain.ports.FakeHoldingSummaryPort;
 import com.investory.broker.domain.ports.FakeTradeIngestionPort;
 import com.investory.broker.domain.repositories.FakeAccountSyncBatchRepository;
 import com.investory.broker.domain.repositories.FakeBrokerConnectionRepository;
@@ -13,6 +14,7 @@ import com.investory.broker.domain.repositories.FakeBrokerProviderRepository;
 import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
 import com.investory.broker.domain.services.BrokerConnectionService;
 import com.investory.broker.domain.services.BrokerProviderService;
+import com.investory.broker.domain.services.InvestmentAccountService;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.global.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -48,13 +50,22 @@ class BrokerControllerTest {
         );
     }
 
+    private static InvestmentAccountService newAccountService() {
+        return newAccountService(new FakeInvestmentAccountRepository(), new FakeBrokerConnectionRepository());
+    }
+
+    private static InvestmentAccountService newAccountService(
+            FakeInvestmentAccountRepository accountRepository, FakeBrokerConnectionRepository connectionRepository) {
+        return new InvestmentAccountService(accountRepository, connectionRepository, new FakeHoldingSummaryPort());
+    }
+
     @Test
     void 지원_증권사_목록을_반환한다() throws Exception {
         FakeBrokerProviderRepository repository = new FakeBrokerProviderRepository();
         repository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerProviderService providerService = new BrokerProviderService(repository);
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
 
         MvcResult result = mockMvc.perform(get("/broker/providers"))
                 .andExpect(status().isOk())
@@ -74,7 +85,7 @@ class BrokerControllerTest {
     void 인프라_예외는_GlobalExceptionHandler_응답_포맷으로_변환된다() throws Exception {
         BrokerProviderService providerService = new BrokerProviderService(new FailingBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -95,7 +106,7 @@ class BrokerControllerTest {
         FakeBrokerConnectionRepository repository = new FakeBrokerConnectionRepository();
         repository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(repository);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections"))
                 .andExpect(status().isOk())
@@ -116,7 +127,7 @@ class BrokerControllerTest {
     void 연동한_증권사가_없으면_빈_배열을_반환한다() throws Exception {
         BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections"))
                 .andExpect(status().isOk())
@@ -134,7 +145,7 @@ class BrokerControllerTest {
         providerRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerProviderService providerService = new BrokerProviderService(providerRepository);
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository(), providerRepository);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
 
         MvcResult result = mockMvc.perform(post("/broker/connections")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -154,7 +165,7 @@ class BrokerControllerTest {
     void 존재하지_않는_브로커로_연동_요청하면_404를_반환한다() throws Exception {
         BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -176,7 +187,7 @@ class BrokerControllerTest {
         FakeBrokerConnectionRepository repository = new FakeBrokerConnectionRepository();
         repository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(repository);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections/15"))
                 .andExpect(status().isOk())
@@ -195,7 +206,7 @@ class BrokerControllerTest {
     void 존재하지_않는_연결을_조회하면_404를_반환한다() throws Exception {
         BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -207,6 +218,33 @@ class BrokerControllerTest {
                 .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
 
         assertEquals("BRK_005", json.get("errorCode").asText());
+    }
+
+    @Test
+    void 연결의_계좌_목록을_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
+        connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        BrokerConnectionService connectionService = newConnectionService(connectionRepository);
+        FakeInvestmentAccountRepository accountRepository = new FakeInvestmentAccountRepository();
+        accountRepository.add(1L, com.investory.broker.domain.model.InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌",
+                com.investory.broker.domain.constant.AccountType.STOCK, "KRW"));
+        InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new BrokerController(providerService, connectionService, accountService)).build();
+
+        MvcResult result = mockMvc.perform(get("/broker/connections/15/accounts"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals(15, json.get("connectionId").asLong());
+        assertEquals("미래에셋증권(모의)", json.get("brokerName").asText());
+        assertEquals(1, json.get("accounts").size());
+        assertEquals(25, json.get("accounts").get(0).get("accountId").asLong());
     }
 
     private static class FailingBrokerProviderRepository implements com.investory.broker.domain.repositories.BrokerProviderRepository {

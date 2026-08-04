@@ -3,19 +3,41 @@ package com.investory.broker.infra.port_impls;
 import com.investory.broker.domain.ports.HoldingIngestionPort;
 import com.investory.broker.domain.ports.dto.IngestResult;
 import com.investory.broker.domain.ports.dto.RawHoldingRecord;
+import com.investory.ledger.domain.services.HoldingIngestionService;
+import com.investory.ledger.domain.services.dto.command.IngestRawHoldingsCommand;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class HoldingIngestionPortImpl implements HoldingIngestionPort {
 
-    // TODO: ledger.domain.services.HoldingIngestionService 구현 후 실제 호출로 교체.
-    // ledger가 아직 없어 전달받은 보유종목을 전부 스킵 처리하고 반환한다.
+    private final HoldingIngestionService holdingIngestionService;
+
+    public HoldingIngestionPortImpl(HoldingIngestionService holdingIngestionService) {
+        this.holdingIngestionService = holdingIngestionService;
+    }
+
     @Override
     public IngestResult ingestHoldings(Long userId, Long accountId, LocalDate baseDate, List<RawHoldingRecord> rawHoldings) {
-        return new IngestResult(0, rawHoldings.size(), Collections.nCopies(rawHoldings.size(), "ledger 미구현"));
+        List<com.investory.ledger.domain.services.dto.command.RawHoldingRecord> ledgerRawHoldings = rawHoldings.stream()
+                .map(this::toLedgerRawHoldingRecord)
+                .collect(Collectors.toList());
+
+        com.investory.ledger.domain.services.dto.result.IngestResult result = holdingIngestionService.ingestHoldings(
+                new IngestRawHoldingsCommand(userId, accountId, baseDate, ledgerRawHoldings));
+
+        return new IngestResult(result.successCount(), result.skippedCount(), result.skippedReasons());
+    }
+
+    private com.investory.ledger.domain.services.dto.command.RawHoldingRecord toLedgerRawHoldingRecord(RawHoldingRecord raw) {
+        return new com.investory.ledger.domain.services.dto.command.RawHoldingRecord(
+                raw.securityCode(),
+                raw.quantity(),
+                raw.averagePurchasePrice(),
+                raw.currentPrice()
+        );
     }
 }

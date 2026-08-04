@@ -55,5 +55,10 @@ class BrokerConnectionRepositoryImplTest {
         public void updateLastSyncedAt(Long connectionId, Instant lastSyncedAt) {
             throw toThrow;
         }
+
+        @Override
+        public List<BrokerConnectionRow> findByIds(List<Long> connectionIds) {
+            throw toThrow;
+        }
     }
 }

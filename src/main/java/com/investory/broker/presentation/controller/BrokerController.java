@@ -2,12 +2,16 @@ package com.investory.broker.presentation.controller;
 
 import com.investory.broker.domain.services.BrokerConnectionService;
 import com.investory.broker.domain.services.BrokerProviderService;
+import com.investory.broker.domain.services.InvestmentAccountService;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.BrokerProviderResult;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
+import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
+import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
 import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
+import com.investory.broker.presentation.dto.response.BrokerConnectionAccountsResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionDetailResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionListResponse;
 import com.investory.broker.presentation.dto.response.BrokerProviderListResponse;
@@ -32,10 +36,15 @@ public class BrokerController {
 
     private final BrokerProviderService brokerProviderService;
     private final BrokerConnectionService brokerConnectionService;
+    private final InvestmentAccountService investmentAccountService;
 
-    public BrokerController(BrokerProviderService brokerProviderService, BrokerConnectionService brokerConnectionService) {
+    public BrokerController(
+            BrokerProviderService brokerProviderService,
+            BrokerConnectionService brokerConnectionService,
+            InvestmentAccountService investmentAccountService) {
         this.brokerProviderService = brokerProviderService;
         this.brokerConnectionService = brokerConnectionService;
+        this.investmentAccountService = investmentAccountService;
     }
 
     @GetMapping("/providers")
@@ -62,5 +71,12 @@ public class BrokerController {
         BrokerConnectionDetailResult result = brokerConnectionService.getConnectionDetail(
                 new GetBrokerConnectionDetailQuery(TEMP_USER_ID, connectionId));
         return BrokerConnectionDetailResponse.from(result);
+    }
+
+    @GetMapping("/connections/{connectionId}/accounts")
+    public BrokerConnectionAccountsResponse getConnectionAccounts(@PathVariable Long connectionId) {
+        ConnectionAccountsResult result = investmentAccountService.getAccountsByConnection(
+                new GetConnectionAccountsQuery(TEMP_USER_ID, connectionId));
+        return BrokerConnectionAccountsResponse.from(result);
     }
 }
