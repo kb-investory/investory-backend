@@ -49,6 +49,14 @@ public class FakeBrokerConnectionRepository implements BrokerConnectionRepositor
     }
 
     @Override
+    public List<BrokerConnection> findByIds(List<Long> connectionIds) {
+        return connections.stream()
+                .map(Owned::connection)
+                .filter(connection -> connectionIds.contains(connection.getConnectionId()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Long insert(Long userId, Long brokerId, String mockProfileCode, Instant connectedAt) {
         Long connectionId = nextConnectionId++;
         BrokerConnection connection = BrokerConnection.of(

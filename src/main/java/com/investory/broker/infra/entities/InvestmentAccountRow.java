@@ -1,5 +1,7 @@
 package com.investory.broker.infra.entities;
 
+import com.investory.broker.domain.constant.AccountType;
+import com.investory.broker.domain.model.InvestmentAccount;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -15,4 +17,11 @@ public class InvestmentAccountRow {
     private String accountName;
     private String accountType;
     private String currencyCode;
+
+    public InvestmentAccount toDomain() {
+        return InvestmentAccount.of(
+                accountId, connectionId, externalAccountId, accountNoMasked,
+                accountName, AccountType.valueOf(accountType), currencyCode
+        );
+    }
 }

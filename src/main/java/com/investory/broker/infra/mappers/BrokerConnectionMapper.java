@@ -15,6 +15,8 @@ public interface BrokerConnectionMapper {
 
     List<BrokerConnectionRow> findByIdAndUserId(@Param("connectionId") Long connectionId, @Param("userId") Long userId);
 
+    List<BrokerConnectionRow> findByIds(@Param("connectionIds") List<Long> connectionIds);
+
     void insert(BrokerConnectionRow row);
 
     void updateLastSyncedAt(@Param("connectionId") Long connectionId, @Param("lastSyncedAt") Instant lastSyncedAt);
