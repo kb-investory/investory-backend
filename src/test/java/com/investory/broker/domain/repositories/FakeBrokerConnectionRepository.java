@@ -5,7 +5,9 @@ import com.investory.broker.domain.model.BrokerConnection;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -15,10 +17,15 @@ public class FakeBrokerConnectionRepository implements BrokerConnectionRepositor
     }
 
     private final List<Owned> connections = new ArrayList<>();
+    private final Map<Long, String> mockProfileCodes = new HashMap<>();
     private long nextConnectionId = 100L;
 
     public void add(Long userId, BrokerConnection connection) {
         connections.add(new Owned(userId, connection));
+    }
+
+    public void addMockProfileCode(Long connectionId, String mockProfileCode) {
+        mockProfileCodes.put(connectionId, mockProfileCode);
     }
 
     @Override
@@ -57,6 +64,11 @@ public class FakeBrokerConnectionRepository implements BrokerConnectionRepositor
     }
 
     @Override
+    public Optional<String> findMockProfileCodeByConnectionId(Long connectionId) {
+        return Optional.ofNullable(mockProfileCodes.get(connectionId));
+    }
+
+    @Override
     public Long insert(Long userId, Long brokerId, String mockProfileCode, Instant connectedAt) {
         Long connectionId = nextConnectionId++;
         BrokerConnection connection = BrokerConnection.of(
@@ -64,6 +76,7 @@ public class FakeBrokerConnectionRepository implements BrokerConnectionRepositor
                 ConnectionStatus.CONNECTED, connectedAt, null, 0
         );
         connections.add(new Owned(userId, connection));
+        mockProfileCodes.put(connectionId, mockProfileCode);
         return connectionId;
     }
 

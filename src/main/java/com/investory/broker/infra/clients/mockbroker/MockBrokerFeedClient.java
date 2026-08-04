@@ -36,6 +36,10 @@ import java.util.stream.Collectors;
 // raw JSON 파싱/페이지네이션/필드 매핑을 전부 여기서 끝내고, BrokerFeedPort 밖으로는
 // 순수 도메인 DTO(BrokerLoginResult, RawXxxRecord)만 나간다 — domain은 이 클래스의
 // 존재도, 목 서버 응답 포맷도 몰라야 한다.
+//
+// 인증은 client-id/secret + connectionId 방식(외부 서비스 연동)만 쓴다 — 유저 본인의
+// accessToken/Bearer 방식은 쓰지 않는다. login()이 발급받는 connectionId를 저장해두면
+// 이후 fetchXxx 호출은 비밀번호 없이 그 connectionId 재사용만으로 계속 가능하다.
 @Component
 public class MockBrokerFeedClient implements BrokerFeedPort {
 
@@ -52,18 +56,30 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
     @Value("${broker.mock-server.base-url}")
     private String baseUrl;
 
+    @Value("${broker.mock-server.client-id}")
+    private String clientId;
+
+    @Value("${broker.mock-server.client-secret}")
+    private String clientSecret;
+
     public MockBrokerFeedClient(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
+    // POST /mock/system/connections — client-id/secret으로 스스로를 증명하고 loginId/password로
+    // 그 유저와의 커넥션을 발급받는다. 같은 유저에 다시 요청해도 같은 connectionId가 재발급되므로
+    // 이 결과의 mockConnectionId를 저장해두면 이후 재동기화 시 이 메서드를 다시 부를 필요가 없다.
     @Override
     public BrokerLoginResult login(String loginId, String password) {
         try {
-            HttpEntity<MockLoginRequest> entity = new HttpEntity<>(new MockLoginRequest(loginId, password), jsonHeaders());
+            HttpHeaders headers = jsonHeaders();
+            headers.add("x-client-id", clientId);
+            headers.add("x-client-secret", clientSecret);
+            HttpEntity<MockLoginRequest> entity = new HttpEntity<>(new MockLoginRequest(loginId, password), headers);
             ResponseEntity<MockLoginResponse> response = restTemplate.postForEntity(
-                    baseUrl + "/mock/auth/login", entity, MockLoginResponse.class);
+                    baseUrl + "/mock/system/connections", entity, MockLoginResponse.class);
             MockLoginResponse body = response.getBody();
-            return new BrokerLoginResult(body.accessToken(), body.orgCode(), body.orgName());
+            return new BrokerLoginResult(body.connectionId(), body.orgCode(), body.orgName());
         } catch (HttpClientErrorException.Unauthorized e) {
             throw new BrokerFeedAuthFailedException(e);
         } catch (RestClientException e) {
@@ -72,10 +88,10 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
     }
 
     @Override
-    public List<RawAccountRecord> fetchAccounts(String accessToken, String orgCode) {
+    public List<RawAccountRecord> fetchAccounts(String mockConnectionId, String orgCode) {
         try {
             String url = baseUrl + "/v2/invest/accounts?org_code=" + orgCode + "&limit=500";
-            HttpEntity<Void> entity = new HttpEntity<>(investHeaders(accessToken));
+            HttpEntity<Void> entity = new HttpEntity<>(investHeaders(mockConnectionId));
             ResponseEntity<AccountListResponse> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, AccountListResponse.class);
             AccountListResponse body = response.getBody();
@@ -85,7 +101,7 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
             return body.accountList().stream()
                     .map(item -> new RawAccountRecord(
                             item.accountNum(), item.accountName(), item.accountType(),
-                            fetchCurrencyCode(accessToken, item.accountNum())))
+                            fetchCurrencyCode(mockConnectionId, item.accountNum())))
                     .collect(Collectors.toList());
         } catch (RestClientException e) {
             throw new BrokerInfraException(ErrorType.EXTERNAL_ERROR, "증권사 계좌 목록을 조회하는 중 오류가 발생했습니다.", e);
@@ -93,10 +109,10 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
     }
 
     @Override
-    public List<RawTradeRecord> fetchTrades(String accessToken, String accountNum) {
+    public List<RawTradeRecord> fetchTrades(String mockConnectionId, String accountNum) {
         try {
             String toDate = LocalDate.now(SEOUL_ZONE).format(YYYYMMDD_FORMAT);
-            return getAllTransactions(accessToken, accountNum, EARLIEST_FROM_DATE, toDate).stream()
+            return getAllTransactions(mockConnectionId, accountNum, EARLIEST_FROM_DATE, toDate).stream()
                     .map(this::toRawTradeRecord)
                     .collect(Collectors.toList());
         } catch (RestClientException e) {
@@ -105,9 +121,9 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
     }
 
     @Override
-    public RawHoldingBatch fetchHoldings(String accessToken, String accountNum) {
+    public RawHoldingBatch fetchHoldings(String mockConnectionId, String accountNum) {
         try {
-            HttpEntity<ProductsRequest> entity = new HttpEntity<>(new ProductsRequest(accountNum), investHeaders(accessToken));
+            HttpEntity<ProductsRequest> entity = new HttpEntity<>(new ProductsRequest(accountNum), investHeaders(mockConnectionId));
             ResponseEntity<ProductsResponse> response = restTemplate.postForEntity(
                     baseUrl + "/v2/invest/accounts/products", entity, ProductsResponse.class);
             ProductsResponse body = response.getBody();
@@ -120,8 +136,8 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
         }
     }
 
-    private String fetchCurrencyCode(String accessToken, String accountNum) {
-        HttpEntity<AccountBasicRequest> entity = new HttpEntity<>(new AccountBasicRequest(accountNum), investHeaders(accessToken));
+    private String fetchCurrencyCode(String mockConnectionId, String accountNum) {
+        HttpEntity<AccountBasicRequest> entity = new HttpEntity<>(new AccountBasicRequest(accountNum), investHeaders(mockConnectionId));
         ResponseEntity<AccountBasicResponse> response = restTemplate.postForEntity(
                 baseUrl + "/v2/invest/accounts/basic", entity, AccountBasicResponse.class);
         AccountBasicResponse body = response.getBody();
@@ -132,13 +148,13 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
     }
 
     // next_page가 더 이상 없을 때까지 순차 조회해서 전체 거래내역을 모은다.
-    private List<TransactionsResponse.TransactionItem> getAllTransactions(String accessToken, String accountNum, String fromDate, String toDate) {
+    private List<TransactionsResponse.TransactionItem> getAllTransactions(String mockConnectionId, String accountNum, String fromDate, String toDate) {
         List<TransactionsResponse.TransactionItem> all = new ArrayList<>();
         String nextPage = null;
         int page = 0;
         do {
             TransactionsRequest request = new TransactionsRequest(accountNum, fromDate, toDate, TRANSACTIONS_PAGE_LIMIT, nextPage);
-            HttpEntity<TransactionsRequest> entity = new HttpEntity<>(request, investHeaders(accessToken));
+            HttpEntity<TransactionsRequest> entity = new HttpEntity<>(request, investHeaders(mockConnectionId));
             ResponseEntity<TransactionsResponse> response = restTemplate.postForEntity(
                     baseUrl + "/v2/invest/accounts/transactions", entity, TransactionsResponse.class);
             TransactionsResponse body = response.getBody();
@@ -179,10 +195,13 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
         return headers;
     }
 
-    // /v2/invest/** 공통 헤더: Authorization + 마이데이터 규격상 필요한 x-api-tran-id/x-api-type
-    private HttpHeaders investHeaders(String accessToken) {
+    // /mock/**(auth/system 제외)·/v2/invest/** 공통 헤더: client-id/secret + connection-id
+    // (마이데이터 규격상 x-api-tran-id/x-api-type도 함께 실어 보낸다)
+    private HttpHeaders investHeaders(String mockConnectionId) {
         HttpHeaders headers = jsonHeaders();
-        headers.add(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+        headers.add("x-client-id", clientId);
+        headers.add("x-client-secret", clientSecret);
+        headers.add("x-connection-id", mockConnectionId);
         headers.add("x-api-tran-id", UUID.randomUUID().toString());
         headers.add("x-api-type", "INVESTORY");
         return headers;

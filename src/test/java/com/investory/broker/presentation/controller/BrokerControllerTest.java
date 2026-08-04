@@ -247,6 +247,46 @@ class BrokerControllerTest {
         assertEquals(25, json.get("accounts").get(0).get("accountId").asLong());
     }
 
+    @Test
+    void 연결_재동기화에_성공하면_200과_결과를_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
+        connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        connectionRepository.addMockProfileCode(15L, "demo1");
+        BrokerConnectionService connectionService = newConnectionService(connectionRepository);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new BrokerController(providerService, connectionService, newAccountService())).build();
+
+        MvcResult result = mockMvc.perform(post("/broker/connections/15/sync"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals(15, json.get("connectionId").asLong());
+        assertEquals("SUCCESS", json.get("syncStatus").asText());
+    }
+
+    @Test
+    void 존재하지_않는_연결을_재동기화하면_404를_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                        new BrokerController(providerService, connectionService, newAccountService()))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        MvcResult result = mockMvc.perform(post("/broker/connections/999/sync"))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals("BRK_005", json.get("errorCode").asText());
+    }
+
     private static class FailingBrokerProviderRepository implements com.investory.broker.domain.repositories.BrokerProviderRepository {
         @Override
         public java.util.List<com.investory.broker.domain.model.BrokerProvider> findAllActive() {

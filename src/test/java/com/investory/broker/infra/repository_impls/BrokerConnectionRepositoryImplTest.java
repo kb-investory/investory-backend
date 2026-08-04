@@ -60,5 +60,10 @@ class BrokerConnectionRepositoryImplTest {
         public List<BrokerConnectionRow> findByIds(List<Long> connectionIds) {
             throw toThrow;
         }
+
+        @Override
+        public List<String> findMockProfileCodeByConnectionId(Long connectionId) {
+            throw toThrow;
+        }
     }
 }

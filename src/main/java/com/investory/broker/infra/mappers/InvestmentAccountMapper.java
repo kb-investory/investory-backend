@@ -8,7 +8,7 @@ import java.util.List;
 
 @Mapper
 public interface InvestmentAccountMapper {
-    void insert(InvestmentAccountRow row);
+    void upsert(InvestmentAccountRow row);
 
     List<InvestmentAccountRow> findByConnectionId(@Param("connectionId") Long connectionId);
 

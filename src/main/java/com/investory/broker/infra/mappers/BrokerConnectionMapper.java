@@ -17,6 +17,8 @@ public interface BrokerConnectionMapper {
 
     List<BrokerConnectionRow> findByIds(@Param("connectionIds") List<Long> connectionIds);
 
+    List<String> findMockProfileCodeByConnectionId(@Param("connectionId") Long connectionId);
+
     void insert(BrokerConnectionRow row);
 
     void updateLastSyncedAt(@Param("connectionId") Long connectionId, @Param("lastSyncedAt") Instant lastSyncedAt);

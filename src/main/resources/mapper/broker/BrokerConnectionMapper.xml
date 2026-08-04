@@ -92,6 +92,12 @@
                  bc.connection_status, bc.connected_at, bc.last_synced_at
     </select>
 
+    <select id="findMockProfileCodeByConnectionId" resultType="java.lang.String">
+        SELECT mock_profile_code
+        FROM broker_connections
+        WHERE connection_id = #{connectionId}
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="connectionId">
         INSERT INTO broker_connections
             (user_id, broker_id, source_type, mock_profile_code, connection_status, connected_at)

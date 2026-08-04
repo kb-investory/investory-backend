@@ -23,7 +23,7 @@ public class InvestmentAccountRepositoryImpl implements InvestmentAccountReposit
     }
 
     @Override
-    public Long insert(
+    public Long upsert(
             Long connectionId,
             String externalAccountId,
             String accountNoMasked,
@@ -38,7 +38,7 @@ public class InvestmentAccountRepositoryImpl implements InvestmentAccountReposit
         row.setAccountType(accountType.name());
         row.setCurrencyCode(currencyCode);
         try {
-            investmentAccountMapper.insert(row);
+            investmentAccountMapper.upsert(row);
         } catch (DataAccessException e) {
             throw new BrokerInfraException(e);
         }
