@@ -72,6 +72,17 @@ public class TradeRepositoryImpl implements TradeRepository {
     }
 
     @Override
+    public List<Trade> findAllByAccountIdAndSecurityId(Long accountId, Long securityId) {
+        try {
+            return tradeMapper.findAllByAccountIdAndSecurityId(accountId, securityId).stream()
+                    .map(TradeRow::toDomain)
+                    .collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new LedgerInfraException("계좌·종목별 거래내역을 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
     public Trade save(Trade trade) {
         TradeRow row = TradeRow.from(trade);
         try {

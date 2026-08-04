@@ -65,6 +65,15 @@
           AND external_trade_id = #{externalTradeId}
     </select>
 
+    <select id="findAllByAccountIdAndSecurityId" resultMap="tradeRowResultMap">
+        SELECT trade_id, account_id, security_id, trade_side, quantity, unit_price,
+               transaction_cost_amount, external_trade_id, traded_at
+        FROM trades
+        WHERE account_id = #{accountId}
+          AND security_id = #{securityId}
+        ORDER BY traded_at ASC
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="tradeId">
         INSERT INTO trades
             (account_id, security_id, trade_side, quantity, unit_price, transaction_cost_amount, external_trade_id, traded_at)

@@ -30,5 +30,8 @@ public interface TradeMapper {
     List<TradeRow> findByAccountIdAndExternalTradeId(@Param("accountId") Long accountId,
                                                        @Param("externalTradeId") String externalTradeId);
 
+    List<TradeRow> findAllByAccountIdAndSecurityId(@Param("accountId") Long accountId,
+                                                     @Param("securityId") Long securityId);
+
     void insert(TradeRow row);
 }
