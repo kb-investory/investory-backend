@@ -5,15 +5,18 @@ import com.investory.broker.domain.services.BrokerProviderService;
 import com.investory.broker.domain.services.InvestmentAccountService;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.BrokerProviderResult;
+import com.investory.broker.domain.services.dto.query.GetAccountDetailQuery;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
 import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
+import com.investory.broker.domain.services.dto.result.AccountDetailResult;
 import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
+import com.investory.broker.presentation.dto.response.AccountDetailResponse;
 import com.investory.broker.presentation.dto.response.AccountListResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionAccountsResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionDetailResponse;
@@ -96,5 +99,12 @@ public class BrokerController {
     public AccountListResponse getAccounts() {
         AccountListResult result = investmentAccountService.getAccounts(TEMP_USER_ID);
         return AccountListResponse.from(result);
+    }
+
+    @GetMapping("/accounts/{accountId}")
+    public AccountDetailResponse getAccountDetail(@PathVariable Long accountId) {
+        AccountDetailResult result = investmentAccountService.getAccountDetail(
+                new GetAccountDetailQuery(TEMP_USER_ID, accountId));
+        return AccountDetailResponse.from(result);
     }
 }

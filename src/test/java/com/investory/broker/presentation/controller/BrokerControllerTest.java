@@ -5,9 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investory.broker.domain.model.BrokerConnectionFixture;
 import com.investory.broker.domain.model.BrokerProviderFixture;
 import com.investory.broker.domain.ports.FakeBrokerFeedPort;
+import com.investory.broker.domain.ports.FakeHoldingDetailPort;
 import com.investory.broker.domain.ports.FakeHoldingIngestionPort;
 import com.investory.broker.domain.ports.FakeHoldingSummaryPort;
 import com.investory.broker.domain.ports.FakeTradeIngestionPort;
+import com.investory.broker.domain.ports.dto.AccountHoldingsInfo;
+import com.investory.broker.domain.ports.dto.HoldingDetailInfo;
+import com.investory.broker.domain.ports.dto.HoldingSummaryInfo;
 import com.investory.broker.domain.repositories.FakeAccountSyncBatchRepository;
 import com.investory.broker.domain.repositories.FakeBrokerConnectionRepository;
 import com.investory.broker.domain.repositories.FakeBrokerProviderRepository;
@@ -23,7 +27,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -56,7 +63,16 @@ class BrokerControllerTest {
 
     private static InvestmentAccountService newAccountService(
             FakeInvestmentAccountRepository accountRepository, FakeBrokerConnectionRepository connectionRepository) {
-        return new InvestmentAccountService(accountRepository, connectionRepository, new FakeHoldingSummaryPort());
+        return new InvestmentAccountService(
+                accountRepository, connectionRepository, new FakeHoldingSummaryPort(), new FakeHoldingDetailPort());
+    }
+
+    private static InvestmentAccountService newAccountService(
+            FakeInvestmentAccountRepository accountRepository,
+            FakeBrokerConnectionRepository connectionRepository,
+            FakeHoldingDetailPort holdingDetailPort) {
+        return new InvestmentAccountService(
+                accountRepository, connectionRepository, new FakeHoldingSummaryPort(), holdingDetailPort);
     }
 
     @Test
@@ -331,6 +347,58 @@ class BrokerControllerTest {
 
         assertEquals(0, json.get("summary").get("accountCount").asInt());
         assertTrue(json.get("accounts").isEmpty());
+    }
+
+    @Test
+    void 계좌_상세와_보유종목_목록을_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
+        connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        BrokerConnectionService connectionService = newConnectionService(connectionRepository);
+        FakeInvestmentAccountRepository accountRepository = new FakeInvestmentAccountRepository();
+        accountRepository.add(1L, com.investory.broker.domain.model.InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌",
+                com.investory.broker.domain.constant.AccountType.STOCK, "KRW"));
+        FakeHoldingDetailPort holdingDetailPort = new FakeHoldingDetailPort();
+        holdingDetailPort.willReturn(new AccountHoldingsInfo(
+                new HoldingSummaryInfo(1, BigDecimal.valueOf(750000), BigDecimal.valueOf(30000)),
+                List.of(new HoldingDetailInfo(
+                        101L, "005930", "삼성전자", "KOSPI",
+                        BigDecimal.TEN, BigDecimal.valueOf(72000), BigDecimal.valueOf(750000),
+                        BigDecimal.valueOf(30000), BigDecimal.valueOf(8.91), LocalDate.parse("2026-07-29")))));
+        InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository, holdingDetailPort);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new BrokerController(providerService, connectionService, accountService)).build();
+
+        MvcResult result = mockMvc.perform(get("/broker/accounts/25"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals(25, json.get("accountId").asLong());
+        assertEquals(1, json.get("summary").get("holdingCount").asInt());
+        assertEquals(1, json.get("holdings").size());
+        assertEquals("005930", json.get("holdings").get(0).get("securityCode").asText());
+    }
+
+    @Test
+    void 존재하지_않는_계좌_상세를_조회하면_404를_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        MvcResult result = mockMvc.perform(get("/broker/accounts/999"))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals("BRK_006", json.get("errorCode").asText());
     }
 
     private static class FailingBrokerProviderRepository implements com.investory.broker.domain.repositories.BrokerProviderRepository {

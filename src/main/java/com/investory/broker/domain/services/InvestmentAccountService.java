@@ -4,11 +4,16 @@ import com.investory.broker.domain.exception.BrokerErrorCode;
 import com.investory.broker.domain.exception.BrokerException;
 import com.investory.broker.domain.model.BrokerConnection;
 import com.investory.broker.domain.model.InvestmentAccount;
+import com.investory.broker.domain.ports.HoldingDetailPort;
 import com.investory.broker.domain.ports.HoldingSummaryPort;
+import com.investory.broker.domain.ports.dto.AccountHoldingsInfo;
+import com.investory.broker.domain.ports.dto.HoldingDetailInfo;
 import com.investory.broker.domain.ports.dto.HoldingSummaryInfo;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.domain.repositories.InvestmentAccountRepository;
+import com.investory.broker.domain.services.dto.query.GetAccountDetailQuery;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
+import com.investory.broker.domain.services.dto.result.AccountDetailResult;
 import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import org.springframework.stereotype.Service;
@@ -25,14 +30,17 @@ public class InvestmentAccountService {
     private final InvestmentAccountRepository investmentAccountRepository;
     private final BrokerConnectionRepository brokerConnectionRepository;
     private final HoldingSummaryPort holdingSummaryPort;
+    private final HoldingDetailPort holdingDetailPort;
 
     public InvestmentAccountService(
             InvestmentAccountRepository investmentAccountRepository,
             BrokerConnectionRepository brokerConnectionRepository,
-            HoldingSummaryPort holdingSummaryPort) {
+            HoldingSummaryPort holdingSummaryPort,
+            HoldingDetailPort holdingDetailPort) {
         this.investmentAccountRepository = investmentAccountRepository;
         this.brokerConnectionRepository = brokerConnectionRepository;
         this.holdingSummaryPort = holdingSummaryPort;
+        this.holdingDetailPort = holdingDetailPort;
     }
 
     public ConnectionAccountsResult getAccountsByConnection(GetConnectionAccountsQuery query) {
@@ -71,6 +79,34 @@ public class InvestmentAccountService {
         return new AccountListResult(summary, accountResults);
     }
 
+    public AccountDetailResult getAccountDetail(GetAccountDetailQuery query) {
+        InvestmentAccount account = investmentAccountRepository.findByIdAndUserId(query.accountId(), query.userId())
+                .orElseThrow(() -> new BrokerException(BrokerErrorCode.ACCOUNT_NOT_FOUND));
+        BrokerConnection connection = brokerConnectionRepository.findByIds(List.of(account.getConnectionId())).get(0);
+
+        AccountHoldingsInfo holdingsInfo = holdingDetailPort.getHoldings(query.userId(), account.getAccountId());
+        AccountDetailResult.Summary summary = new AccountDetailResult.Summary(
+                holdingsInfo.summary().holdingCount(),
+                holdingsInfo.summary().totalMarketValue(),
+                holdingsInfo.summary().totalUnrealizedPnl());
+        List<AccountDetailResult.HoldingDetail> holdings = holdingsInfo.holdings().stream()
+                .map(this::toHoldingDetail)
+                .collect(Collectors.toList());
+
+        return new AccountDetailResult(
+                account.getAccountId(),
+                account.getConnectionId(),
+                connection.getBrokerId(),
+                connection.getBrokerName(),
+                account.getAccountNoMasked(),
+                account.getAccountName(),
+                account.getAccountType(),
+                connection.getLastSyncedAt(),
+                summary,
+                holdings
+        );
+    }
+
     private ConnectionAccountsResult.AccountSummary toAccountSummary(Long userId, InvestmentAccount account) {
         HoldingSummaryInfo summary = holdingSummaryPort.summarize(userId, account.getAccountId());
         return new ConnectionAccountsResult.AccountSummary(
@@ -98,6 +134,21 @@ public class InvestmentAccountService {
                 summary.totalMarketValue(),
                 summary.totalUnrealizedPnl(),
                 connection.getLastSyncedAt()
+        );
+    }
+
+    private AccountDetailResult.HoldingDetail toHoldingDetail(HoldingDetailInfo info) {
+        return new AccountDetailResult.HoldingDetail(
+                info.securityId(),
+                info.securityCode(),
+                info.securityName(),
+                info.marketType(),
+                info.quantity(),
+                info.averageCost(),
+                info.marketValue(),
+                info.unrealizedPnl(),
+                info.portfolioWeight(),
+                info.snapshotDate()
         );
     }
 
