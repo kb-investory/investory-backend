@@ -287,6 +287,52 @@ class BrokerControllerTest {
         assertEquals("BRK_005", json.get("errorCode").asText());
     }
 
+    @Test
+    void 전체_계좌_목록을_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
+        connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        BrokerConnectionService connectionService = newConnectionService(connectionRepository);
+        FakeInvestmentAccountRepository accountRepository = new FakeInvestmentAccountRepository();
+        accountRepository.add(1L, com.investory.broker.domain.model.InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌",
+                com.investory.broker.domain.constant.AccountType.STOCK, "KRW"));
+        InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new BrokerController(providerService, connectionService, accountService)).build();
+
+        MvcResult result = mockMvc.perform(get("/broker/accounts"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals(1, json.get("summary").get("accountCount").asInt());
+        assertEquals(1, json.get("accounts").size());
+        JsonNode account = json.get("accounts").get(0);
+        assertEquals(25, account.get("accountId").asLong());
+        assertEquals(1, account.get("brokerId").asLong());
+        assertEquals("미래에셋증권(모의)", account.get("brokerName").asText());
+    }
+
+    @Test
+    void 계좌가_없으면_전체_계좌_목록도_빈_배열을_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
+
+        MvcResult result = mockMvc.perform(get("/broker/accounts"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals(0, json.get("summary").get("accountCount").asInt());
+        assertTrue(json.get("accounts").isEmpty());
+    }
+
     private static class FailingBrokerProviderRepository implements com.investory.broker.domain.repositories.BrokerProviderRepository {
         @Override
         public java.util.List<com.investory.broker.domain.model.BrokerProvider> findAllActive() {

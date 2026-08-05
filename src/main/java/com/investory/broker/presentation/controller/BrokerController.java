@@ -8,11 +8,13 @@ import com.investory.broker.domain.services.dto.result.BrokerProviderResult;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
 import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
+import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
+import com.investory.broker.presentation.dto.response.AccountListResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionAccountsResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionDetailResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionListResponse;
@@ -88,5 +90,11 @@ public class BrokerController {
         SyncConnectionResult result = brokerConnectionService.syncConnection(
                 new SyncBrokerConnectionCommand(TEMP_USER_ID, connectionId));
         return SyncConnectionResponse.from(result);
+    }
+
+    @GetMapping("/accounts")
+    public AccountListResponse getAccounts() {
+        AccountListResult result = investmentAccountService.getAccounts(TEMP_USER_ID);
+        return AccountListResponse.from(result);
     }
 }

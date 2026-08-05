@@ -9,10 +9,14 @@ import com.investory.broker.domain.ports.dto.HoldingSummaryInfo;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.domain.repositories.InvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
+import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,6 +48,29 @@ public class InvestmentAccountService {
                 connection.getConnectionId(), connection.getBrokerId(), connection.getBrokerName(), accounts);
     }
 
+    public AccountListResult getAccounts(Long userId) {
+        List<InvestmentAccount> accounts = investmentAccountRepository.findByUserId(userId);
+        if (accounts.isEmpty()) {
+            return AccountListResult.empty();
+        }
+
+        Map<Long, BrokerConnection> connectionsById = brokerConnectionRepository
+                .findByIds(accounts.stream().map(InvestmentAccount::getConnectionId).distinct().collect(Collectors.toList()))
+                .stream()
+                .collect(Collectors.toMap(BrokerConnection::getConnectionId, Function.identity()));
+
+        List<AccountListResult.AccountResult> accountResults = accounts.stream()
+                .map(account -> toAccountResult(userId, account, connectionsById.get(account.getConnectionId())))
+                .collect(Collectors.toList());
+
+        BigDecimal totalMarketValue = sum(accountResults, AccountListResult.AccountResult::totalMarketValue);
+        BigDecimal totalUnrealizedPnl = sum(accountResults, AccountListResult.AccountResult::totalUnrealizedPnl);
+        AccountListResult.AccountsSummary summary = new AccountListResult.AccountsSummary(
+                accountResults.size(), totalMarketValue, totalUnrealizedPnl);
+
+        return new AccountListResult(summary, accountResults);
+    }
+
     private ConnectionAccountsResult.AccountSummary toAccountSummary(Long userId, InvestmentAccount account) {
         HoldingSummaryInfo summary = holdingSummaryPort.summarize(userId, account.getAccountId());
         return new ConnectionAccountsResult.AccountSummary(
@@ -55,5 +82,26 @@ public class InvestmentAccountService {
                 summary.totalMarketValue(),
                 summary.totalUnrealizedPnl()
         );
+    }
+
+    private AccountListResult.AccountResult toAccountResult(Long userId, InvestmentAccount account, BrokerConnection connection) {
+        HoldingSummaryInfo summary = holdingSummaryPort.summarize(userId, account.getAccountId());
+        return new AccountListResult.AccountResult(
+                account.getAccountId(),
+                account.getConnectionId(),
+                connection.getBrokerId(),
+                connection.getBrokerName(),
+                account.getAccountNoMasked(),
+                account.getAccountName(),
+                account.getAccountType(),
+                summary.holdingCount(),
+                summary.totalMarketValue(),
+                summary.totalUnrealizedPnl(),
+                connection.getLastSyncedAt()
+        );
+    }
+
+    private BigDecimal sum(List<AccountListResult.AccountResult> accounts, Function<AccountListResult.AccountResult, BigDecimal> extractor) {
+        return accounts.stream().map(extractor).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
