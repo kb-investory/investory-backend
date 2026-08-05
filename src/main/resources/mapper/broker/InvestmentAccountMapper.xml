@@ -49,6 +49,12 @@
           AND bc.user_id = #{userId}
     </select>
 
+    <update id="updateAccountName">
+        UPDATE investment_accounts
+        SET account_name = #{accountName}
+        WHERE account_id = #{accountId}
+    </update>
+
     <insert id="upsert" useGeneratedKeys="true" keyProperty="accountId">
         INSERT INTO investment_accounts
             (connection_id, external_account_id, account_no_masked, account_name, account_type, currency_code)

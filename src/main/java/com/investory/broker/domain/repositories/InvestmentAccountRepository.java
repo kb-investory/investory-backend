@@ -25,4 +25,6 @@ public interface InvestmentAccountRepository {
     List<InvestmentAccount> findByIds(List<Long> accountIds);
 
     Optional<InvestmentAccount> findByIdAndUserId(Long accountId, Long userId);
+
+    void updateAccountName(Long accountId, String accountName);
 }

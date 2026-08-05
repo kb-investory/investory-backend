@@ -91,4 +91,13 @@ public class InvestmentAccountRepositoryImpl implements InvestmentAccountReposit
             throw new BrokerInfraException(e);
         }
     }
+
+    @Override
+    public void updateAccountName(Long accountId, String accountName) {
+        try {
+            investmentAccountMapper.updateAccountName(accountId, accountName);
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(e);
+        }
+    }
 }

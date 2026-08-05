@@ -1,20 +1,32 @@
 package com.investory.broker.domain.services;
 
 import com.investory.broker.domain.constant.AccountType;
+import com.investory.broker.domain.constant.ConnectionStatus;
 import com.investory.broker.domain.exception.BrokerErrorCode;
 import com.investory.broker.domain.exception.BrokerException;
 import com.investory.broker.domain.model.BrokerConnectionFixture;
 import com.investory.broker.domain.model.InvestmentAccount;
+import com.investory.broker.domain.ports.FakeHoldingDetailPort;
 import com.investory.broker.domain.ports.FakeHoldingSummaryPort;
+import com.investory.broker.domain.ports.dto.AccountHoldingsInfo;
+import com.investory.broker.domain.ports.dto.HoldingDetailInfo;
 import com.investory.broker.domain.ports.dto.HoldingSummaryInfo;
 import com.investory.broker.domain.repositories.FakeBrokerConnectionRepository;
 import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
+import com.investory.broker.domain.services.dto.command.UpdateAccountNameCommand;
+import com.investory.broker.domain.services.dto.query.GetAccountDetailQuery;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
+import com.investory.broker.domain.services.dto.result.AccountDetailResult;
+import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
+import com.investory.broker.domain.services.dto.result.UpdateAccountNameResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,6 +37,7 @@ class InvestmentAccountServiceTest {
     private FakeBrokerConnectionRepository brokerConnectionRepository;
     private FakeInvestmentAccountRepository investmentAccountRepository;
     private FakeHoldingSummaryPort holdingSummaryPort;
+    private FakeHoldingDetailPort holdingDetailPort;
     private InvestmentAccountService investmentAccountService;
 
     @BeforeEach
@@ -32,8 +45,9 @@ class InvestmentAccountServiceTest {
         brokerConnectionRepository = new FakeBrokerConnectionRepository();
         investmentAccountRepository = new FakeInvestmentAccountRepository();
         holdingSummaryPort = new FakeHoldingSummaryPort();
+        holdingDetailPort = new FakeHoldingDetailPort();
         investmentAccountService = new InvestmentAccountService(
-                investmentAccountRepository, brokerConnectionRepository, holdingSummaryPort);
+                investmentAccountRepository, brokerConnectionRepository, holdingSummaryPort, holdingDetailPort);
     }
 
     @Test
@@ -73,5 +87,94 @@ class InvestmentAccountServiceTest {
         BrokerException exception = assertThrows(BrokerException.class, () -> investmentAccountService.getAccountsByConnection(query));
 
         assertEquals(BrokerErrorCode.CONNECTION_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 전체_계좌_목록과_합산_요약을_반환한다() {
+        Instant lastSyncedAt = Instant.parse("2026-07-29T15:00:03Z");
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connection(
+                15L, 1L, "S9990001A", "미래에셋증권(모의)", ConnectionStatus.CONNECTED,
+                Instant.parse("2026-07-29T13:40:00Z"), lastSyncedAt, 1));
+        investmentAccountRepository.add(1L, InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌", AccountType.STOCK, "KRW"));
+        holdingSummaryPort.willReturn(new HoldingSummaryInfo(3, BigDecimal.valueOf(8420000), BigDecimal.valueOf(320000)));
+
+        AccountListResult result = investmentAccountService.getAccounts(1L);
+
+        assertEquals(1, result.summary().accountCount());
+        assertEquals(0, BigDecimal.valueOf(8420000).compareTo(result.summary().totalMarketValue()));
+        assertEquals(0, BigDecimal.valueOf(320000).compareTo(result.summary().totalUnrealizedPnl()));
+        AccountListResult.AccountResult account = result.accounts().get(0);
+        assertEquals(25L, account.accountId());
+        assertEquals(1L, account.brokerId());
+        assertEquals("미래에셋증권(모의)", account.brokerName());
+        assertEquals(lastSyncedAt, account.lastSyncedAt());
+    }
+
+    @Test
+    void 계좌가_없으면_전체_목록에서도_빈_목록과_0_요약을_반환한다() {
+        AccountListResult result = investmentAccountService.getAccounts(1L);
+
+        assertEquals(0, result.summary().accountCount());
+        assertEquals(0, BigDecimal.ZERO.compareTo(result.summary().totalMarketValue()));
+        assertTrue(result.accounts().isEmpty());
+    }
+
+    @Test
+    void 계좌_상세와_보유종목_목록을_반환한다() {
+        Instant lastSyncedAt = Instant.parse("2026-07-29T15:00:03Z");
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connection(
+                15L, 1L, "S9990001A", "미래에셋증권(모의)", ConnectionStatus.CONNECTED,
+                Instant.parse("2026-07-29T13:40:00Z"), lastSyncedAt, 1));
+        investmentAccountRepository.add(1L, InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌", AccountType.STOCK, "KRW"));
+        holdingDetailPort.willReturn(new AccountHoldingsInfo(
+                new HoldingSummaryInfo(1, BigDecimal.valueOf(750000), BigDecimal.valueOf(30000)),
+                List.of(new HoldingDetailInfo(
+                        101L, "005930", "삼성전자", "KOSPI",
+                        BigDecimal.TEN, BigDecimal.valueOf(72000), BigDecimal.valueOf(750000),
+                        BigDecimal.valueOf(30000), BigDecimal.valueOf(8.91), LocalDate.parse("2026-07-29")))));
+
+        AccountDetailResult result = investmentAccountService.getAccountDetail(new GetAccountDetailQuery(1L, 25L));
+
+        assertEquals(25L, result.accountId());
+        assertEquals(1L, result.brokerId());
+        assertEquals(lastSyncedAt, result.lastSyncedAt());
+        assertEquals(1, result.summary().holdingCount());
+        assertEquals(1, result.holdings().size());
+        assertEquals("005930", result.holdings().get(0).securityCode());
+    }
+
+    @Test
+    void 존재하지_않는_계좌_상세_조회시_예외가_발생한다() {
+        GetAccountDetailQuery query = new GetAccountDetailQuery(1L, 999L);
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> investmentAccountService.getAccountDetail(query));
+
+        assertEquals(BrokerErrorCode.ACCOUNT_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 계좌_이름을_변경한다() {
+        investmentAccountRepository.add(1L, InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌", AccountType.STOCK, "KRW"));
+
+        UpdateAccountNameResult result = investmentAccountService.renameAccount(
+                new UpdateAccountNameCommand(1L, 25L, "장기 투자용 계좌"));
+
+        assertEquals(25L, result.accountId());
+        assertEquals("장기 투자용 계좌", result.accountName());
+        assertEquals(AccountType.STOCK, result.accountType());
+    }
+
+    @Test
+    void 본인_소유가_아닌_계좌_이름_변경시_예외가_발생한다() {
+        investmentAccountRepository.add(2L, InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌", AccountType.STOCK, "KRW"));
+        UpdateAccountNameCommand command = new UpdateAccountNameCommand(1L, 25L, "장기 투자용 계좌");
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> investmentAccountService.renameAccount(command));
+
+        assertEquals(BrokerErrorCode.ACCOUNT_NOT_FOUND, exception.getErrorCode());
     }
 }
