@@ -35,6 +35,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -392,6 +393,52 @@ class BrokerControllerTest {
                 .build();
 
         MvcResult result = mockMvc.perform(get("/broker/accounts/999"))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals("BRK_006", json.get("errorCode").asText());
+    }
+
+    @Test
+    void 계좌_이름을_변경한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
+        FakeInvestmentAccountRepository accountRepository = new FakeInvestmentAccountRepository();
+        accountRepository.add(1L, com.investory.broker.domain.model.InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌",
+                com.investory.broker.domain.constant.AccountType.STOCK, "KRW"));
+        BrokerConnectionService connectionService = newConnectionService(connectionRepository);
+        InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new BrokerController(providerService, connectionService, accountService)).build();
+
+        MvcResult result = mockMvc.perform(patch("/broker/accounts/25")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountName\":\"장기 투자용 계좌\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals(25, json.get("accountId").asLong());
+        assertEquals("장기 투자용 계좌", json.get("accountName").asText());
+    }
+
+    @Test
+    void 본인_소유가_아닌_계좌_이름을_변경하면_404를_반환한다() throws Exception {
+        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        MvcResult result = mockMvc.perform(patch("/broker/accounts/999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountName\":\"장기 투자용 계좌\"}"))
                 .andExpect(status().isNotFound())
                 .andReturn();
 

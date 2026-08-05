@@ -11,11 +11,13 @@ import com.investory.broker.domain.ports.dto.HoldingDetailInfo;
 import com.investory.broker.domain.ports.dto.HoldingSummaryInfo;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.domain.repositories.InvestmentAccountRepository;
+import com.investory.broker.domain.services.dto.command.UpdateAccountNameCommand;
 import com.investory.broker.domain.services.dto.query.GetAccountDetailQuery;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
 import com.investory.broker.domain.services.dto.result.AccountDetailResult;
 import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
+import com.investory.broker.domain.services.dto.result.UpdateAccountNameResult;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -105,6 +107,16 @@ public class InvestmentAccountService {
                 summary,
                 holdings
         );
+    }
+
+    public UpdateAccountNameResult renameAccount(UpdateAccountNameCommand command) {
+        InvestmentAccount account = investmentAccountRepository.findByIdAndUserId(command.accountId(), command.userId())
+                .orElseThrow(() -> new BrokerException(BrokerErrorCode.ACCOUNT_NOT_FOUND));
+
+        investmentAccountRepository.updateAccountName(account.getAccountId(), command.accountName());
+
+        return new UpdateAccountNameResult(
+                account.getAccountId(), account.getAccountNoMasked(), command.accountName(), account.getAccountType());
     }
 
     private ConnectionAccountsResult.AccountSummary toAccountSummary(Long userId, InvestmentAccount account) {

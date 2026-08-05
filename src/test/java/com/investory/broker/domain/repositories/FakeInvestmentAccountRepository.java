@@ -77,4 +77,18 @@ public class FakeInvestmentAccountRepository implements InvestmentAccountReposit
                 .filter(account -> account.getAccountId().equals(accountId))
                 .findFirst();
     }
+
+    @Override
+    public void updateAccountName(Long accountId, String accountName) {
+        for (int i = 0; i < accounts.size(); i++) {
+            InvestmentAccount existing = accounts.get(i).account();
+            if (existing.getAccountId().equals(accountId)) {
+                InvestmentAccount updated = InvestmentAccount.of(
+                        existing.getAccountId(), existing.getConnectionId(), existing.getExternalAccountId(),
+                        existing.getAccountNoMasked(), accountName, existing.getAccountType(), existing.getCurrencyCode());
+                accounts.set(i, new Owned(accounts.get(i).userId(), updated));
+                return;
+            }
+        }
+    }
 }

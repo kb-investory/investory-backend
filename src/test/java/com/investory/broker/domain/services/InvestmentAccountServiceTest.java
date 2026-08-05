@@ -13,11 +13,13 @@ import com.investory.broker.domain.ports.dto.HoldingDetailInfo;
 import com.investory.broker.domain.ports.dto.HoldingSummaryInfo;
 import com.investory.broker.domain.repositories.FakeBrokerConnectionRepository;
 import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
+import com.investory.broker.domain.services.dto.command.UpdateAccountNameCommand;
 import com.investory.broker.domain.services.dto.query.GetAccountDetailQuery;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
 import com.investory.broker.domain.services.dto.result.AccountDetailResult;
 import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
+import com.investory.broker.domain.services.dto.result.UpdateAccountNameResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -148,6 +150,30 @@ class InvestmentAccountServiceTest {
         GetAccountDetailQuery query = new GetAccountDetailQuery(1L, 999L);
 
         BrokerException exception = assertThrows(BrokerException.class, () -> investmentAccountService.getAccountDetail(query));
+
+        assertEquals(BrokerErrorCode.ACCOUNT_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 계좌_이름을_변경한다() {
+        investmentAccountRepository.add(1L, InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌", AccountType.STOCK, "KRW"));
+
+        UpdateAccountNameResult result = investmentAccountService.renameAccount(
+                new UpdateAccountNameCommand(1L, 25L, "장기 투자용 계좌"));
+
+        assertEquals(25L, result.accountId());
+        assertEquals("장기 투자용 계좌", result.accountName());
+        assertEquals(AccountType.STOCK, result.accountType());
+    }
+
+    @Test
+    void 본인_소유가_아닌_계좌_이름_변경시_예외가_발생한다() {
+        investmentAccountRepository.add(2L, InvestmentAccount.of(
+                25L, 15L, "ext-1", "1234-****-5678", "종합주식계좌", AccountType.STOCK, "KRW"));
+        UpdateAccountNameCommand command = new UpdateAccountNameCommand(1L, 25L, "장기 투자용 계좌");
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> investmentAccountService.renameAccount(command));
 
         assertEquals(BrokerErrorCode.ACCOUNT_NOT_FOUND, exception.getErrorCode());
     }

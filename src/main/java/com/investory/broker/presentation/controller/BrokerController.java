@@ -15,7 +15,9 @@ import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailRes
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
+import com.investory.broker.domain.services.dto.result.UpdateAccountNameResult;
 import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
+import com.investory.broker.presentation.dto.request.UpdateAccountNameRequest;
 import com.investory.broker.presentation.dto.response.AccountDetailResponse;
 import com.investory.broker.presentation.dto.response.AccountListResponse;
 import com.investory.broker.presentation.dto.response.BrokerConnectionAccountsResponse;
@@ -24,8 +26,10 @@ import com.investory.broker.presentation.dto.response.BrokerConnectionListRespon
 import com.investory.broker.presentation.dto.response.BrokerProviderListResponse;
 import com.investory.broker.presentation.dto.response.CreateBrokerConnectionResponse;
 import com.investory.broker.presentation.dto.response.SyncConnectionResponse;
+import com.investory.broker.presentation.dto.response.UpdateAccountNameResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -106,5 +110,12 @@ public class BrokerController {
         AccountDetailResult result = investmentAccountService.getAccountDetail(
                 new GetAccountDetailQuery(TEMP_USER_ID, accountId));
         return AccountDetailResponse.from(result);
+    }
+
+    @PatchMapping("/accounts/{accountId}")
+    public UpdateAccountNameResponse updateAccountName(
+            @PathVariable Long accountId, @RequestBody UpdateAccountNameRequest request) {
+        UpdateAccountNameResult result = investmentAccountService.renameAccount(request.toCommand(TEMP_USER_ID, accountId));
+        return UpdateAccountNameResponse.from(result);
     }
 }
