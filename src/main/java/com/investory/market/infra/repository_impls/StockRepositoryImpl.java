@@ -44,6 +44,19 @@ public class StockRepositoryImpl implements StockRepository {
     }
 
     @Override
+    public List<Stock> findBySecurityIds(List<Long> securityIds) {
+        if (securityIds == null || securityIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            List<StockRow> rows = stockMapper.findBySecurityIds(securityIds);
+            return rows.stream().map(StockRow::toDomain).collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
+        }
+    }
+
+    @Override
     public List<String> findAllStockCodes() {
         try {
             return stockMapper.findAllStockCodes();

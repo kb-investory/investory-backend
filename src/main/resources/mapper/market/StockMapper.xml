@@ -25,7 +25,7 @@
         <where>
             <if test="keyword != null and keyword != ''">
                 AND (security_name LIKE CONCAT('%', #{keyword}, '%')
-                     OR security_code LIKE CONCAT('%', #{keyword}, '%'))
+                OR security_code LIKE CONCAT('%', #{keyword}, '%'))
             </if>
             <if test="marketType != null">
                 AND market_type = #{marketType}
@@ -43,6 +43,15 @@
         SELECT <include refid="stockColumns"/>
         FROM securities
         WHERE security_id = #{securityId}
+    </select>
+
+    <select id="findBySecurityIds" resultMap="stockRowMap">
+        SELECT <include refid="stockColumns"/>
+        FROM securities
+        WHERE security_id IN
+        <foreach item="id" collection="securityIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
     </select>
 
     <select id="findAllStockCodes" resultType="string">
@@ -68,15 +77,15 @@
     <insert id="insert" parameterType="com.investory.market.infra.entities.StockRow"
             useGeneratedKeys="true" keyProperty="securityId" keyColumn="security_id">
         INSERT INTO securities (
-            security_code, security_name, market_type,
-            industry_code, industry_name,
-            listed_date, delisted_date,
-            is_active, created_at, updated_at
+        security_code, security_name, market_type,
+        industry_code, industry_name,
+        listed_date, delisted_date,
+        is_active, created_at, updated_at
         ) VALUES (
-            #{stockCode}, #{stockName}, #{marketType},
-            #{industryCode}, #{industryName},
-            #{listedDate}, #{delistedDate},
-            #{active}, #{createdAt}, #{updatedAt}
+        #{stockCode}, #{stockName}, #{marketType},
+        #{industryCode}, #{industryName},
+        #{listedDate}, #{delistedDate},
+        #{active}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -84,13 +93,13 @@
     <update id="update" parameterType="com.investory.market.infra.entities.StockRow">
         UPDATE securities
         SET security_name  = #{stockName},
-            market_type    = #{marketType},
-            industry_code  = #{industryCode},
-            industry_name  = #{industryName},
-            listed_date    = #{listedDate},
-            delisted_date  = #{delistedDate},
-            is_active      = #{active},
-            updated_at     = #{updatedAt}
+        market_type    = #{marketType},
+        industry_code  = #{industryCode},
+        industry_name  = #{industryName},
+        listed_date    = #{listedDate},
+        delisted_date  = #{delistedDate},
+        is_active      = #{active},
+        updated_at     = #{updatedAt}
         WHERE security_code = #{stockCode}
     </update>
 </mapper>
