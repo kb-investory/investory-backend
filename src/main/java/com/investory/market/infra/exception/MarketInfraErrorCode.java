@@ -1,7 +1,8 @@
 package com.investory.market.infra.exception;
 
-import com.kbinvestory.backend.core.exception.ErrorCode;
-import com.kbinvestory.backend.core.exception.ErrorType;
+
+import com.investory.core.exception.ErrorCode;
+import com.investory.core.exception.ErrorType;
 
 public enum MarketInfraErrorCode implements ErrorCode {
     STOCK_QUERY_FAILED(ErrorType.INTERNAL_ERROR, "MKT_INFRA_001", "종목 조회 중 오류가 발생했습니다."),
