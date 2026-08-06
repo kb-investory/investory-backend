@@ -1,6 +1,6 @@
 package com.investory.market.domain.model;
 
-import com.kbinvestory.backend.market.domain.ports.dto.StockPriceDto;
+import com.investory.market.domain.ports.dto.StockPriceDto;
 import lombok.Getter;
 
 import java.math.BigDecimal;
