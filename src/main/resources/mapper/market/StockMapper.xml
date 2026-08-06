@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.market.infra.mappers.StockMapper">
+    <resultMap id="stockRowMap" type="com.investory.market.infra.entities.StockRow">
+        <id property="securityId" column="security_id"/>
+        <result property="stockCode" column="security_code"/>
+        <result property="stockName" column="security_name"/>
+        <result property="marketType" column="market_type"/>
+        <result property="industryCode" column="industry_code"/>
+        <result property="industryName" column="industry_name"/>
+        <result property="listedDate" column="listed_date"/>
+        <result property="delistedDate" column="delisted_date"/>
+        <result property="active" column="is_active"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="stockColumns">
+        security_id, security_code, security_name, market_type,
+        industry_code, industry_name,
+        listed_date, delisted_date, is_active, created_at, updated_at
+    </sql>
+
+    <sql id="searchWhere">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (security_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR security_code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="marketType != null">
+                AND market_type = #{marketType}
+            </if>
+        </where>
+    </sql>
+
+    <select id="findByStockCode" resultMap="stockRowMap">
+        SELECT <include refid="stockColumns"/>
+        FROM securities
+        WHERE security_code = #{stockCode}
+    </select>
+
+    <select id="findBySecurityId" resultMap="stockRowMap">
+        SELECT <include refid="stockColumns"/>
+        FROM securities
+        WHERE security_id = #{securityId}
+    </select>
+
+    <select id="findAllStockCodes" resultType="string">
+        SELECT security_code
+        FROM securities
+        ORDER BY security_code
+    </select>
+
+    <select id="search" resultMap="stockRowMap">
+        SELECT <include refid="stockColumns"/>
+        FROM securities
+        <include refid="searchWhere"/>
+        ORDER BY security_code
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countSearch" resultType="long">
+        SELECT COUNT(*)
+        FROM securities
+        <include refid="searchWhere"/>
+    </select>
+
+    <insert id="insert" parameterType="com.investory.market.infra.entities.StockRow"
+            useGeneratedKeys="true" keyProperty="securityId" keyColumn="security_id">
+        INSERT INTO securities (
+            security_code, security_name, market_type,
+            industry_code, industry_name,
+            listed_date, delisted_date,
+            is_active, created_at, updated_at
+        ) VALUES (
+            #{stockCode}, #{stockName}, #{marketType},
+            #{industryCode}, #{industryName},
+            #{listedDate}, #{delistedDate},
+            #{active}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <!-- created_at은 절대 건드리지 않는다 (최초 생성 시각 보존) -->
+    <update id="update" parameterType="com.investory.market.infra.entities.StockRow">
+        UPDATE securities
+        SET security_name  = #{stockName},
+            market_type    = #{marketType},
+            industry_code  = #{industryCode},
+            industry_name  = #{industryName},
+            listed_date    = #{listedDate},
+            delisted_date  = #{delistedDate},
+            is_active      = #{active},
+            updated_at     = #{updatedAt}
+        WHERE security_code = #{stockCode}
+    </update>
+</mapper>
