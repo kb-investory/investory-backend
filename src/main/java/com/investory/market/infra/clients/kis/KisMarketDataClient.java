@@ -1,11 +1,11 @@
 package com.investory.market.infra.clients.kis;
 
-import com.kbinvestory.backend.market.domain.constant.MarketType;
-import com.kbinvestory.backend.market.domain.exception.MarketErrorCode;
-import com.kbinvestory.backend.market.domain.exception.MarketException;
-import com.kbinvestory.backend.market.domain.ports.KisMarketDataPort;
-import com.kbinvestory.backend.market.domain.ports.dto.StockInfoDto;
-import com.kbinvestory.backend.market.domain.ports.dto.StockPriceDto;
+import com.investory.market.domain.constant.MarketType;
+import com.investory.market.domain.exception.MarketErrorCode;
+import com.investory.market.domain.exception.MarketException;
+import com.investory.market.domain.ports.KisMarketDataPort;
+import com.investory.market.domain.ports.dto.StockInfoDto;
+import com.investory.market.domain.ports.dto.StockPriceDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
