@@ -1,5 +1,6 @@
 package com.investory.market.infra.scheduler;
 
+import com.investory.market.domain.services.MarketDataSyncService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
