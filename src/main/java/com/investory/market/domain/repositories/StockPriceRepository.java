@@ -1,6 +1,6 @@
 package com.investory.market.domain.repositories;
 
-import com.kbinvestory.backend.market.domain.model.StockPrice;
+import com.investory.market.domain.model.StockPrice;
 
 import java.time.LocalDate;
 import java.util.Optional;

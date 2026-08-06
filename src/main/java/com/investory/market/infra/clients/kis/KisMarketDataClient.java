@@ -9,7 +9,11 @@ import com.investory.market.domain.ports.dto.StockPriceDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
@@ -89,16 +93,9 @@ public class KisMarketDataClient implements KisMarketDataPort {
                 : output.getPrdt_abrv_name();
 
         return StockInfoDto.builder()
-                .securityId(stockCode)
                 .stockCode(stockCode)
                 .stockName(stockName)
                 .marketType(marketType)
-                .idxBztpLclsCode(output.getIdx_bztp_lcls_cd())
-                .idxBztpLclsName(output.getIdx_bztp_lcls_cd_name())
-                .idxBztpMclsCode(output.getIdx_bztp_mcls_cd())
-                .idxBztpMclsName(output.getIdx_bztp_mcls_cd_name())
-                .idxBztpSclsCode(output.getIdx_bztp_scls_cd())
-                .idxBztpSclsName(output.getIdx_bztp_scls_cd_name())
                 .stdIdstClsfCode(output.getStd_idst_clsf_cd())
                 .stdIdstClsfName(output.getStd_idst_clsf_cd_name())
                 .listedDate(listedDate)
@@ -165,6 +162,9 @@ public class KisMarketDataClient implements KisMarketDataPort {
 
     // 캐싱된 토큰이 아직 유효하면 재사용하고, 없거나 만료됐으면 새로 발급받는다.
     private synchronized String getAccessToken() {
+        log.info("[진단] 토큰 상태. 캐시존재={}, 아직유효={}",
+                cachedAccessToken != null, Instant.now().isBefore(cachedTokenExpiry));
+
         if (cachedAccessToken != null && Instant.now().isBefore(cachedTokenExpiry)) {
             return cachedAccessToken;
         }
@@ -193,6 +193,7 @@ public class KisMarketDataClient implements KisMarketDataPort {
             cachedAccessToken = tokenResponse.getAccess_token();
             cachedTokenExpiry = Instant.now().plusSeconds(Math.max(0, expiresInSeconds - 60*60*2));
 
+            log.info("KIS 토큰 발급됨. expires_in={}, 만료처리시각={}", expiresInSeconds, Instant.now().plusSeconds(Math.max(0, expiresInSeconds - 60*60*2)));
             return cachedAccessToken;
         } catch (org.springframework.web.client.HttpStatusCodeException e) {
             // appkey/appsecret이 틀렸거나 미승인 상태면 KIS가 여기서 4xx + rt_cd/msg1으로 이유를 알려준다.

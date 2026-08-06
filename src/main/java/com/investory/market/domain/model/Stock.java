@@ -9,79 +9,58 @@ import java.time.LocalDateTime;
 
 @Getter
 public class Stock {
-    private final String securityId;
-    private final String stockCode;
-    private final String stockName;
-    private final MarketType marketType;
-    private final String idxBztpLclsCode; // 지수업종대분류코드
-    private final String idxBztpLclsName; // 지수업종대분류코드명
-    private final String idxBztpMclsCode; // 지수업종중분류코드
-    private final String idxBztpMclsName; // 지수업종중분류코드명
-    private final String idxBztpSclsCode; // 지수업종소분류코드
-    private final String idxBztpSclsName; // 지수업종소분류코드명
-    private final String stdIdstClsfCode; // 표준산업분류코드
-    private final String stdIdstClsfName; // 표준산업분류코드명
+    private final Long securityId;        // 내부 고유 숫자 ID (PK, auto_increment)
+    private final String stockCode;       // security_code
+    private final String stockName;       // security_name
+    private final MarketType marketType;  // market_type
+    private final String stdIdstClsfCode; // industry_code (표준산업분류코드)
+    private final String stdIdstClsfName; // industry_name (표준산업분류명)
     private final LocalDate listedDate;   // 상장일
     private final LocalDate delistedDate; // 상장 폐지일
     private final boolean active;
+    private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
     private Stock(
-            String securityId, String stockCode,
-            String stockName, MarketType marketType,
-            String idxBztpLclsCode, String idxBztpLclsName,
-            String idxBztpMclsCode, String idxBztpMclsName,
-            String idxBztpSclsCode, String idxBztpSclsName,
+            Long securityId, String stockCode, String stockName, MarketType marketType,
             String stdIdstClsfCode, String stdIdstClsfName,
             LocalDate listedDate, LocalDate delistedDate,
-            boolean active, LocalDateTime updatedAt) {
+            boolean active, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.securityId = securityId;
         this.stockCode = stockCode;
         this.stockName = stockName;
         this.marketType = marketType;
-        this.idxBztpLclsCode = idxBztpLclsCode;
-        this.idxBztpLclsName = idxBztpLclsName;
-        this.idxBztpMclsCode = idxBztpMclsCode;
-        this.idxBztpMclsName = idxBztpMclsName;
-        this.idxBztpSclsCode = idxBztpSclsCode;
-        this.idxBztpSclsName = idxBztpSclsName;
         this.stdIdstClsfCode = stdIdstClsfCode;
         this.stdIdstClsfName = stdIdstClsfName;
         this.listedDate = listedDate;
         this.delistedDate = delistedDate;
         this.active = active;
+        this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
 
-    // KIS API 조회 결과(StockInfoDto)로 신규/갱신 저장할 때 사용
+    // KIS API 조회 결과(StockInfoDto)로 신규/갱신 저장할 때 사용.
+    // securityId는 DB가 채워준다(신규 insert 시 null로 시작).
     public static Stock create(StockInfoDto dto) {
+        LocalDateTime now = LocalDateTime.now();
         return new Stock(
-                dto.getSecurityId(), dto.getStockCode(),
-                dto.getStockName(), dto.getMarketType(),
-                dto.getIdxBztpLclsCode(), dto.getIdxBztpLclsName(),
-                dto.getIdxBztpMclsCode(), dto.getIdxBztpMclsName(),
-                dto.getIdxBztpSclsCode(), dto.getIdxBztpSclsName(),
+                null, dto.getStockCode(), dto.getStockName(), dto.getMarketType(),
                 dto.getStdIdstClsfCode(), dto.getStdIdstClsfName(),
                 dto.getListedDate(), dto.getDelistedDate(),
-                dto.getDelistedDate() == null, LocalDateTime.now()
+                dto.getDelistedDate() == null, now, now
         );
     }
 
     // DB에서 조회한 값으로 도메인 객체를 복원할 때 사용
     public static Stock of(
-            String securityId, String stockCode,
-            String stockName, MarketType marketType,
-            String idxBztpLclsCode, String idxBztpLclsName,
-            String idxBztpMclsCode, String idxBztpMclsName,
-            String idxBztpSclsCode, String idxBztpSclsName,
+            Long securityId, String stockCode, String stockName, MarketType marketType,
             String stdIdstClsfCode, String stdIdstClsfName,
             LocalDate listedDate, LocalDate delistedDate,
-            boolean active, LocalDateTime updatedAt) {
+            boolean active, LocalDateTime createdAt, LocalDateTime updatedAt) {
         return new Stock(
                 securityId, stockCode, stockName, marketType,
-                idxBztpLclsCode, idxBztpLclsName, idxBztpMclsCode, idxBztpMclsName,
-                idxBztpSclsCode, idxBztpSclsName, stdIdstClsfCode, stdIdstClsfName,
-                listedDate, delistedDate, active, updatedAt
+                stdIdstClsfCode, stdIdstClsfName,
+                listedDate, delistedDate, active, createdAt, updatedAt
         );
     }
 }

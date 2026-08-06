@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Getter
 public class StockPrice {
     private final Long priceId;
-    private final String securityId;
+    private final Long securityId;
     private final LocalDate priceDate;
     private final Long lowPrice;
     private final Long highPrice;
@@ -22,7 +22,7 @@ public class StockPrice {
     private final LocalDateTime createdAt;
 
     private StockPrice(
-            Long priceId, String securityId, LocalDate priceDate, Long lowPrice,
+            Long priceId, Long securityId, LocalDate priceDate, Long lowPrice,
             Long highPrice, Long openPrice, Long closePrice, BigDecimal dailyReturnRate,
             Long tradingVolume, Long tradingValue, LocalDateTime createdAt) {
         this.priceId = priceId;
@@ -40,7 +40,7 @@ public class StockPrice {
 
     // KIS API 조회 결과(StockPriceDto)로 신규 저장할 때 사용 (priceId는 DB가 채워줌).
     // dto에 priceDate가 없으면(당일 현재가 조회 응답) 오늘 날짜로 채운다.
-    public static StockPrice create(String securityId, StockPriceDto dto) {
+    public static StockPrice create(Long securityId, StockPriceDto dto) {
         LocalDate priceDate = dto.getPriceDate() != null ? dto.getPriceDate() : LocalDate.now();
         return new StockPrice(
                 null, securityId, priceDate, dto.getLowPrice(),
@@ -51,7 +51,7 @@ public class StockPrice {
 
     // DB에서 조회한 값으로 도메인 객체를 복원할 때 사용
     public static StockPrice of(
-            Long priceId, String securityId, LocalDate priceDate, Long lowPrice,
+            Long priceId, Long securityId, LocalDate priceDate, Long lowPrice,
             Long highPrice, Long openPrice, Long closePrice, BigDecimal dailyReturnRate,
             Long tradingVolume, Long tradingValue, LocalDateTime createdAt) {
         return new StockPrice(

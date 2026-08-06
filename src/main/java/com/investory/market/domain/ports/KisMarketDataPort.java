@@ -1,6 +1,5 @@
 package com.investory.market.domain.ports;
 
-
 import com.investory.market.domain.ports.dto.StockInfoDto;
 import com.investory.market.domain.ports.dto.StockPriceDto;
 

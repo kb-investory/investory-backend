@@ -1,7 +1,7 @@
 package com.investory.market.domain.repositories;
 
-import com.kbinvestory.backend.market.domain.constant.MarketType;
-import com.kbinvestory.backend.market.domain.model.Stock;
+import com.investory.market.domain.constant.MarketType;
+import com.investory.market.domain.model.Stock;
 
 import java.util.List;
 import java.util.Optional;
