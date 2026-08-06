@@ -1,7 +1,7 @@
 package com.investory.market.domain.model;
 
-import com.kbinvestory.backend.market.domain.constant.MarketType;
-import com.kbinvestory.backend.market.domain.ports.dto.StockInfoDto;
+import com.investory.market.domain.constant.MarketType;
+import com.investory.market.domain.ports.dto.StockInfoDto;
 import lombok.Getter;
 
 import java.time.LocalDate;
