@@ -29,7 +29,7 @@ public class SecurityConfig {
     }
 }
 
-//// 실제 서비스시 설정 변경 후 확인
+// 실제 서비스시 설정 변경 후 확인
 //@Configuration
 //@EnableWebSecurity
 //@RequiredArgsConstructor
@@ -45,7 +45,9 @@ public class SecurityConfig {
 //            "/auth/oauth/google/authorization",
 //            "/auth/oauth/google/callback",
 //            "/auth/token/refresh",
-//            "/auth/logout"
+//            "/auth/logout",
+//            "/auth/oauth/NAVER/authorization",
+//            "/auth/me"
 //    };
 //
 //    private static final String[] ALLOWED_ORIGINS = {
