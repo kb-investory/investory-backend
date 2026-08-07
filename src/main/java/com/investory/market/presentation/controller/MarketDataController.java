@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping("/market/securites")
+@RequestMapping("/market/securities")
 public class MarketDataController {
 
     private final MarketDataSyncService marketDataSyncService;

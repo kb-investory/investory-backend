@@ -15,8 +15,8 @@ public class StockRow {
     private String stockCode;
     private String stockName;
     private String marketType;
-    private String industryCode;
-    private String industryName;
+    private String sectorName;   // DB 컬럼명은 sector_name이지만 실제로는 산업분류 코드(std_idst_clsf_cd)가 들어간다
+    private String industryName; // 산업분류명 (std_idst_clsf_cd_name)
     private LocalDate listedDate;
     private LocalDate delistedDate;
     private boolean active;
@@ -30,7 +30,7 @@ public class StockRow {
         row.stockCode = stock.getStockCode();
         row.stockName = stock.getStockName();
         row.marketType = stock.getMarketType() != null ? stock.getMarketType().name() : null;
-        row.industryCode = stock.getStdIdstClsfCode();
+        row.sectorName = stock.getStdIdstClsfCode();
         row.industryName = stock.getStdIdstClsfName();
         row.listedDate = stock.getListedDate();
         row.delistedDate = stock.getDelistedDate();
@@ -44,7 +44,7 @@ public class StockRow {
         return Stock.of(
                 securityId, stockCode, stockName,
                 marketType != null ? MarketType.valueOf(marketType) : null,
-                industryCode, industryName,
+                sectorName, industryName,
                 listedDate, delistedDate, active, createdAt, updatedAt
         );
     }

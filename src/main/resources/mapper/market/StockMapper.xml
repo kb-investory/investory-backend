@@ -6,7 +6,8 @@
         <result property="stockCode" column="security_code"/>
         <result property="stockName" column="security_name"/>
         <result property="marketType" column="market_type"/>
-        <result property="industryName" column="sector_name"/>
+        <result property="sectorName" column="sector_name"/>
+        <result property="industryName" column="industry_name"/>
         <result property="listedDate" column="listed_date"/>
         <result property="delistedDate" column="delisted_date"/>
         <result property="active" column="is_active"/>
@@ -16,7 +17,7 @@
 
     <sql id="stockColumns">
         security_id, security_code, security_name, market_type,
-        sector_name,
+        sector_name, industry_name,
         listed_date, delisted_date, is_active, created_at, updated_at
     </sql>
 
@@ -77,12 +78,12 @@
             useGeneratedKeys="true" keyProperty="securityId" keyColumn="security_id">
         INSERT INTO securities (
         security_code, security_name, market_type,
-        sector_name,
+        sector_name, industry_name,
         listed_date, delisted_date,
         is_active, created_at, updated_at
         ) VALUES (
         #{stockCode}, #{stockName}, #{marketType},
-        #{industryName},
+        #{sectorName}, #{industryName},
         #{listedDate}, #{delistedDate},
         #{active}, #{createdAt}, #{updatedAt}
         )
@@ -93,7 +94,8 @@
         UPDATE securities
         SET security_name  = #{stockName},
         market_type    = #{marketType},
-        sector_name    = #{industryName},
+        sector_name    = #{sectorName},
+        industry_name  = #{industryName},
         listed_date    = #{listedDate},
         delisted_date  = #{delistedDate},
         is_active      = #{active},

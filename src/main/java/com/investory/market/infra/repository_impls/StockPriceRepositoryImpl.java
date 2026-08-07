@@ -41,14 +41,13 @@ public class StockPriceRepositoryImpl implements StockPriceRepository {
         }
     }
 
-    // 같은 날 같은 종목으로 이미 저장된 시세가 있으면 갱신, 없으면 신규 저장 (하루 1회 갱신 기준)
+    // PK가 (security_id, price_date) 복합키라 그 두 값 존재 여부로 insert/update를 분기한다 (하루 1회 갱신 기준).
     @Override
     public StockPrice save(StockPrice stockPrice) {
         try {
             StockPriceRow row = StockPriceRow.from(stockPrice);
-            StockPriceRow existing = stockPriceMapper.findBySecurityIdAndPriceDate(row.getSecurityId(), row.getPriceDate());
-            if (existing != null) {
-                row.setPriceId(existing.getPriceId());
+            boolean exists = stockPriceMapper.findBySecurityIdAndPriceDate(row.getSecurityId(), row.getPriceDate()) != null;
+            if (exists) {
                 stockPriceMapper.update(row);
             } else {
                 stockPriceMapper.insert(row);

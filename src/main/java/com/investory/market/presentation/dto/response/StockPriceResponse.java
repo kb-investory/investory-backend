@@ -15,7 +15,7 @@ public record StockPriceResponse(
         Long closePrice,
         BigDecimal dailyReturnRate,
         Long tradingVolume,
-        Long tradingValue
+        BigDecimal tradingValue
 ) {
     public static StockPriceResponse from(StockPrice stockPrice) {
         return new StockPriceResponse(
