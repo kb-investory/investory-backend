@@ -4,10 +4,13 @@ import com.investory.market.domain.exception.MarketErrorCode;
 import com.investory.market.domain.exception.MarketException;
 import com.investory.market.domain.services.MarketDataQueryService;
 import com.investory.market.domain.services.dto.query.SecuritySearchQuery;
+import com.investory.market.domain.services.dto.result.SecurityDetailResult;
 import com.investory.market.domain.services.dto.result.SecuritySearchResult;
+import com.investory.market.presentation.dto.response.SecurityDetailResponse;
 import com.investory.market.presentation.dto.response.SecurityListResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,6 +37,14 @@ public class SecurityController {
         SecuritySearchQuery query = toSearchQuery(keyword, marketType, page, size);
         SecuritySearchResult result = marketDataQueryService.searchSecurities(query);
         return ResponseEntity.ok(SecurityListResponse.from(result));
+    }
+
+    // 종목 단건 조회 (securityId 기준) + 가장 최근 시세
+    // 예: GET /market/securities/101
+    @GetMapping("/{securityId}")
+    public ResponseEntity<SecurityDetailResponse> getSecurity(@PathVariable Long securityId) {
+        SecurityDetailResult result = marketDataQueryService.getSecurityDetail(String.valueOf(securityId));
+        return ResponseEntity.ok(SecurityDetailResponse.from(result));
     }
 
     // marketType 문자열을 검증하며 enum으로 변환한다. 잘못된 값이면 400(INVALID_MARKET_TYPE)으로 응답한다.
