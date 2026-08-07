@@ -42,10 +42,10 @@ public class MarketDataQueryService {
                 .orElseThrow(() -> new MarketException(MarketErrorCode.STOCK_PRICE_NOT_FOUND));
     }
 
-    // stockCode(단축코드) 기준으로 종목 정보 + 가장 최근 시세를 함께 조회한다.
+    // securityId(내부 숫자 ID) 기준으로 종목 정보 + 가장 최근 시세를 함께 조회한다.
     // 종목이 없으면 404. 종목은 있지만 시세가 아직 한 번도 저장되지 않았다면 latestPrice는 null로 내려간다.
-    public SecurityDetailResult getSecurityDetail(String stockCode) {
-        Stock stock = stockRepository.findByStockCode(stockCode)
+    public SecurityDetailResult getSecurityDetail(Long securityId) {
+        Stock stock = stockRepository.findBySecurityId(securityId)
                 .orElseThrow(() -> new MarketException(MarketErrorCode.STOCK_NOT_FOUND));
 
         StockPrice latestPrice = stockPriceRepository.findLatestBySecurityId(stock.getSecurityId())

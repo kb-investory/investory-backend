@@ -43,7 +43,7 @@ public class SecurityController {
     // 예: GET /market/securities/101
     @GetMapping("/{securityId}")
     public ResponseEntity<SecurityDetailResponse> getSecurity(@PathVariable Long securityId) {
-        SecurityDetailResult result = marketDataQueryService.getSecurityDetail(String.valueOf(securityId));
+        SecurityDetailResult result = marketDataQueryService.getSecurityDetail(Long.valueOf(String.valueOf(securityId)));
         return ResponseEntity.ok(SecurityDetailResponse.from(result));
     }
 
