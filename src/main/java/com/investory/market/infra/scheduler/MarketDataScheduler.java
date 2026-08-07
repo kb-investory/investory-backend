@@ -16,7 +16,7 @@ public class MarketDataScheduler {
     // 매일(평일) 17:00에 이미 등록된 종목들의 마스터 정보 + 그날치 시세를 갱신한다.
     // cron: 초 분 시 일 월 요일 (KST 기준 서버 타임존 사용)
     // 개발시 주석 해제 후 사용
-     @Scheduled(cron = "0 6 10 * * MON-FRI")
+     @Scheduled(cron = "0 00 17 * * MON-FRI")
     public void syncDailyMarketData() {
         marketDataSyncService.syncAllTrackedStocks();
     }
