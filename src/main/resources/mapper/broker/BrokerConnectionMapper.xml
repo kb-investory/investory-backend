@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.broker.infra.mappers.BrokerConnectionMapper">
+
+    <resultMap id="brokerConnectionRowResultMap" type="com.investory.broker.infra.entities.BrokerConnectionRow">
+        <id column="connection_id" property="connectionId"/>
+        <result column="broker_id" property="brokerId"/>
+        <result column="broker_code" property="brokerCode"/>
+        <result column="broker_name" property="brokerName"/>
+        <result column="connection_status" property="connectionStatus"/>
+        <result column="connected_at" property="connectedAt"/>
+        <result column="last_synced_at" property="lastSyncedAt"/>
+        <result column="account_count" property="accountCount"/>
+    </resultMap>
+
+    <select id="findAllByUserId" resultMap="brokerConnectionRowResultMap">
+        SELECT
+            bc.connection_id,
+            bc.broker_id,
+            bp.broker_code,
+            bp.broker_name,
+            bc.connection_status,
+            bc.connected_at,
+            bc.last_synced_at,
+            COUNT(ia.connection_id) AS account_count
+        FROM broker_connections bc
+        JOIN broker_providers bp ON bp.broker_id = bc.broker_id
+        LEFT JOIN investment_accounts ia ON ia.connection_id = bc.connection_id
+        WHERE bc.user_id = #{userId}
+        GROUP BY bc.connection_id, bc.broker_id, bp.broker_code, bp.broker_name,
+                 bc.connection_status, bc.connected_at, bc.last_synced_at
+        ORDER BY bc.connection_id
+    </select>
+
+    <select id="findActiveByUserIdAndBrokerId" resultMap="brokerConnectionRowResultMap">
+        SELECT
+            bc.connection_id,
+            bc.broker_id,
+            bp.broker_code,
+            bp.broker_name,
+            bc.connection_status,
+            bc.connected_at,
+            bc.last_synced_at,
+            COUNT(ia.connection_id) AS account_count
+        FROM broker_connections bc
+        JOIN broker_providers bp ON bp.broker_id = bc.broker_id
+        LEFT JOIN investment_accounts ia ON ia.connection_id = bc.connection_id
+        WHERE bc.user_id = #{userId}
+          AND bc.broker_id = #{brokerId}
+          AND bc.connection_status = 'CONNECTED'
+        GROUP BY bc.connection_id, bc.broker_id, bp.broker_code, bp.broker_name,
+                 bc.connection_status, bc.connected_at, bc.last_synced_at
+    </select>
+
+    <select id="findByIdAndUserId" resultMap="brokerConnectionRowResultMap">
+        SELECT
+            bc.connection_id,
+            bc.broker_id,
+            bp.broker_code,
+            bp.broker_name,
+            bc.connection_status,
+            bc.connected_at,
+            bc.last_synced_at,
+            COUNT(ia.connection_id) AS account_count
+        FROM broker_connections bc
+        JOIN broker_providers bp ON bp.broker_id = bc.broker_id
+        LEFT JOIN investment_accounts ia ON ia.connection_id = bc.connection_id
+        WHERE bc.connection_id = #{connectionId}
+          AND bc.user_id = #{userId}
+        GROUP BY bc.connection_id, bc.broker_id, bp.broker_code, bp.broker_name,
+                 bc.connection_status, bc.connected_at, bc.last_synced_at
+    </select>
+
+    <select id="findByIds" resultMap="brokerConnectionRowResultMap">
+        SELECT
+            bc.connection_id,
+            bc.broker_id,
+            bp.broker_code,
+            bp.broker_name,
+            bc.connection_status,
+            bc.connected_at,
+            bc.last_synced_at,
+            COUNT(ia.connection_id) AS account_count
+        FROM broker_connections bc
+        JOIN broker_providers bp ON bp.broker_id = bc.broker_id
+        LEFT JOIN investment_accounts ia ON ia.connection_id = bc.connection_id
+        WHERE bc.connection_id IN
+        <foreach collection="connectionIds" item="connectionId" open="(" separator="," close=")">
+            #{connectionId}
+        </foreach>
+        GROUP BY bc.connection_id, bc.broker_id, bp.broker_code, bp.broker_name,
+                 bc.connection_status, bc.connected_at, bc.last_synced_at
+    </select>
+
+    <select id="findMockProfileCodeByConnectionId" resultType="java.lang.String">
+        SELECT mock_profile_code
+        FROM broker_connections
+        WHERE connection_id = #{connectionId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="connectionId">
+        INSERT INTO broker_connections
+            (user_id, broker_id, source_type, mock_profile_code, connection_status, connected_at)
+        VALUES
+            (#{userId}, #{brokerId}, 'MOCK', #{mockProfileCode}, 'CONNECTED', #{connectedAt})
+    </insert>
+
+    <update id="updateLastSyncedAt">
+        UPDATE broker_connections
+        SET last_synced_at = #{lastSyncedAt}
+        WHERE connection_id = #{connectionId}
+    </update>
+
+</mapper>

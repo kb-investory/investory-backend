@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.journal.infra.mappers.JournalTradeNoteMapper">
+
+    <resultMap id="journalTradeNoteRowResultMap" type="com.investory.journal.infra.entities.JournalTradeNoteRow">
+        <id column="journal_trade_note_id" property="journalTradeNoteId"/>
+        <result column="journal_id" property="journalId"/>
+        <result column="trade_id" property="tradeId"/>
+        <result column="rationale_text" property="rationaleText"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findByTradeIds" resultMap="journalTradeNoteRowResultMap">
+        SELECT
+            journal_trade_note_id,
+            journal_id,
+            trade_id,
+            rationale_text,
+            created_at,
+            updated_at
+        FROM journal_trade_notes
+        WHERE trade_id IN
+        <foreach collection="list" item="tradeId" open="(" separator="," close=")">
+            #{tradeId}
+        </foreach>
+    </select>
+
+    <select id="findByJournalId" resultMap="journalTradeNoteRowResultMap">
+        SELECT
+            journal_trade_note_id,
+            journal_id,
+            trade_id,
+            rationale_text,
+            created_at,
+            updated_at
+        FROM journal_trade_notes
+        WHERE journal_id = #{journalId}
+    </select>
+
+    <!-- upsert: trade_id 유니크 제약을 이용해 있으면 갱신, 없으면 생성. journal_trade_note_id/created_at은
+         ON DUPLICATE KEY UPDATE 절에 없어 충돌 시 기존 값이 그대로 유지된다. -->
+    <insert id="insertAll">
+        INSERT INTO journal_trade_notes
+            (journal_id, trade_id, rationale_text, created_at, updated_at)
+        VALUES
+        <foreach collection="notes" item="row" separator=",">
+            (#{row.journalId}, #{row.tradeId}, #{row.rationaleText}, #{row.createdAt}, #{row.updatedAt})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            rationale_text = VALUES(rationale_text),
+            updated_at = VALUES(updated_at)
+    </insert>
+
+    <delete id="deleteByTradeIds">
+        DELETE FROM journal_trade_notes
+        WHERE trade_id IN
+        <foreach collection="list" item="tradeId" open="(" separator="," close=")">
+            #{tradeId}
+        </foreach>
+    </delete>
+
+</mapper>

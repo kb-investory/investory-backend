@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.broker.infra.mappers.AccountSyncBatchMapper">
+
+    <resultMap id="accountSyncBatchRowResultMap" type="com.investory.broker.infra.entities.AccountSyncBatchRow">
+        <id column="sync_batch_id" property="syncBatchId"/>
+        <result column="connection_id" property="connectionId"/>
+        <result column="sync_status" property="syncStatus"/>
+        <result column="requested_at" property="requestedAt"/>
+        <result column="completed_at" property="completedAt"/>
+        <result column="error_message" property="errorMessage"/>
+    </resultMap>
+
+    <select id="findLatestByConnectionId" resultMap="accountSyncBatchRowResultMap">
+        SELECT sync_batch_id, connection_id, sync_status, requested_at, completed_at, error_message
+        FROM account_sync_batches
+        WHERE connection_id = #{connectionId}
+        ORDER BY requested_at DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="syncBatchId">
+        INSERT INTO account_sync_batches (connection_id, sync_status, requested_at)
+        VALUES (#{connectionId}, 'REQUESTED', CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="markSuccess">
+        UPDATE account_sync_batches
+        SET sync_status = 'SUCCESS', completed_at = CURRENT_TIMESTAMP
+        WHERE sync_batch_id = #{syncBatchId}
+    </update>
+
+    <update id="markFailed">
+        UPDATE account_sync_batches
+        SET sync_status = 'FAILED', completed_at = CURRENT_TIMESTAMP, error_message = #{errorMessage}
+        WHERE sync_batch_id = #{syncBatchId}
+    </update>
+
+</mapper>

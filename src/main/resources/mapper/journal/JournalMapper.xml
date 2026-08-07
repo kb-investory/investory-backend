@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.journal.infra.mappers.JournalMapper">
+
+    <resultMap id="journalRowResultMap" type="com.investory.journal.infra.entities.JournalRow">
+        <id column="journal_id" property="journalId"/>
+        <result column="user_id" property="userId"/>
+        <result column="journal_date" property="journalDate"/>
+        <result column="market_thought" property="marketThought"/>
+        <result column="market_mood" property="marketMood"/>
+        <result column="trade_note_count" property="tradeNoteCount"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="editable_until_at" property="editableUntilAt"/>
+    </resultMap>
+
+    <select id="findByUserAndDateRange" resultMap="journalRowResultMap">
+        SELECT
+            ij.journal_id,
+            ij.user_id,
+            ij.journal_date,
+            ij.market_thought,
+            ij.market_mood,
+            ij.created_at,
+            ij.updated_at,
+            ij.editable_until_at,
+            COUNT(jtn.journal_trade_note_id) AS trade_note_count
+        FROM investment_journals ij
+        LEFT JOIN journal_trade_notes jtn ON jtn.journal_id = ij.journal_id
+        WHERE ij.user_id = #{userId}
+          AND ij.journal_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY ij.journal_id, ij.user_id, ij.journal_date, ij.market_thought, ij.market_mood, ij.created_at, ij.updated_at, ij.editable_until_at
+        ORDER BY ij.journal_date DESC
+    </select>
+
+    <select id="findByUserAndDate" resultMap="journalRowResultMap">
+        SELECT
+            ij.journal_id,
+            ij.user_id,
+            ij.journal_date,
+            ij.market_thought,
+            ij.market_mood,
+            ij.created_at,
+            ij.updated_at,
+            ij.editable_until_at,
+            COUNT(jtn.journal_trade_note_id) AS trade_note_count
+        FROM investment_journals ij
+        LEFT JOIN journal_trade_notes jtn ON jtn.journal_id = ij.journal_id
+        WHERE ij.user_id = #{userId}
+          AND ij.journal_date = #{date}
+        GROUP BY ij.journal_id, ij.user_id, ij.journal_date, ij.market_thought, ij.market_mood, ij.created_at, ij.updated_at, ij.editable_until_at
+    </select>
+
+    <select id="findById" resultMap="journalRowResultMap">
+        SELECT
+            ij.journal_id,
+            ij.user_id,
+            ij.journal_date,
+            ij.market_thought,
+            ij.market_mood,
+            ij.created_at,
+            ij.updated_at,
+            ij.editable_until_at,
+            COUNT(jtn.journal_trade_note_id) AS trade_note_count
+        FROM investment_journals ij
+        LEFT JOIN journal_trade_notes jtn ON jtn.journal_id = ij.journal_id
+        WHERE ij.journal_id = #{journalId}
+        GROUP BY ij.journal_id, ij.user_id, ij.journal_date, ij.market_thought, ij.market_mood, ij.created_at, ij.updated_at, ij.editable_until_at
+    </select>
+
+    <select id="findByIds" resultMap="journalRowResultMap">
+        SELECT
+            ij.journal_id,
+            ij.user_id,
+            ij.journal_date,
+            ij.market_thought,
+            ij.market_mood,
+            ij.created_at,
+            ij.updated_at,
+            ij.editable_until_at,
+            COUNT(jtn.journal_trade_note_id) AS trade_note_count
+        FROM investment_journals ij
+        LEFT JOIN journal_trade_notes jtn ON jtn.journal_id = ij.journal_id
+        WHERE ij.journal_id IN
+        <foreach collection="journalIds" item="journalId" open="(" separator="," close=")">
+            #{journalId}
+        </foreach>
+        GROUP BY ij.journal_id, ij.user_id, ij.journal_date, ij.market_thought, ij.market_mood, ij.created_at, ij.updated_at, ij.editable_until_at
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="journalId">
+        INSERT INTO investment_journals
+            (user_id, journal_date, market_thought, market_mood, created_at, updated_at, editable_until_at)
+        VALUES
+            (#{userId}, #{journalDate}, #{marketThought}, #{marketMood}, #{createdAt}, #{updatedAt}, #{editableUntilAt})
+    </insert>
+
+    <update id="update">
+        UPDATE investment_journals
+        SET market_thought = #{marketThought},
+            market_mood = #{marketMood},
+            updated_at = #{updatedAt}
+        WHERE journal_id = #{journalId}
+    </update>
+
+</mapper>

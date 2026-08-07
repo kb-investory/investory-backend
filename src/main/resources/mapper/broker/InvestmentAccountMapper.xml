@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.broker.infra.mappers.InvestmentAccountMapper">
+
+    <resultMap id="investmentAccountRowResultMap" type="com.investory.broker.infra.entities.InvestmentAccountRow">
+        <id column="account_id" property="accountId"/>
+        <result column="connection_id" property="connectionId"/>
+        <result column="external_account_id" property="externalAccountId"/>
+        <result column="account_no_masked" property="accountNoMasked"/>
+        <result column="account_name" property="accountName"/>
+        <result column="account_type" property="accountType"/>
+        <result column="currency_code" property="currencyCode"/>
+    </resultMap>
+
+    <sql id="accountColumns">
+        ia.account_id, ia.connection_id, ia.external_account_id, ia.account_no_masked,
+        ia.account_name, ia.account_type, ia.currency_code
+    </sql>
+
+    <select id="findByConnectionId" resultMap="investmentAccountRowResultMap">
+        SELECT <include refid="accountColumns"/>
+        FROM investment_accounts ia
+        WHERE ia.connection_id = #{connectionId}
+        ORDER BY ia.account_id
+    </select>
+
+    <select id="findByUserId" resultMap="investmentAccountRowResultMap">
+        SELECT <include refid="accountColumns"/>
+        FROM investment_accounts ia
+        JOIN broker_connections bc ON bc.connection_id = ia.connection_id
+        WHERE bc.user_id = #{userId}
+        ORDER BY ia.account_id
+    </select>
+
+    <select id="findByIds" resultMap="investmentAccountRowResultMap">
+        SELECT <include refid="accountColumns"/>
+        FROM investment_accounts ia
+        WHERE ia.account_id IN
+        <foreach collection="accountIds" item="accountId" open="(" separator="," close=")">
+            #{accountId}
+        </foreach>
+    </select>
+
+    <select id="findByIdAndUserId" resultMap="investmentAccountRowResultMap">
+        SELECT <include refid="accountColumns"/>
+        FROM investment_accounts ia
+        JOIN broker_connections bc ON bc.connection_id = ia.connection_id
+        WHERE ia.account_id = #{accountId}
+          AND bc.user_id = #{userId}
+    </select>
+
+    <update id="updateAccountName">
+        UPDATE investment_accounts
+        SET account_name = #{accountName}
+        WHERE account_id = #{accountId}
+    </update>
+
+    <insert id="upsert" useGeneratedKeys="true" keyProperty="accountId">
+        INSERT INTO investment_accounts
+            (connection_id, external_account_id, account_no_masked, account_name, account_type, currency_code)
+        VALUES
+            (#{connectionId}, #{externalAccountId}, #{accountNoMasked}, #{accountName}, #{accountType}, #{currencyCode})
+        ON DUPLICATE KEY UPDATE
+            account_id = LAST_INSERT_ID(account_id),
+            account_no_masked = VALUES(account_no_masked),
+            account_name = VALUES(account_name),
+            account_type = VALUES(account_type),
+            currency_code = VALUES(currency_code)
+    </insert>
+
+</mapper>

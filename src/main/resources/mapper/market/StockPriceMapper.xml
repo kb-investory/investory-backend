@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.market.infra.mappers.StockPriceMapper">
+    <!-- PK는 (security_id, price_date) 복합키. surrogate id 컬럼(price_id)이 없다. -->
+    <resultMap id="stockPriceRowMap" type="com.investory.market.infra.entities.StockPriceRow">
+        <id property="securityId" column="security_id"/>
+        <id property="priceDate" column="price_date"/>
+        <result property="lowPrice" column="low_price"/>
+        <result property="highPrice" column="high_price"/>
+        <result property="openPrice" column="open_price"/>
+        <result property="closePrice" column="close_price"/>
+        <result property="dailyReturnRate" column="daily_return_rate"/>
+        <result property="tradingVolume" column="trading_volume"/>
+        <result property="tradingValue" column="trading_value"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findBySecurityIdAndPriceDate" resultMap="stockPriceRowMap">
+        SELECT security_id, price_date, low_price, high_price, open_price, close_price,
+        daily_return_rate, trading_volume, trading_value, created_at
+        FROM security_daily_prices
+        WHERE security_id = #{securityId}
+        AND price_date  = #{priceDate}
+    </select>
+
+    <select id="findLatestBySecurityId" resultMap="stockPriceRowMap">
+        SELECT security_id, price_date, low_price, high_price, open_price, close_price,
+        daily_return_rate, trading_volume, trading_value, created_at
+        FROM security_daily_prices
+        WHERE security_id = #{securityId}
+        ORDER BY price_date DESC
+        LIMIT 1
+    </select>
+
+    <!-- surrogate PK가 없어서 useGeneratedKeys를 쓰지 않는다 (그동안 이게 없는 price_id를 요구해서 계속 실패했었음) -->
+    <insert id="insert" parameterType="com.investory.market.infra.entities.StockPriceRow">
+        INSERT INTO security_daily_prices (
+        security_id, price_date, low_price, high_price, open_price, close_price,
+        daily_return_rate, trading_volume, trading_value, created_at
+        ) VALUES (
+        #{securityId}, #{priceDate}, #{lowPrice}, #{highPrice}, #{openPrice}, #{closePrice},
+        #{dailyReturnRate}, #{tradingVolume}, #{tradingValue}, #{createdAt}
+        )
+    </insert>
+
+    <!-- created_at은 건드리지 않는다 (최초 저장 시각 보존). updated_at 컬럼 자체가 테이블에 없다. -->
+    <update id="update" parameterType="com.investory.market.infra.entities.StockPriceRow">
+        UPDATE security_daily_prices
+        SET low_price              = #{lowPrice},
+        high_price             = #{highPrice},
+        open_price             = #{openPrice},
+        close_price            = #{closePrice},
+        daily_return_rate      = #{dailyReturnRate},
+        trading_volume         = #{tradingVolume},
+        trading_value          = #{tradingValue}
+        WHERE security_id = #{securityId}
+        AND price_date  = #{priceDate}
+    </update>
+</mapper>

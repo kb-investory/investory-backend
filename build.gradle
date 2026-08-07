@@ -43,6 +43,11 @@ dependencies {
     implementation("org.springframework.security:spring-security-config")
     testImplementation("org.springframework.security:spring-security-test") // 추가: 시큐리티 테스트용
 
+    // jwt
+    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+
     // lombok
     compileOnly("org.projectlombok:lombok:1.18.34")
     annotationProcessor("org.projectlombok:lombok:1.18.34")
@@ -71,6 +76,10 @@ dependencies {
 
     // codef: 증권사 계좌 연동(계정등록 등) 연동용 공식 SDK. 비밀번호 RSA 암호화 등을 직접 구현하지 않기 위해 사용
     implementation("io.codef.api:easycodef-java:1.0.6")
+
+    // swagger: 순수 Spring MVC(non-Boot) 환경 호환을 위해 springdoc 대신 springfox 사용
+    implementation("io.springfox:springfox-swagger2:3.0.0")
+    implementation("io.springfox:springfox-swagger-ui:3.0.0")
 }
 
 test {
