@@ -12,6 +12,7 @@ import com.investory.market.domain.services.dto.result.SecurityDetailResult;
 import com.investory.market.domain.services.dto.result.SecuritySearchResult;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -52,6 +53,12 @@ public class MarketDataQueryService {
                 .orElse(null);
 
         return new SecurityDetailResult(stock, latestPrice);
+    }
+
+    // securityId(내부 숫자 ID) 기준 from~to(포함) 기간의 일별 시세 목록. 종목 존재 여부는 검증하지 않는다
+    // (호출측이 이미 securityId를 알고 있는 상태에서 쓰는 용도라 굳이 재조회하지 않음). 데이터 없으면 빈 리스트.
+    public List<StockPrice> getStockPrices(Long securityId, LocalDate from, LocalDate to) {
+        return stockPriceRepository.findBySecurityIdAndDateRange(securityId, from, to);
     }
 
     // keyword/marketType으로 종목을 검색해 페이지 단위로 돌려준다.

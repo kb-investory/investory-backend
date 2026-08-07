@@ -10,7 +10,9 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class StockPriceRepositoryImpl implements StockPriceRepository {
@@ -36,6 +38,16 @@ public class StockPriceRepositoryImpl implements StockPriceRepository {
         try {
             StockPriceRow row = stockPriceMapper.findLatestBySecurityId(securityId);
             return Optional.ofNullable(row).map(StockPriceRow::toDomain);
+        } catch (DataAccessException e) {
+            throw new MarketInfraException(MarketInfraErrorCode.STOCK_PRICE_QUERY_FAILED, e);
+        }
+    }
+
+    @Override
+    public List<StockPrice> findBySecurityIdAndDateRange(Long securityId, LocalDate from, LocalDate to) {
+        try {
+            List<StockPriceRow> rows = stockPriceMapper.findBySecurityIdAndDateRange(securityId, from, to);
+            return rows.stream().map(StockPriceRow::toDomain).collect(Collectors.toList());
         } catch (DataAccessException e) {
             throw new MarketInfraException(MarketInfraErrorCode.STOCK_PRICE_QUERY_FAILED, e);
         }
