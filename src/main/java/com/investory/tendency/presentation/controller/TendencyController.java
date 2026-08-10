@@ -1,8 +1,12 @@
 package com.investory.tendency.presentation.controller;
 
+import com.investory.tendency.domain.services.GainResponseAnalysisService;
 import com.investory.tendency.domain.services.LossResponseAnalysisService;
+import com.investory.tendency.domain.services.dto.query.AnalyzeGainResponseQuery;
 import com.investory.tendency.domain.services.dto.query.AnalyzeLossResponseQuery;
+import com.investory.tendency.domain.services.dto.result.GainResponseAnalysisResult;
 import com.investory.tendency.domain.services.dto.result.LossResponseAnalysisResult;
+import com.investory.tendency.presentation.dto.response.GainResponseAnalysisResponse;
 import com.investory.tendency.presentation.dto.response.LossResponseAnalysisResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,9 +21,12 @@ public class TendencyController {
     private static final Long TEMP_USER_ID = 1L;
 
     private final LossResponseAnalysisService lossResponseAnalysisService;
+    private final GainResponseAnalysisService gainResponseAnalysisService;
 
-    public TendencyController(LossResponseAnalysisService lossResponseAnalysisService) {
+    public TendencyController(LossResponseAnalysisService lossResponseAnalysisService,
+                               GainResponseAnalysisService gainResponseAnalysisService) {
         this.lossResponseAnalysisService = lossResponseAnalysisService;
+        this.gainResponseAnalysisService = gainResponseAnalysisService;
     }
 
     @GetMapping("/loss-response")
@@ -27,5 +34,12 @@ public class TendencyController {
         LossResponseAnalysisResult result = lossResponseAnalysisService.analyze(
                 new AnalyzeLossResponseQuery(TEMP_USER_ID, securityId));
         return LossResponseAnalysisResponse.from(result);
+    }
+
+    @GetMapping("/gain-response")
+    public GainResponseAnalysisResponse analyzeGainResponse(@RequestParam Long securityId) {
+        GainResponseAnalysisResult result = gainResponseAnalysisService.analyze(
+                new AnalyzeGainResponseQuery(TEMP_USER_ID, securityId));
+        return GainResponseAnalysisResponse.from(result);
     }
 }
