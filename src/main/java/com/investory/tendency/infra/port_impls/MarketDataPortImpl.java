@@ -22,7 +22,7 @@ public class MarketDataPortImpl implements MarketDataPort {
     @Override
     public List<DailyPriceInfo> findDailyPrices(Long securityId, LocalDate from, LocalDate to) {
         return marketDataQueryService.getStockPrices(securityId, from, to).stream()
-                .map(p -> new DailyPriceInfo(p.getPriceDate(), BigDecimal.valueOf(p.getClosePrice())))
+                .map(p -> new DailyPriceInfo(p.getPriceDate(), BigDecimal.valueOf(p.getClosePrice()), p.getDailyReturnRate()))
                 .collect(Collectors.toList());
     }
 }

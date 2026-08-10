@@ -2,12 +2,16 @@ package com.investory.tendency.presentation.controller;
 
 import com.investory.tendency.domain.services.GainResponseAnalysisService;
 import com.investory.tendency.domain.services.LossResponseAnalysisService;
+import com.investory.tendency.domain.services.PortfolioRiskAnalysisService;
 import com.investory.tendency.domain.services.dto.query.AnalyzeGainResponseQuery;
 import com.investory.tendency.domain.services.dto.query.AnalyzeLossResponseQuery;
+import com.investory.tendency.domain.services.dto.query.AnalyzePortfolioRiskQuery;
 import com.investory.tendency.domain.services.dto.result.GainResponseAnalysisResult;
 import com.investory.tendency.domain.services.dto.result.LossResponseAnalysisResult;
+import com.investory.tendency.domain.services.dto.result.PortfolioRiskAnalysisResult;
 import com.investory.tendency.presentation.dto.response.GainResponseAnalysisResponse;
 import com.investory.tendency.presentation.dto.response.LossResponseAnalysisResponse;
+import com.investory.tendency.presentation.dto.response.PortfolioRiskAnalysisResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,11 +26,14 @@ public class TendencyController {
 
     private final LossResponseAnalysisService lossResponseAnalysisService;
     private final GainResponseAnalysisService gainResponseAnalysisService;
+    private final PortfolioRiskAnalysisService portfolioRiskAnalysisService;
 
     public TendencyController(LossResponseAnalysisService lossResponseAnalysisService,
-                               GainResponseAnalysisService gainResponseAnalysisService) {
+                               GainResponseAnalysisService gainResponseAnalysisService,
+                               PortfolioRiskAnalysisService portfolioRiskAnalysisService) {
         this.lossResponseAnalysisService = lossResponseAnalysisService;
         this.gainResponseAnalysisService = gainResponseAnalysisService;
+        this.portfolioRiskAnalysisService = portfolioRiskAnalysisService;
     }
 
     @GetMapping("/loss-response")
@@ -41,5 +48,12 @@ public class TendencyController {
         GainResponseAnalysisResult result = gainResponseAnalysisService.analyze(
                 new AnalyzeGainResponseQuery(TEMP_USER_ID, securityId));
         return GainResponseAnalysisResponse.from(result);
+    }
+
+    @GetMapping("/portfolio-risk")
+    public PortfolioRiskAnalysisResponse analyzePortfolioRisk() {
+        PortfolioRiskAnalysisResult result = portfolioRiskAnalysisService.analyze(
+                new AnalyzePortfolioRiskQuery(TEMP_USER_ID));
+        return PortfolioRiskAnalysisResponse.from(result);
     }
 }
