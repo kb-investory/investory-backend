@@ -7,11 +7,13 @@ import com.investory.journal.domain.constant.MarketMood;
 import com.investory.journal.domain.constant.TradeSide;
 import com.investory.journal.domain.models.JournalFixture;
 import com.investory.journal.domain.ports.FakeMarketDataPort;
+import com.investory.journal.domain.ports.FakeRationaleLabelingPort;
 import com.investory.journal.domain.ports.FakeTradeLedgerPort;
 import com.investory.journal.domain.ports.dto.SecurityInfoFixture;
 import com.investory.journal.domain.ports.dto.TradeTimelineInfoFixture;
 import com.investory.journal.domain.repositories.FakeJournalRepository;
 import com.investory.journal.domain.repositories.FakeJournalTradeNoteRepository;
+import com.investory.journal.domain.services.FakeTransactionManager;
 import com.investory.journal.domain.services.JournalService;
 import com.investory.journal.presentation.dto.request.CreateJournalRequest;
 import com.investory.journal.presentation.dto.request.UpdateJournalRequest;
@@ -171,7 +173,8 @@ class JournalControllerTest {
 
     private JournalService journalService(FakeJournalRepository journalRepository, FakeJournalTradeNoteRepository journalTradeNoteRepository,
                                            FakeTradeLedgerPort tradeLedgerPort, FakeMarketDataPort marketDataPort) {
-        return new JournalService(journalRepository, journalTradeNoteRepository, tradeLedgerPort, marketDataPort);
+        return new JournalService(journalRepository, journalTradeNoteRepository, tradeLedgerPort, marketDataPort,
+                new FakeRationaleLabelingPort(), new FakeTransactionManager());
     }
 
     private JsonNode readJson(MvcResult result) throws Exception {
