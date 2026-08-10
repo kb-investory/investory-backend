@@ -82,8 +82,9 @@ public class LlmRationaleLabeler implements RationaleLabelingPort {
                 new OpenAiChatCompletionRequest.Message("system", systemPrompt),
                 new OpenAiChatCompletionRequest.Message("user", rationaleText));
 
+        // temperature는 안 보낸다 — gpt-5-nano 등 일부 모델은 이 파라미터를 지원하지 않는다.
         return new OpenAiChatCompletionRequest(
-                model, messages, 0.0, new OpenAiChatCompletionRequest.ResponseFormat("json_object"));
+                model, messages, null, new OpenAiChatCompletionRequest.ResponseFormat("json_object"));
     }
 
     private String extractContent(OpenAiChatCompletionResponse response) {
