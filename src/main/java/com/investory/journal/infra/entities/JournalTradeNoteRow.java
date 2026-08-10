@@ -1,5 +1,6 @@
 package com.investory.journal.infra.entities;
 
+import com.investory.journal.domain.constant.RationaleLabelType;
 import com.investory.journal.domain.models.JournalTradeNote;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,11 +16,12 @@ public class JournalTradeNoteRow {
     private Long journalId;
     private Long tradeId;
     private String rationaleText;
+    private RationaleLabelType rationaleLabelType;
     private Instant createdAt;
     private Instant updatedAt;
 
     public JournalTradeNote toDomain() {
-        return JournalTradeNote.of(journalTradeNoteId, journalId, tradeId, rationaleText, createdAt, updatedAt);
+        return JournalTradeNote.of(journalTradeNoteId, journalId, tradeId, rationaleText, rationaleLabelType, createdAt, updatedAt);
     }
 
     public static JournalTradeNoteRow from(JournalTradeNote note) {
@@ -28,6 +30,7 @@ public class JournalTradeNoteRow {
         row.journalId = note.getJournalId();
         row.tradeId = note.getTradeId();
         row.rationaleText = note.getRationaleText();
+        row.rationaleLabelType = note.getRationaleLabelType();
         row.createdAt = note.getCreatedAt();
         row.updatedAt = note.getUpdatedAt();
         return row;

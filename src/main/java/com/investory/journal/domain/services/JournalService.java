@@ -1,10 +1,12 @@
 package com.investory.journal.domain.services;
 
+import com.investory.journal.domain.constant.RationaleLabelType;
 import com.investory.journal.domain.exception.JournalErrorCode;
 import com.investory.journal.domain.exception.JournalException;
 import com.investory.journal.domain.models.Journal;
 import com.investory.journal.domain.models.JournalTradeNote;
 import com.investory.journal.domain.ports.MarketDataPort;
+import com.investory.journal.domain.ports.RationaleLabelingPort;
 import com.investory.journal.domain.ports.TradeLedgerPort;
 import com.investory.journal.domain.ports.dto.SecurityInfo;
 import com.investory.journal.domain.ports.dto.TradeCountInfo;
@@ -30,13 +32,18 @@ import com.investory.journal.domain.services.dto.result.TradeNoteWithJournalResu
 import com.investory.journal.domain.services.dto.result.TradeTimelineEntryResult;
 import com.investory.journal.domain.services.dto.result.TradeTimelineResult;
 import com.investory.journal.domain.services.dto.result.UpdateJournalResult;
+import com.investory.journal.infra.exception.RationaleLabelingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -47,19 +54,27 @@ import java.util.stream.Collectors;
 @Service
 public class JournalService {
 
+    private static final Logger log = LoggerFactory.getLogger(JournalService.class);
+
     private final JournalRepository journalRepository;
     private final JournalTradeNoteRepository journalTradeNoteRepository;
     private final TradeLedgerPort tradeLedgerPort;
     private final MarketDataPort marketDataPort;
+    private final RationaleLabelingPort rationaleLabelingPort;
+    private final TransactionTemplate transactionTemplate;
 
     public JournalService(JournalRepository journalRepository,
                            JournalTradeNoteRepository journalTradeNoteRepository,
                            TradeLedgerPort tradeLedgerPort,
-                           MarketDataPort marketDataPort) {
+                           MarketDataPort marketDataPort,
+                           RationaleLabelingPort rationaleLabelingPort,
+                           PlatformTransactionManager transactionManager) {
         this.journalRepository = journalRepository;
         this.journalTradeNoteRepository = journalTradeNoteRepository;
         this.tradeLedgerPort = tradeLedgerPort;
         this.marketDataPort = marketDataPort;
+        this.rationaleLabelingPort = rationaleLabelingPort;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public List<JournalEntryResult> getEntries(GetJournalEntriesQuery query) {
@@ -201,8 +216,8 @@ public class JournalService {
         return new JournalDetailResult(journalDate, canCreate, journalInfo, tradeResults);
     }
 
-    // journal 저장과 journal_trade_notes 저장을 하나의 트랜잭션으로 묶는다 — 하나라도 실패하면 전체 롤백.
-    @Transactional
+    // 검증(트랜잭션 밖) → 라벨링(외부 LLM 호출, 트랜잭션 밖) → 영속화(트랜잭션 안) 순서로 진행한다.
+    // LLM 호출처럼 느리고 실패할 수 있는 외부 호출을 DB 트랜잭션 밖으로 빼서 커넥션을 불필요하게 오래 붙잡지 않는다.
     public CreateJournalResult save(CreateJournalCommand command) {
         if (command.journalDate().isAfter(LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC))) {
             throw new JournalException(JournalErrorCode.FUTURE_DATE_NOT_ALLOWED);
@@ -212,17 +227,20 @@ public class JournalService {
         }
 
         List<TradeNoteCommand> tradeNotes = validateTradeNotes(command.userId(), command.journalDate(), command.tradeNotes());
+        Map<Long, RationaleLabelType> labelsByTradeId = labelTradeNotes(tradeNotes);
 
-        Journal journal = Journal.create(command.userId(), command.journalDate(), command.marketThought(), command.marketMood());
-        Journal saved = journalRepository.save(journal);
+        return transactionTemplate.execute(status -> {
+            Journal journal = Journal.create(command.userId(), command.journalDate(), command.marketThought(), command.marketMood());
+            Journal saved = journalRepository.save(journal);
 
-        saveTradeNotes(saved.getJournalId(), tradeNotes);
+            saveTradeNotes(saved.getJournalId(), tradeNotes, labelsByTradeId);
 
-        return new CreateJournalResult(saved.getJournalId(), saved.getCreatedAt());
+            return new CreateJournalResult(saved.getJournalId(), saved.getCreatedAt());
+        });
     }
 
-    // journal 수정과 journal_trade_notes 반영(upsert+삭제)을 하나의 트랜잭션으로 묶는다.
-    @Transactional
+    // save()와 동일한 이유로 검증/라벨링은 트랜잭션 밖에서, journal 수정과 journal_trade_notes 반영(upsert+삭제)만
+    // 하나의 트랜잭션으로 묶는다.
     public UpdateJournalResult update(UpdateJournalCommand command) {
         Journal journal = findOwnedJournal(command.journalId(), command.userId());
 
@@ -231,14 +249,34 @@ public class JournalService {
         }
 
         List<TradeNoteCommand> tradeNotes = validateTradeNotes(command.userId(), journal.getJournalDate(), command.tradeNotes());
+        Map<Long, RationaleLabelType> labelsByTradeId = labelTradeNotes(tradeNotes);
 
-        Journal updated = journal.update(command.marketThought(), command.marketMood());
-        journalRepository.update(updated);
+        return transactionTemplate.execute(status -> {
+            Journal updated = journal.update(command.marketThought(), command.marketMood());
+            journalRepository.update(updated);
 
-        deleteRemovedTradeNotes(command.journalId(), tradeNotes);
-        saveTradeNotes(command.journalId(), tradeNotes);
+            deleteRemovedTradeNotes(command.journalId(), tradeNotes);
+            saveTradeNotes(command.journalId(), tradeNotes, labelsByTradeId);
 
-        return new UpdateJournalResult(updated.getJournalId(), updated.getUpdatedAt());
+            return new UpdateJournalResult(updated.getJournalId(), updated.getUpdatedAt());
+        });
+    }
+
+    // 근거 텍스트별로 LLM 라벨링을 시도한다. 실패해도 요청 전체를 실패시키지 않고 UNCLASSIFIED로 대체한다 —
+    // 라벨링은 부가 정보이지 journal 작성의 필수 전제조건이 아니다.
+    private Map<Long, RationaleLabelType> labelTradeNotes(List<TradeNoteCommand> tradeNotes) {
+        Map<Long, RationaleLabelType> labelsByTradeId = new HashMap<>();
+        for (TradeNoteCommand tradeNote : tradeNotes) {
+            RationaleLabelType label;
+            try {
+                label = rationaleLabelingPort.classify(tradeNote.rationaleText());
+            } catch (RationaleLabelingException e) {
+                log.warn("근거 라벨링 실패 — UNCLASSIFIED로 대체합니다. tradeId={}", tradeNote.tradeId(), e);
+                label = RationaleLabelType.UNCLASSIFIED;
+            }
+            labelsByTradeId.put(tradeNote.tradeId(), label);
+        }
+        return labelsByTradeId;
     }
 
     // null-safety + 중복/소유권 검증을 한 번에 묶어, save/update 양쪽에서 공유한다.
@@ -251,12 +289,13 @@ public class JournalService {
         return notes;
     }
 
-    private void saveTradeNotes(Long journalId, List<TradeNoteCommand> tradeNotes) {
+    private void saveTradeNotes(Long journalId, List<TradeNoteCommand> tradeNotes, Map<Long, RationaleLabelType> labelsByTradeId) {
         if (tradeNotes.isEmpty()) {
             return;
         }
         List<JournalTradeNote> notes = tradeNotes.stream()
-                .map(tradeNote -> JournalTradeNote.create(journalId, tradeNote.tradeId(), tradeNote.rationaleText()))
+                .map(tradeNote -> JournalTradeNote.create(
+                        journalId, tradeNote.tradeId(), tradeNote.rationaleText(), labelsByTradeId.get(tradeNote.tradeId())))
                 .collect(Collectors.toList());
         journalTradeNoteRepository.saveAll(notes); // upsert — 있으면 갱신, 없으면 생성
     }
