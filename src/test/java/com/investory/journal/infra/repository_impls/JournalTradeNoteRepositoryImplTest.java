@@ -1,5 +1,6 @@
 package com.investory.journal.infra.repository_impls;
 
+import com.investory.journal.domain.constant.RationaleLabelType;
 import com.investory.journal.domain.models.JournalTradeNote;
 import com.investory.journal.infra.entities.JournalTradeNoteRow;
 import com.investory.journal.infra.exception.JournalInfraException;
@@ -53,7 +54,7 @@ class JournalTradeNoteRepositoryImplTest {
         JournalTradeNoteRepositoryImpl repository = new JournalTradeNoteRepositoryImpl(new FailingJournalTradeNoteMapper(cause));
 
         JournalInfraException exception = assertThrows(JournalInfraException.class,
-                () -> repository.saveAll(List.of(JournalTradeNote.create(1L, 501L, "판단 근거"))));
+                () -> repository.saveAll(List.of(JournalTradeNote.create(1L, 501L, "판단 근거", RationaleLabelType.UNCLASSIFIED))));
 
         assertSame(cause, exception.getCause());
     }
