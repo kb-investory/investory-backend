@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.principle.infra.mappers.PrincipleRecommendationMapper">
+
+    <resultMap id="principleRecommendationRowResultMap" type="com.investory.principle.infra.entities.PrincipleRecommendationRow">
+        <id column="principle_recommendation_id" property="principleRecommendationId"/>
+        <result column="analysis_result_id" property="analysisResultId"/>
+        <result column="recommendation_text" property="recommendationText"/>
+        <result column="recommendation_reason" property="recommendationReason"/>
+        <result column="rule_json" property="ruleJson"/>
+        <result column="recommendation_status" property="recommendationStatus"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findByAnalysisResultId" resultMap="principleRecommendationRowResultMap">
+        SELECT
+            principle_recommendation_id, analysis_result_id, recommendation_text, recommendation_reason,
+            rule_json, recommendation_status, created_at, updated_at
+        FROM principle_recommendations
+        WHERE analysis_result_id = #{analysisResultId}
+    </select>
+
+    <select id="findByIds" resultMap="principleRecommendationRowResultMap">
+        SELECT
+            principle_recommendation_id, analysis_result_id, recommendation_text, recommendation_reason,
+            rule_json, recommendation_status, created_at, updated_at
+        FROM principle_recommendations
+        WHERE principle_recommendation_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="principleRecommendationId">
+        INSERT INTO principle_recommendations
+            (analysis_result_id, recommendation_text, recommendation_reason, rule_json, recommendation_status, created_at, updated_at)
+        VALUES
+            (#{analysisResultId}, #{recommendationText}, #{recommendationReason}, #{ruleJson}, #{recommendationStatus}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE principle_recommendations
+        SET recommendation_status = #{recommendationStatus}
+        WHERE principle_recommendation_id = #{principleRecommendationId}
+    </update>
+
+</mapper>
