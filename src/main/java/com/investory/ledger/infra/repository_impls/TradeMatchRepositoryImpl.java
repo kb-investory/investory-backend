@@ -8,6 +8,7 @@ import com.investory.ledger.infra.mappers.TradeMatchMapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,6 +43,18 @@ public class TradeMatchRepositoryImpl implements TradeMatchRepository {
             tradeMatchMapper.insertAll(rows);
         } catch (DataAccessException e) {
             throw new LedgerInfraException("거래 매칭을 저장하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public List<Integer> findHoldingDaysByAccountIdsSince(List<Long> accountIds, Instant since) {
+        if (accountIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            return tradeMatchMapper.findHoldingDaysByAccountIdsSince(accountIds, since);
+        } catch (DataAccessException e) {
+            throw new LedgerInfraException("보유기간 데이터를 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 }

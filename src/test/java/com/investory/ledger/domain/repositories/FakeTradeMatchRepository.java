@@ -2,6 +2,7 @@ package com.investory.ledger.domain.repositories;
 
 import com.investory.ledger.domain.model.TradeMatch;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,6 +20,11 @@ public class FakeTradeMatchRepository implements TradeMatchRepository {
     @Override
     public void saveAll(List<TradeMatch> newMatches) {
         matches.addAll(newMatches);
+    }
+
+    @Override
+    public List<Integer> findHoldingDaysByAccountIdsSince(List<Long> accountIds, Instant since) {
+        return List.of();
     }
 
     public List<TradeMatch> all() {
