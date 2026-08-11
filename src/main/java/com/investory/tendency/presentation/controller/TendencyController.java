@@ -6,6 +6,7 @@ import com.investory.tendency.domain.services.dto.query.AnalyzeGainResponseQuery
 import com.investory.tendency.domain.services.dto.query.AnalyzeHoldingPeriodQuery;
 import com.investory.tendency.domain.services.dto.query.AnalyzeLossResponseQuery;
 import com.investory.tendency.domain.services.dto.query.AnalyzePortfolioRiskQuery;
+import com.investory.tendency.domain.services.dto.query.AnalyzePrincipleAdherenceQuery;
 import com.investory.tendency.domain.services.dto.result.*;
 import com.investory.tendency.presentation.dto.response.*;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,18 +26,21 @@ public class TendencyController {
     private final PortfolioRiskAnalysisService portfolioRiskAnalysisService;
     private final RationaleTendencyService rationaleTendencyService;
     private final HoldingPeriodAnalysisService holdingPeriodAnalysisService;
+    private final PrincipleAdherenceAnalysisService principleAdherenceAnalysisService;
 
 
     public TendencyController(LossResponseAnalysisService lossResponseAnalysisService,
                               GainResponseAnalysisService gainResponseAnalysisService,
                               PortfolioRiskAnalysisService portfolioRiskAnalysisService,
                               RationaleTendencyService rationaleTendencyService,
-                              HoldingPeriodAnalysisService holdingPeriodAnalysisService) {
+                              HoldingPeriodAnalysisService holdingPeriodAnalysisService,
+                              PrincipleAdherenceAnalysisService principleAdherenceAnalysisService) {
         this.lossResponseAnalysisService = lossResponseAnalysisService;
         this.gainResponseAnalysisService = gainResponseAnalysisService;
         this.portfolioRiskAnalysisService = portfolioRiskAnalysisService;
         this.rationaleTendencyService = rationaleTendencyService;
         this.holdingPeriodAnalysisService = holdingPeriodAnalysisService;
+        this.principleAdherenceAnalysisService = principleAdherenceAnalysisService;
 
     }
 
@@ -74,5 +78,13 @@ public class TendencyController {
     public HoldingPeriodAnalysisResponse analyzeHoldingPeriod() {
         HoldingPeriodAnalysisResult result = holdingPeriodAnalysisService.analyze(new AnalyzeHoldingPeriodQuery(TEMP_USER_ID));
         return HoldingPeriodAnalysisResponse.from(result);
+    }
+
+    // 활성 원칙 세트와 실제 매매 행동 비교 기반 원칙 이행 성향 분석.
+    @GetMapping("/principle-adherence")
+    public PrincipleAdherenceAnalysisResponse analyzePrincipleAdherence() {
+        PrincipleAdherenceAnalysisResult result = principleAdherenceAnalysisService.analyze(
+                new AnalyzePrincipleAdherenceQuery(TEMP_USER_ID));
+        return PrincipleAdherenceAnalysisResponse.from(result);
     }
 }
