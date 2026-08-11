@@ -6,10 +6,9 @@ import com.investory.tendency.domain.constant.RationaleLabelType;
 import java.time.LocalDate;
 import java.util.Map;
 
-// journal 도메인이 소유한 journal_trade_notes.rationale_label 집계를 tendency 쪽에서 필요로 하는 모양대로 요청하는 포트.
-// journal.domain.JournalTradeNote는 rationale_label을 도메인 모델로 노출하지 않으므로(rationale_text만 보유),
-// 구현체(RationaleLabelStatsPortImpl)가 journal의 테이블을 직접 읽는다 — journal 도메인 모델/리포지토리는 건드리지 않는다.
-// journal이 이 필드를 도메인 API로 노출하게 되면 구현체만 교체하면 된다.
+// journal 도메인이 소유한 판단 근거 라벨 집계를 tendency 쪽에서 필요로 하는 모양대로 요청하는 포트.
+// 구현체(RationaleLabelStatsPortImpl)는 journal.domain.repositories.JournalTradeNoteRepository를 통해서만
+// 데이터를 받아온다 — journal의 테이블/SQL을 직접 알지 않는다.
 public interface RationaleLabelStatsPort {
 
     // 지정한 사용자의 [startDate, endDate] 구간(journal_date 기준, 양 끝 포함)에 속하는

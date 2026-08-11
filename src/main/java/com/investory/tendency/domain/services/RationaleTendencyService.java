@@ -4,7 +4,6 @@ import com.investory.tendency.domain.exception.TendencyErrorCode;
 import com.investory.tendency.domain.exception.TendencyException;
 import com.investory.tendency.domain.constant.RationaleLabelType;
 import com.investory.tendency.domain.constant.RationaleTendencyResultType;
-import com.investory.tendency.domain.ports.RationaleLabelStatsPort;
 import com.investory.tendency.domain.services.dto.command.AnalyzeRationaleTendencyQuery;
 import com.investory.tendency.domain.services.dto.result.RationaleTendencyResult;
 import org.springframework.stereotype.Service;

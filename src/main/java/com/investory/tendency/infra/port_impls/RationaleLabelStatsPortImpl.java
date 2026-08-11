@@ -2,9 +2,6 @@ package com.investory.tendency.infra.port_impls;
 
 import com.investory.tendency.infra.exception.TendencyInfraException;
 import com.investory.tendency.domain.constant.RationaleLabelType;
-import com.investory.tendency.domain.ports.RationaleLabelStatsPort;
-import com.investory.tendency.infra.entities.RationaleLabelCountRow;
-import com.investory.tendency.infra.mappers.RationaleLabelStatsMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
