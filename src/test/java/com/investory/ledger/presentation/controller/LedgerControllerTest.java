@@ -123,7 +123,7 @@ class LedgerControllerTest {
     }
 
     private MockMvc mockMvc(FakeTradeRepository tradeRepository, FakeHoldingSnapshotRepository holdingSnapshotRepository,
-                             FakeAccountPort accountPort, FakeMarketDataPort marketDataPort) {
+                            FakeAccountPort accountPort, FakeMarketDataPort marketDataPort) {
         TradeQueryService tradeQueryService = new TradeQueryService(tradeRepository, accountPort, marketDataPort);
         HoldingQueryService holdingQueryService = new HoldingQueryService(holdingSnapshotRepository, accountPort, marketDataPort);
         return MockMvcBuilders.standaloneSetup(new LedgerController(tradeQueryService, holdingQueryService))
