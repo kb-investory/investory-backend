@@ -92,13 +92,13 @@ class TradeRepositoryImplTest {
 
         @Override
         public List<TradeRow> search(List<Long> accountIds, Long securityId, TradeSide tradeSide,
-                                      Instant fromInclusive, Instant toExclusive, int offset, int size) {
+                                     Instant fromInclusive, Instant toExclusive, int offset, int size) {
             throw toThrow;
         }
 
         @Override
         public long count(List<Long> accountIds, Long securityId, TradeSide tradeSide,
-                           Instant fromInclusive, Instant toExclusive) {
+                          Instant fromInclusive, Instant toExclusive) {
             throw toThrow;
         }
 
