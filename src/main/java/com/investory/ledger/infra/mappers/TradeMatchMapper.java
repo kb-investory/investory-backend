@@ -15,5 +15,4 @@ public interface TradeMatchMapper {
     void insertAll(@Param("rows") List<TradeMatchRow> rows);
 
     List<Integer> findHoldingDaysByAccountIdsSince(@Param("accountIds") List<Long> accountIds, @Param("since") Instant since);
-
 }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -64,6 +65,11 @@ class TradeMatchRepositoryImplTest {
         @Override
         public void insertAll(List<TradeMatchRow> rows) {
             throw toThrow;
+        }
+
+        @Override
+        public List<Integer> findHoldingDaysByAccountIdsSince(List<Long> accountIds, Instant since) {
+            return List.of();
         }
     }
 }
