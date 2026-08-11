@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.principle.infra.mappers.PrincipleSetMapper">
+
+    <resultMap id="principleSetRowResultMap" type="com.investory.principle.infra.entities.PrincipleSetRow">
+        <id column="principle_set_id" property="principleSetId"/>
+        <result column="user_id" property="userId"/>
+        <result column="analysis_run_id" property="analysisRunId"/>
+        <result column="version_no" property="versionNo"/>
+        <result column="set_status" property="setStatus"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findActiveByUserId" resultMap="principleSetRowResultMap">
+        SELECT
+            principle_set_id, user_id, analysis_run_id, version_no, set_status, created_at, updated_at
+        FROM principle_sets
+        WHERE user_id = #{userId}
+          AND set_status = 'ACTIVE'
+    </select>
+
+    <select id="findMaxVersionNo" resultType="int">
+        SELECT COALESCE(MAX(version_no), 0)
+        FROM principle_sets
+        WHERE user_id = #{userId}
+    </select>
+
+    <update id="archiveActive">
+        UPDATE principle_sets
+        SET set_status = 'ARCHIVED'
+        WHERE user_id = #{userId}
+          AND set_status = 'ACTIVE'
+    </update>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="principleSetId">
+        INSERT INTO principle_sets
+            (user_id, analysis_run_id, version_no, set_status, created_at, updated_at)
+        VALUES
+            (#{userId}, #{analysisRunId}, #{versionNo}, #{setStatus}, #{createdAt}, #{updatedAt})
+    </insert>
+
+</mapper>
