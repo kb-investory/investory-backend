@@ -4,6 +4,7 @@ import com.investory.tendency.domain.exception.TendencyErrorCode;
 import com.investory.tendency.domain.exception.TendencyException;
 import com.investory.tendency.domain.constant.RationaleLabelType;
 import com.investory.tendency.domain.constant.RationaleTendencyResultType;
+import com.investory.tendency.domain.ports.RationaleLabelStatsPort;
 import com.investory.tendency.domain.services.dto.command.AnalyzeRationaleTendencyQuery;
 import com.investory.tendency.domain.services.dto.result.RationaleTendencyResult;
 import org.springframework.stereotype.Service;
@@ -78,7 +79,7 @@ public class RationaleTendencyService {
     // 통과시키지 않는다). 4개 유형 비율이 동률이어도 Threshold(60%) 미만이면 결과가 무조건 COMPLEX이므로
     // 동률 상황에서 4개 유형 중 하나를 임의로 골라야 하는 경우는 생기지 않는다.
     private RationaleTendencyResultType decideResult(double fundamentalRatio, double priceTrendRatio,
-                                                     double eventRatio, double intuitionRatio) {
+                                                       double eventRatio, double intuitionRatio) {
         double maxRatio = Math.max(Math.max(fundamentalRatio, priceTrendRatio), Math.max(eventRatio, intuitionRatio));
 
         if (maxRatio < THRESHOLD) {
