@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.tendency.infra.mappers.RationaleLabelStatsMapper">
+
+    <resultMap id="rationaleLabelCountRowResultMap" type="com.investory.tendency.infra.entities.RationaleLabelCountRow">
+        <result column="rationale_label" property="rationaleLabel"/>
+        <result column="label_count" property="count"/>
+    </resultMap>
+
+    <!-- journal_trade_notes에는 user_id가 직접 없어 investment_journals와 JOIN해서 사용자 조건을 건다.
+         journal_date(투자일지 대상 날짜, 매수 판단이 실제로 있었던 날짜) 기준으로 최근 90일을 필터링하고
+         rationale_label별로 GROUP BY 하여 건수만 집계한다 — rationale_text는 조회하지 않는다. -->
+    <select id="countByUserAndDateRange" resultMap="rationaleLabelCountRowResultMap">
+        SELECT
+            jtn.rationale_label AS rationale_label,
+            COUNT(*) AS label_count
+        FROM journal_trade_notes jtn
+        JOIN investment_journals ij ON ij.journal_id = jtn.journal_id
+        WHERE ij.user_id = #{userId}
+          AND ij.journal_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY jtn.rationale_label
+    </select>
+
+</mapper>
