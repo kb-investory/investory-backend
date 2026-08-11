@@ -3,7 +3,7 @@
 <mapper namespace="com.investory.tendency.infra.mappers.RationaleLabelStatsMapper">
 
     <resultMap id="rationaleLabelCountRowResultMap" type="com.investory.tendency.infra.entities.RationaleLabelCountRow">
-        <result column="rationale_label" property="rationaleLabel"/>
+        <result column="rationale_label_type" property="rationaleLabel"/>
         <result column="label_count" property="count"/>
     </resultMap>
 
@@ -12,13 +12,13 @@
          rationale_label별로 GROUP BY 하여 건수만 집계한다 — rationale_text는 조회하지 않는다. -->
     <select id="countByUserAndDateRange" resultMap="rationaleLabelCountRowResultMap">
         SELECT
-            jtn.rationale_label AS rationale_label,
+            jtn.rationale_label_type AS rationale_label,
             COUNT(*) AS label_count
         FROM journal_trade_notes jtn
         JOIN investment_journals ij ON ij.journal_id = jtn.journal_id
         WHERE ij.user_id = #{userId}
           AND ij.journal_date BETWEEN #{startDate} AND #{endDate}
-        GROUP BY jtn.rationale_label
+        GROUP BY jtn.rationale_label_type
     </select>
 
 </mapper>
