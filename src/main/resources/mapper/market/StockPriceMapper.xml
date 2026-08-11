@@ -32,6 +32,15 @@
         LIMIT 1
     </select>
 
+    <select id="findBySecurityIdAndDateRange" resultMap="stockPriceRowMap">
+        SELECT security_id, price_date, low_price, high_price, open_price, close_price,
+        daily_return_rate, trading_volume, trading_value, created_at
+        FROM security_daily_prices
+        WHERE security_id = #{securityId}
+        AND price_date BETWEEN #{from} AND #{to}
+        ORDER BY price_date ASC
+    </select>
+
     <!-- surrogate PK가 없어서 useGeneratedKeys를 쓰지 않는다 (그동안 이게 없는 price_id를 요구해서 계속 실패했었음) -->
     <insert id="insert" parameterType="com.investory.market.infra.entities.StockPriceRow">
         INSERT INTO security_daily_prices (
