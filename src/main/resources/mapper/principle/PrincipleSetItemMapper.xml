@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.principle.infra.mappers.PrincipleSetItemMapper">
+
+    <resultMap id="principleSetItemRowResultMap" type="com.investory.principle.infra.entities.PrincipleSetItemRow">
+        <id column="principle_set_item_id" property="principleSetItemId"/>
+        <result column="principle_set_id" property="principleSetId"/>
+        <result column="principle_recommendation_id" property="principleRecommendationId"/>
+        <result column="principle_text" property="principleText"/>
+        <result column="rule_json" property="ruleJson"/>
+        <result column="sort_order" property="sortOrder"/>
+    </resultMap>
+
+    <select id="findBySetId" resultMap="principleSetItemRowResultMap">
+        SELECT
+            principle_set_item_id, principle_set_id, principle_recommendation_id, principle_text, rule_json, sort_order
+        FROM principle_set_items
+        WHERE principle_set_id = #{principleSetId}
+        ORDER BY sort_order ASC
+    </select>
+
+    <insert id="insertAll">
+        INSERT INTO principle_set_items
+            (principle_set_id, principle_recommendation_id, principle_text, rule_json, sort_order)
+        VALUES
+        <foreach collection="items" item="row" separator=",">
+            (#{row.principleSetId}, #{row.principleRecommendationId}, #{row.principleText}, #{row.ruleJson}, #{row.sortOrder})
+        </foreach>
+    </insert>
+
+</mapper>
