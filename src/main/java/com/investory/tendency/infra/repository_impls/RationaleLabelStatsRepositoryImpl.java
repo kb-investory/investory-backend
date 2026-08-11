@@ -47,7 +47,7 @@ public class RationaleLabelStatsRepositoryImpl implements RationaleLabelStatsRep
             return RationaleLabelType.UNCLASSIFIED;
         }
         try {
-            return RationaleLabelType.valueOf(rawLabel.trim().toUpperCase());
+            return RationaleLabelType.valueOf(rawLabel.trim());
         } catch (IllegalArgumentException e) {
             log.warn("알 수 없는 rationale_label_type 값 '{}' — UNCLASSIFIED로 집계합니다.", rawLabel);
             return RationaleLabelType.UNCLASSIFIED;
