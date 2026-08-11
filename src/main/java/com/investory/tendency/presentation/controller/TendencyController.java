@@ -33,7 +33,6 @@ public class TendencyController {
     private final PortfolioRiskAnalysisService portfolioRiskAnalysisService;
     private final RationaleTendencyService rationaleTendencyService;
 
-
     public TendencyController(LossResponseAnalysisService lossResponseAnalysisService,
                               GainResponseAnalysisService gainResponseAnalysisService,
                               PortfolioRiskAnalysisService portfolioRiskAnalysisService,

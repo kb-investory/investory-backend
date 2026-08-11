@@ -1,28 +1,31 @@
-package com.investory.tendency.infra.repository_impls;
+package com.investory.tendency.infra.port_impls;
 
 import com.investory.tendency.infra.exception.TendencyInfraException;
 import com.investory.tendency.domain.constant.RationaleLabelType;
-import com.investory.tendency.domain.repositories.RationaleLabelStatsRepository;
+import com.investory.tendency.domain.ports.RationaleLabelStatsPort;
 import com.investory.tendency.infra.entities.RationaleLabelCountRow;
 import com.investory.tendency.infra.mappers.RationaleLabelStatsMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Repository
-public class RationaleLabelStatsRepositoryImpl implements RationaleLabelStatsRepository {
+// journal 도메인의 journal_trade_notes/investment_journals 테이블을 직접 읽는 유일한 지점.
+// journal.domain.JournalTradeNote가 rationale_label을 노출하지 않아 부득이하게 journal의 스키마를
+// 직접 알아야 한다 — journal 도메인 코드는 수정하지 않고, 이 어댑터 안에만 그 지식을 가둔다.
+@Component
+public class RationaleLabelStatsPortImpl implements RationaleLabelStatsPort {
 
-    private static final Logger log = LoggerFactory.getLogger(RationaleLabelStatsRepositoryImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(RationaleLabelStatsPortImpl.class);
 
     private final RationaleLabelStatsMapper rationaleLabelStatsMapper;
 
-    public RationaleLabelStatsRepositoryImpl(RationaleLabelStatsMapper rationaleLabelStatsMapper) {
+    public RationaleLabelStatsPortImpl(RationaleLabelStatsMapper rationaleLabelStatsMapper) {
         this.rationaleLabelStatsMapper = rationaleLabelStatsMapper;
     }
 
@@ -47,7 +50,7 @@ public class RationaleLabelStatsRepositoryImpl implements RationaleLabelStatsRep
             return RationaleLabelType.UNCLASSIFIED;
         }
         try {
-            return RationaleLabelType.valueOf(rawLabel.trim());
+            return RationaleLabelType.valueOf(rawLabel.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             log.warn("알 수 없는 rationale_label_type 값 '{}' — UNCLASSIFIED로 집계합니다.", rawLabel);
             return RationaleLabelType.UNCLASSIFIED;
