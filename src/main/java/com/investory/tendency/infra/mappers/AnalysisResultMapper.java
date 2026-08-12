@@ -12,4 +12,6 @@ public interface AnalysisResultMapper {
     void insert(AnalysisResultRow row);
 
     List<AnalysisResultDetailRow> findDetailByAnalysisRunId(@Param("analysisRunId") Long analysisRunId);
+
+    AnalysisResultDetailRow findDetailById(@Param("analysisResultId") Long analysisResultId);
 }

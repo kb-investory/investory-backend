@@ -35,4 +35,19 @@
         WHERE r.analysis_run_id = #{analysisRunId}
         ORDER BY d.sort_order ASC
     </select>
+
+    <select id="findDetailById" resultMap="analysisResultDetailRowMap">
+        SELECT
+            r.analysis_result_id AS analysis_result_id,
+            r.analysis_dimension_code AS dimension_code,
+            d.analysis_dimension_name AS dimension_name,
+            r.primary_analysis_type_code AS type_code,
+            t.analysis_type_name AS type_name,
+            t.description AS type_description,
+            r.evidence_json AS evidence_json
+        FROM analysis_results r
+        JOIN analysis_dimensions d ON d.analysis_dimension_code = r.analysis_dimension_code
+        JOIN analysis_types t ON t.analysis_type_code = r.primary_analysis_type_code
+        WHERE r.analysis_result_id = #{analysisResultId}
+    </select>
 </mapper>

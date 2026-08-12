@@ -3,6 +3,7 @@ package com.investory.tendency.infra.repository_impls;
 import com.investory.tendency.domain.model.AnalysisResult;
 import com.investory.tendency.domain.model.AnalysisResultDetail;
 import com.investory.tendency.domain.repositories.AnalysisResultRepository;
+import com.investory.tendency.infra.entities.AnalysisResultDetailRow;
 import com.investory.tendency.infra.entities.AnalysisResultRow;
 import com.investory.tendency.infra.exception.TendencyInfraException;
 import com.investory.tendency.infra.mappers.AnalysisResultMapper;
@@ -10,6 +11,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
@@ -39,6 +41,16 @@ public class AnalysisResultRepositoryImpl implements AnalysisResultRepository {
             return analysisResultMapper.findDetailByAnalysisRunId(analysisRunId).stream()
                     .map(row -> row.toDomain())
                     .collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("성향 분석 결과를 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public Optional<AnalysisResultDetail> findDetailById(Long analysisResultId) {
+        try {
+            AnalysisResultDetailRow row = analysisResultMapper.findDetailById(analysisResultId);
+            return Optional.ofNullable(row).map(AnalysisResultDetailRow::toDomain);
         } catch (DataAccessException e) {
             throw new TendencyInfraException("성향 분석 결과를 조회하는 중 오류가 발생했습니다.", e);
         }
