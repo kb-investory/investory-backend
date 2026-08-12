@@ -7,7 +7,9 @@ import com.investory.principle.domain.exception.PrincipleException;
 import com.investory.principle.domain.model.PrincipleRecommendation;
 import com.investory.principle.domain.model.PrincipleSet;
 import com.investory.principle.domain.model.PrincipleSetItem;
+import com.investory.principle.domain.ports.RecommendationGenerationPort;
 import com.investory.principle.domain.ports.TendencyAnalysisPort;
+import com.investory.principle.domain.ports.dto.GeneratedRecommendation;
 import com.investory.principle.domain.ports.dto.TendencyAnalysisInfo;
 import com.investory.principle.domain.repositories.PrincipleRecommendationRepository;
 import com.investory.principle.domain.repositories.PrincipleSetRepository;
@@ -24,6 +26,9 @@ import com.investory.principle.domain.services.dto.result.PrincipleSetResult;
 import com.investory.principle.domain.services.dto.result.RecommendationListResult;
 import com.investory.principle.domain.services.dto.result.RecommendationResult;
 import com.investory.principle.domain.services.dto.result.SavePrincipleSetResult;
+import com.investory.principle.infra.exception.RecommendationGenerationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,16 +42,21 @@ import java.util.stream.Collectors;
 @Service
 public class PrincipleService {
 
+    private static final Logger log = LoggerFactory.getLogger(PrincipleService.class);
+
     private final PrincipleSetRepository principleSetRepository;
     private final PrincipleRecommendationRepository principleRecommendationRepository;
     private final TendencyAnalysisPort tendencyAnalysisPort;
+    private final RecommendationGenerationPort recommendationGenerationPort;
 
     public PrincipleService(PrincipleSetRepository principleSetRepository,
                              PrincipleRecommendationRepository principleRecommendationRepository,
-                             TendencyAnalysisPort tendencyAnalysisPort) {
+                             TendencyAnalysisPort tendencyAnalysisPort,
+                             RecommendationGenerationPort recommendationGenerationPort) {
         this.principleSetRepository = principleSetRepository;
         this.principleRecommendationRepository = principleRecommendationRepository;
         this.tendencyAnalysisPort = tendencyAnalysisPort;
+        this.recommendationGenerationPort = recommendationGenerationPort;
     }
 
     public PrincipleSetResult getActivePrincipleSet(GetActivePrincipleSetQuery query) {
@@ -186,19 +196,27 @@ public class PrincipleService {
                 .collect(Collectors.toList());
     }
 
-    // tendency가 성향 분석을 완료(요청)한 시점에 그 분석에 대응하는 추천 후보를 새로 생성해 "갈아끼운다".
-    // 현재는 tendency 쪽에 분석 영속성/이벤트 발행이 없어 이 메서드를 호출할 리스너가 아직 없다 —
-    // tendency가 analysis_runs/analysis_results를 영속화하고 완료 이벤트를 발행하기 시작하면,
-    // principle/infra/listeners에 그 이벤트를 구독해 이 메서드를 호출하는 리스너를 추가한다.
-    // 같은 analysisResultId로 이미 생성된 적이 있으면 멱등적으로 아무 것도 하지 않는다.
+    // tendency가 성향 분석을 완료(요청)한 시점에 그 분석에 대응하는 추천 후보를 LLM으로 새로 생성해
+    // "갈아끼운다". 같은 analysisResultId로 이미 생성된 적이 있으면 멱등적으로 아무 것도 하지 않는다.
+    // LLM 호출이 실패하면 이번 실행은 추천 0건으로 남기고 넘어간다 — 원인과 무관한 캔 텍스트를 진짜
+    // 추천인 것처럼 저장하지 않는다. existing이 비어있는 채로 남으므로 다음에 다시 트리거되면 재시도된다.
     @Transactional
     public void refreshRecommendations(RefreshRecommendationsCommand command) {
         List<PrincipleRecommendation> existing = principleRecommendationRepository.findByAnalysisResultId(command.analysisResultId());
         if (!existing.isEmpty()) {
             return;
         }
-        List<PrincipleRecommendation> candidates = PrincipleRecommendationTemplates.forAnalysisTypeCode(command.analysisTypeCode()).stream()
-                .map(template -> PrincipleRecommendation.create(command.analysisResultId(), template.text(), template.reason(), template.ruleJson()))
+
+        List<GeneratedRecommendation> generated;
+        try {
+            generated = recommendationGenerationPort.generate(command.analysisTypeCode(), command.analysisTypeName());
+        } catch (RecommendationGenerationException e) {
+            log.warn("추천 생성 실패 — 이번 실행은 추천 0건으로 남깁니다. analysisResultId={}", command.analysisResultId(), e);
+            return;
+        }
+
+        List<PrincipleRecommendation> candidates = generated.stream()
+                .map(g -> PrincipleRecommendation.create(command.analysisResultId(), g.text(), g.reason(), g.ruleJson()))
                 .collect(Collectors.toList());
         principleRecommendationRepository.saveAll(candidates);
     }

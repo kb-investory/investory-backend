@@ -1,7 +1,9 @@
 package com.investory.principle.infra.listeners;
 
 import com.investory.principle.domain.model.PrincipleRecommendation;
+import com.investory.principle.domain.ports.FakeRecommendationGenerationPort;
 import com.investory.principle.domain.ports.FakeTendencyAnalysisPort;
+import com.investory.principle.domain.ports.dto.GeneratedRecommendation;
 import com.investory.principle.domain.repositories.FakePrincipleRecommendationRepository;
 import com.investory.principle.domain.repositories.FakePrincipleSetRepository;
 import com.investory.principle.domain.services.PrincipleService;
@@ -21,8 +23,11 @@ class TendencyAnalyzedEventListenerTest {
     @BeforeEach
     void setUp() {
         principleRecommendationRepository = new FakePrincipleRecommendationRepository();
+        FakeRecommendationGenerationPort recommendationGenerationPort = new FakeRecommendationGenerationPort();
+        recommendationGenerationPort.setNextResult(List.of(new GeneratedRecommendation("text", "reason", null)));
         PrincipleService principleService = new PrincipleService(
-                new FakePrincipleSetRepository(), principleRecommendationRepository, new FakeTendencyAnalysisPort());
+                new FakePrincipleSetRepository(), principleRecommendationRepository, new FakeTendencyAnalysisPort(),
+                recommendationGenerationPort);
         listener = new TendencyAnalyzedEventListener(principleService);
     }
 
