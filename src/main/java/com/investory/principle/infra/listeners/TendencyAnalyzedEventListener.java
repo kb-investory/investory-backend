@@ -23,7 +23,7 @@ public class TendencyAnalyzedEventListener {
     public void handle(TendencyAnalyzedEvent event) {
         for (TendencyAnalyzedEvent.AnalysisResult result : event.results()) {
             principleService.refreshRecommendations(
-                    new RefreshRecommendationsCommand(result.analysisResultId(), result.analysisTypeCode()));
+                    new RefreshRecommendationsCommand(result.analysisResultId(), result.analysisTypeCode(), result.analysisTypeName()));
         }
     }
 }
