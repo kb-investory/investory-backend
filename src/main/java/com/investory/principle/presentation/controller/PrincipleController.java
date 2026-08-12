@@ -11,6 +11,7 @@ import com.investory.principle.presentation.dto.response.PrincipleRecommendation
 import com.investory.principle.presentation.dto.response.PrincipleSetResponse;
 import com.investory.principle.presentation.dto.response.SavePrincipleSetResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,9 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/principle")
 public class PrincipleController {
 
-    // TODO: JWT 인증 도입 후 Principal.userId로 교체 (auth 도메인 미구현으로 임시 고정값 사용)
-    private static final Long TEMP_USER_ID = 1L;
-
     private final PrincipleService principleService;
 
     public PrincipleController(PrincipleService principleService) {
@@ -32,21 +30,22 @@ public class PrincipleController {
     }
 
     @GetMapping
-    public PrincipleSetResponse getPrincipleSet() {
-        PrincipleSetResult result = principleService.getActivePrincipleSet(new GetActivePrincipleSetQuery(TEMP_USER_ID));
+    public PrincipleSetResponse getPrincipleSet(@AuthenticationPrincipal Long userId) {
+        PrincipleSetResult result = principleService.getActivePrincipleSet(new GetActivePrincipleSetQuery(userId));
         return PrincipleSetResponse.from(result);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public SavePrincipleSetResponse savePrincipleSet(@RequestBody SavePrincipleSetRequest request) {
-        SavePrincipleSetResult result = principleService.savePrincipleSet(request.toCommand(TEMP_USER_ID));
+    public SavePrincipleSetResponse savePrincipleSet(
+            @AuthenticationPrincipal Long userId, @RequestBody SavePrincipleSetRequest request) {
+        SavePrincipleSetResult result = principleService.savePrincipleSet(request.toCommand(userId));
         return SavePrincipleSetResponse.from(result);
     }
 
     @GetMapping("/recommendations")
-    public PrincipleRecommendationListResponse getRecommendations() {
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(TEMP_USER_ID));
+    public PrincipleRecommendationListResponse getRecommendations(@AuthenticationPrincipal Long userId) {
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(userId));
         return PrincipleRecommendationListResponse.from(result);
     }
 }
