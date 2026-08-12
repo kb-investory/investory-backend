@@ -5,6 +5,7 @@ import com.investory.tendency.domain.constant.GainResponseType;
 import com.investory.tendency.domain.constant.LossResponseType;
 import com.investory.tendency.domain.exception.TendencyErrorCode;
 import com.investory.tendency.domain.exception.TendencyException;
+import com.investory.tendency.domain.events.TendencyAnalyzedEvent;
 import com.investory.tendency.domain.model.AnalysisResult;
 import com.investory.tendency.domain.model.AnalysisResultDetail;
 import com.investory.tendency.domain.model.AnalysisRun;
@@ -30,6 +31,7 @@ import com.investory.tendency.domain.services.dto.result.PrincipleAdherenceAnaly
 import com.investory.tendency.domain.services.dto.result.RationaleTendencyResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -69,6 +71,7 @@ public class AnalysisRunService {
     private final PrincipleAdherenceAnalysisService principleAdherenceAnalysisService;
     private final TradeLedgerPort tradeLedgerPort;
     private final MarketDataPort marketDataPort;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AnalysisRunService(AnalysisRunRepository analysisRunRepository,
@@ -78,7 +81,8 @@ public class AnalysisRunService {
                                HoldingPeriodAnalysisService holdingPeriodAnalysisService,
                                PrincipleAdherenceAnalysisService principleAdherenceAnalysisService,
                                TradeLedgerPort tradeLedgerPort,
-                               MarketDataPort marketDataPort) {
+                               MarketDataPort marketDataPort,
+                               ApplicationEventPublisher eventPublisher) {
         this.analysisRunRepository = analysisRunRepository;
         this.analysisResultRepository = analysisResultRepository;
         this.portfolioRiskAnalysisService = portfolioRiskAnalysisService;
@@ -87,6 +91,7 @@ public class AnalysisRunService {
         this.principleAdherenceAnalysisService = principleAdherenceAnalysisService;
         this.tradeLedgerPort = tradeLedgerPort;
         this.marketDataPort = marketDataPort;
+        this.eventPublisher = eventPublisher;
     }
 
     public AnalysisRunDetailResult runAnalysis(RunAnalysisCommand command) {
@@ -114,7 +119,19 @@ public class AnalysisRunService {
                 .collect(Collectors.toList());
         analysisResultRepository.saveAll(resultsWithRunId);
 
+        publishAnalyzedEvent(userId, saved.getAnalysisRunId());
+
         return getDetail(new GetAnalysisRunDetailQuery(userId, saved.getAnalysisRunId()));
+    }
+
+    // 저장된 결과를 다시 조회해(표시 이름까지 포함된 AnalysisResultDetail) 이벤트로 발행한다.
+    // principle이 이 이벤트를 구독해(TendencyAnalyzedEventListener) 추천 후보를 갱신한다.
+    private void publishAnalyzedEvent(Long userId, Long analysisRunId) {
+        List<AnalysisResultDetail> details = analysisResultRepository.findDetailByAnalysisRunId(analysisRunId);
+        List<TendencyAnalyzedEvent.AnalysisResult> results = details.stream()
+                .map(d -> new TendencyAnalyzedEvent.AnalysisResult(d.analysisResultId(), d.dimensionCode(), d.typeCode(), d.typeName()))
+                .collect(Collectors.toList());
+        eventPublisher.publishEvent(new TendencyAnalyzedEvent(userId, analysisRunId, results));
     }
 
     public List<AnalysisRunSummaryResult> getHistory(GetAnalysisRunsQuery query) {
