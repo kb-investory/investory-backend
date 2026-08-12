@@ -46,4 +46,9 @@ public class TradeLedgerPortImpl implements TradeLedgerPort {
                 .map(t -> new TradeInfo(t.securityId(), t.tradeSide().name(), t.quantity(), t.unitPrice(), t.tradedAt()))
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<TradeInfo> findAllTrades(Long userId) {
+        return findTrades(userId, null);
+    }
 }

@@ -16,13 +16,14 @@ import java.util.stream.Collectors;
 // 분석창(windowStart~today) 안이며 그날 손익 판정이 가능한(시세 또는 완전매각 체결가가 있는) 날만
 // DailyOutcome으로 만들어 반환한다. 손익 부호에 따른 필터링·라벨링은 호출측(3번/4번 서비스) 책임 —
 // 이 클래스는 손실/수익을 구분하지 않는다.
-// 3번(손실 대응)·4번(수익 대응) 공유.
+// 3번(손실 대응)·4번(수익 대응)·6번(원칙 이행) 공유. returnRate는 6번이 손절/익절 원칙의
+// 퍼센트 임계값과 비교하는 데 쓴다.
 public class DailyPnlWalker {
 
     private DailyPnlWalker() {
     }
 
-    public record DailyOutcome(LocalDate date, BigDecimal pnl, int netTradeSign) {
+    public record DailyOutcome(LocalDate date, BigDecimal pnl, BigDecimal returnRate, int netTradeSign) {
     }
 
     // trades는 매매일시 오름차순 정렬되어 있어야 한다(TradeLedgerPort의 계약과 동일). 비어있으면 빈 리스트 반환.
@@ -67,7 +68,11 @@ public class DailyPnlWalker {
                 pnl = closePrice.subtract(day.avgCostForPnl());
             }
 
-            outcomes.add(new DailyOutcome(date, pnl, day.netQuantity().signum()));
+            BigDecimal returnRate = day.avgCostForPnl().signum() == 0
+                    ? BigDecimal.ZERO
+                    : pnl.divide(day.avgCostForPnl(), MathContext.DECIMAL64).multiply(BigDecimal.valueOf(100));
+
+            outcomes.add(new DailyOutcome(date, pnl, returnRate, day.netQuantity().signum()));
         }
 
         return outcomes;

@@ -19,6 +19,7 @@ import com.investory.principle.domain.services.dto.query.GetRecommendationsQuery
 import com.investory.principle.domain.services.dto.result.AnalysisTypeResult;
 import com.investory.principle.domain.services.dto.result.PrincipleItemResult;
 import com.investory.principle.domain.services.dto.result.PrincipleOriginResult;
+import com.investory.principle.domain.services.dto.result.PrincipleRuleItemResult;
 import com.investory.principle.domain.services.dto.result.PrincipleSetResult;
 import com.investory.principle.domain.services.dto.result.RecommendationListResult;
 import com.investory.principle.domain.services.dto.result.RecommendationResult;
@@ -52,6 +53,18 @@ public class PrincipleService {
         PrincipleSet principleSet = principleSetRepository.findActiveByUserId(query.userId())
                 .orElseThrow(() -> new PrincipleException(PrincipleErrorCode.PRINCIPLE_SET_NOT_FOUND));
         return toPrincipleSetResult(principleSet);
+    }
+
+    // getActivePrincipleSet()과 달리 원칙 세트가 없어도 예외 대신 빈 리스트를 반환한다 — 6번(원칙 이행
+    // 성향)의 설계상 "원칙 없음"은 정상적인 판정불가형 결과이지 오류가 아니다. ruleJson도 함께 반환한다
+    // (getActivePrincipleSet/PrincipleSetResult는 REST 계약이라 그대로 두고, 이 조회는 tendency 전용).
+    public List<PrincipleRuleItemResult> getActivePrincipleRules(Long userId) {
+        return principleSetRepository.findActiveByUserId(userId)
+                .map(PrincipleSet::getItems)
+                .orElse(List.of())
+                .stream()
+                .map(item -> new PrincipleRuleItemResult(item.getPrincipleSetItemId(), item.getPrincipleText(), item.getRuleJson()))
+                .collect(Collectors.toList());
     }
 
     private PrincipleSetResult toPrincipleSetResult(PrincipleSet principleSet) {
