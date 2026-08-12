@@ -31,17 +31,17 @@ public class LlmPrincipleRuleClassifier implements PrincipleRuleClassificationPo
 
     private static final Logger log = LoggerFactory.getLogger(LlmPrincipleRuleClassifier.class);
 
+    // 모델명은 환경별로 달라질 이유가 없어 env로 빼지 않고 상수로 고정한다 — 바꾸려면 코드/배포로 반영.
+    private static final String MODEL = "gpt-5-nano";
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${llm.principle-adherence.base-url}")
+    @Value("${llm.base-url}")
     private String baseUrl;
 
-    @Value("${llm.principle-adherence.api-key}")
+    @Value("${llm.api-key}")
     private String apiKey;
-
-    @Value("${llm.principle-adherence.model}")
-    private String model;
 
     public LlmPrincipleRuleClassifier(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
@@ -88,7 +88,7 @@ public class LlmPrincipleRuleClassifier implements PrincipleRuleClassificationPo
                 new OpenAiChatCompletionRequest.Message("user", principleText));
 
         return new OpenAiChatCompletionRequest(
-                model, messages, null, new OpenAiChatCompletionRequest.ResponseFormat("json_object"));
+                MODEL, messages, null, new OpenAiChatCompletionRequest.ResponseFormat("json_object"));
     }
 
     private String extractContent(OpenAiChatCompletionResponse response) {

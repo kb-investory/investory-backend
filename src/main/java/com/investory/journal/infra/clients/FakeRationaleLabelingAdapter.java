@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 // 개발/테스트용 — 실제 LLM 호출 없이 키워드 매칭으로 대충 흉내만 낸다.
-// llm.rationale-labeling.enabled=false일 때만 활성화된다.
+// llm.enabled=false일 때만 활성화된다.
 @Component
 @Conditional(RationaleLabelingDisabledCondition.class)
 public class FakeRationaleLabelingAdapter implements RationaleLabelingPort {

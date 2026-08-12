@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// 실제 OpenAI 호출 없이, llm.principle-adherence.enabled=false일 때 뜨는 것과 동일한
+// 실제 OpenAI 호출 없이, llm.enabled=false일 때 뜨는 것과 동일한
 // Fake*Classifier/Grader(키워드/빈도 휴리스틱)를 그대로 써서 6번 로직을 눈으로 확인해보는 테스트.
 class PrincipleAdherenceAnalysisServiceTest {
 

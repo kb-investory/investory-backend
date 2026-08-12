@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 
 // 개발/테스트용 — 실제 LLM 호출 없이 거래 빈도 기반의 단순 휴리스틱으로 대충 흉내만 낸다.
-// llm.principle-adherence.enabled=false일 때만 활성화된다.
+// llm.enabled=false일 때만 활성화된다.
 @Component
 @Conditional(PrincipleAdherenceLlmDisabledCondition.class)
 public class FakePrincipleComplianceGrader implements PrincipleComplianceGradingPort {
