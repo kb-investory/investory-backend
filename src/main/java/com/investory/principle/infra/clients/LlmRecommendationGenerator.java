@@ -1,5 +1,6 @@
 package com.investory.principle.infra.clients;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investory.principle.domain.ports.RecommendationGenerationPort;
 import com.investory.principle.domain.ports.dto.GeneratedRecommendation;
@@ -69,8 +70,8 @@ public class LlmRecommendationGenerator implements RecommendationGenerationPort 
     }
 
     private OpenAiChatCompletionRequest buildRequest(String analysisTypeCode, String analysisTypeName) {
-        String systemPrompt = "너는 개인 투자자의 투자 성향 분석 결과를 보고, 그 성향에 맞는 투자 원칙을 1~2개 추천하는 "
-                + "투자 코치다. 각 추천은 실제로 지킬 수 있는 구체적인 행동 규칙이어야 한다. "
+        String systemPrompt = "너는 개인 투자자의 투자 성향 분석 결과를 보고, 그 성향에 맞는 투자 원칙을 정확히 1개만 추천하는 "
+                + "투자 코치다. 반드시 recommendations 배열에 항목을 1개만 담아라. 각 추천은 실제로 지킬 수 있는 구체적인 행동 규칙이어야 한다. "
                 + "손실률/수익률 퍼센트 임계값처럼 수치로 검증 가능한 규칙이면 ruleJson에 "
                 + "{\"type\":\"STOP_LOSS\"|\"TAKE_PROFIT\",\"value\":<숫자>,\"unit\":\"PERCENT\"} 형태로 채우고, "
                 + "정성적인 규칙이면 ruleJson은 null로 둬라. "
@@ -110,7 +111,16 @@ public class LlmRecommendationGenerator implements RecommendationGenerationPort 
             return List.of();
         }
         return parsed.getRecommendations().stream()
-                .map(item -> new GeneratedRecommendation(item.getText(), item.getReason(), item.getRuleJson()))
+                .map(item -> new GeneratedRecommendation(item.getText(), item.getReason(), toRuleJsonString(item.getRuleJson())))
                 .collect(Collectors.toList());
+    }
+
+    // GeneratedRecommendation.ruleJson()은 DB의 JSON 컬럼에 그대로 저장될 문자열을 기대하므로,
+    // 파싱된 JsonNode를 다시 압축 JSON 문자열로 직렬화한다. null/JSON null이면 null 그대로 둔다.
+    private String toRuleJsonString(JsonNode ruleJson) {
+        if (ruleJson == null || ruleJson.isNull()) {
+            return null;
+        }
+        return ruleJson.toString();
     }
 }
