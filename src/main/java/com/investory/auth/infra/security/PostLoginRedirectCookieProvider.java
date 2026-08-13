@@ -23,10 +23,10 @@ public class PostLoginRedirectCookieProvider {
     public static final String COOKIE_NAME = "post_login_redirect";
     private static final long MAX_AGE_SECONDS = 300;
 
-    @Value("${app.frontend.default-redirect-uri:http://localhost:5173}")
+    @Value("${app.default-redirect-uri:http://localhost:5173}")
     private String defaultRedirectUri;
 
-    @Value("${app.frontend.allowed-redirect-origins:http://localhost:5173}")
+    @Value("${app.allowed-redirect-origins:http://localhost:5173}")
     private String allowedOriginsRaw;
 
     @Value("${app.cookie.secure:false}")
