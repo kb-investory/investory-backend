@@ -14,7 +14,12 @@ import com.investory.ledger.domain.repositories.FakeTradeRepository;
 import com.investory.ledger.domain.repositories.TradeSearchCriteria;
 import com.investory.ledger.domain.services.HoldingQueryService;
 import com.investory.ledger.domain.services.TradeQueryService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -32,6 +37,19 @@ class LedgerControllerTest {
     private static final Long USER_ID = 1L;
     private static final Long ACCOUNT_ID = 11L;
     private static final Long SECURITY_ID = 101L;
+
+    // @AuthenticationPrincipal Long userId가 SecurityContext의 principal을 읽으므로,
+    // standaloneSetup 테스트에서는 리졸버 등록과 인증 정보 세팅을 직접 해줘야 한다.
+    @BeforeEach
+    void setUpAuthentication() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(USER_ID, null, List.of()));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     void 거래_목록을_조회하면_200과_함께_목록을_반환한다() throws Exception {
@@ -128,6 +146,7 @@ class LedgerControllerTest {
         HoldingQueryService holdingQueryService = new HoldingQueryService(holdingSnapshotRepository, accountPort, marketDataPort);
         return MockMvcBuilders.standaloneSetup(new LedgerController(tradeQueryService, holdingQueryService))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
     }
 }

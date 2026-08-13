@@ -18,8 +18,13 @@ import com.investory.journal.domain.services.JournalService;
 import com.investory.journal.presentation.dto.request.CreateJournalRequest;
 import com.investory.journal.presentation.dto.request.UpdateJournalRequest;
 import com.investory.global.error.GlobalExceptionHandler;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -41,6 +46,19 @@ class JournalControllerTest {
 
     private static final Long TEMP_USER_ID = 1L;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
+
+    // @AuthenticationPrincipal Long userId가 SecurityContext의 principal을 읽으므로,
+    // standaloneSetup 테스트에서는 리졸버 등록과 인증 정보 세팅을 직접 해줘야 한다.
+    @BeforeEach
+    void setUpAuthentication() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(TEMP_USER_ID, null, List.of()));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     void 목록_조회하면_일지_목록을_반환한다() throws Exception {
@@ -135,6 +153,7 @@ class JournalControllerTest {
                         new FakeJournalRepository(), new FakeJournalTradeNoteRepository(),
                         new FakeTradeLedgerPort(), new FakeMarketDataPort())))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
 
         MvcResult result = mockMvc.perform(get("/journal/entries/{journalId}", 999L))
@@ -168,6 +187,7 @@ class JournalControllerTest {
         return MockMvcBuilders.standaloneSetup(new JournalController(
                         journalService(journalRepository, journalTradeNoteRepository, tradeLedgerPort, marketDataPort)))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
     }
 

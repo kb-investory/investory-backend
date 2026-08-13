@@ -19,6 +19,7 @@ import com.investory.journal.presentation.dto.response.TradeTimelineResponse;
 import com.investory.journal.presentation.dto.response.UpdateJournalResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,9 +37,6 @@ import java.util.List;
 @RequestMapping("/journal")
 public class JournalController {
 
-    // TODO: JWT 인증 도입 후 Principal.userId로 교체 (auth 도메인 미구현으로 임시 고정값 사용)
-    private static final Long TEMP_USER_ID = 1L;
-
     private final JournalService journalService;
 
     public JournalController(JournalService journalService) {
@@ -47,47 +45,54 @@ public class JournalController {
 
     @GetMapping("/entries")
     public JournalEntryListResponse getEntries(
+            @AuthenticationPrincipal Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         List<JournalEntryResult> results = journalService.getEntries(
-                new GetJournalEntriesQuery(TEMP_USER_ID, startDate, endDate));
+                new GetJournalEntriesQuery(userId, startDate, endDate));
         return JournalEntryListResponse.from(results);
     }
 
     @GetMapping("/entries/on/{date}")
-    public JournalDetailResponse getDetail(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        JournalDetailResult result = journalService.getDetail(new GetJournalDetailQuery(TEMP_USER_ID, date));
+    public JournalDetailResponse getDetail(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        JournalDetailResult result = journalService.getDetail(new GetJournalDetailQuery(userId, date));
         return JournalDetailResponse.from(result);
     }
 
     @GetMapping("/entries/{journalId}")
-    public JournalDetailResponse getByJournalId(@PathVariable Long journalId) {
-        JournalDetailResult result = journalService.getByJournalId(new GetJournalByIdQuery(TEMP_USER_ID, journalId));
+    public JournalDetailResponse getByJournalId(@AuthenticationPrincipal Long userId, @PathVariable Long journalId) {
+        JournalDetailResult result = journalService.getByJournalId(new GetJournalByIdQuery(userId, journalId));
         return JournalDetailResponse.from(result);
     }
 
     @PostMapping("/entries")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateJournalResponse create(@RequestBody CreateJournalRequest request) {
-        CreateJournalResult result = journalService.save(request.toCommand(TEMP_USER_ID));
+    public CreateJournalResponse create(@AuthenticationPrincipal Long userId, @RequestBody CreateJournalRequest request) {
+        CreateJournalResult result = journalService.save(request.toCommand(userId));
         return CreateJournalResponse.from(result);
     }
 
     @PutMapping("/entries/{journalId}")
-    public UpdateJournalResponse update(@PathVariable Long journalId, @RequestBody UpdateJournalRequest request) {
-        UpdateJournalResult result = journalService.update(request.toCommand(TEMP_USER_ID, journalId));
+    public UpdateJournalResponse update(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long journalId,
+            @RequestBody UpdateJournalRequest request) {
+        UpdateJournalResult result = journalService.update(request.toCommand(userId, journalId));
         return UpdateJournalResponse.from(result);
     }
 
     @GetMapping("/trades")
     public TradeTimelineResponse getTrades(
+            @AuthenticationPrincipal Long userId,
             @RequestParam Long securityId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         TradeTimelineResult result = journalService.getTradeTimeline(
-                new GetTradeTimelineQuery(TEMP_USER_ID, securityId, startDate, endDate, page, size));
+                new GetTradeTimelineQuery(userId, securityId, startDate, endDate, page, size));
         return TradeTimelineResponse.from(result);
     }
 }

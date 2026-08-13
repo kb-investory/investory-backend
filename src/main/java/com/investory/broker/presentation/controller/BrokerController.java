@@ -28,6 +28,7 @@ import com.investory.broker.presentation.dto.response.CreateBrokerConnectionResp
 import com.investory.broker.presentation.dto.response.SyncConnectionResponse;
 import com.investory.broker.presentation.dto.response.UpdateAccountNameResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,9 +43,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/broker")
 public class BrokerController {
-
-    // TODO: JWT 인증 도입 후 Principal.userId로 교체 (auth 도메인 미구현으로 임시 고정값 사용)
-    private static final Long TEMP_USER_ID = 1L;
 
     private final BrokerProviderService brokerProviderService;
     private final BrokerConnectionService brokerConnectionService;
@@ -66,56 +64,63 @@ public class BrokerController {
     }
 
     @GetMapping("/connections")
-    public BrokerConnectionListResponse getConnections() {
-        List<BrokerConnectionResult> results = brokerConnectionService.getConnections(TEMP_USER_ID);
+    public BrokerConnectionListResponse getConnections(@AuthenticationPrincipal Long userId) {
+        List<BrokerConnectionResult> results = brokerConnectionService.getConnections(userId);
         return BrokerConnectionListResponse.from(results);
     }
 
     @PostMapping("/connections")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateBrokerConnectionResponse createConnection(@RequestBody CreateBrokerConnectionRequest request) {
-        CreateBrokerConnectionResult result = brokerConnectionService.createConnection(request.toCommand(TEMP_USER_ID));
+    public CreateBrokerConnectionResponse createConnection(
+            @AuthenticationPrincipal Long userId, @RequestBody CreateBrokerConnectionRequest request) {
+        CreateBrokerConnectionResult result = brokerConnectionService.createConnection(request.toCommand(userId));
         return CreateBrokerConnectionResponse.from(result);
     }
 
     @GetMapping("/connections/{connectionId}")
-    public BrokerConnectionDetailResponse getConnectionDetail(@PathVariable Long connectionId) {
+    public BrokerConnectionDetailResponse getConnectionDetail(
+            @AuthenticationPrincipal Long userId, @PathVariable Long connectionId) {
         BrokerConnectionDetailResult result = brokerConnectionService.getConnectionDetail(
-                new GetBrokerConnectionDetailQuery(TEMP_USER_ID, connectionId));
+                new GetBrokerConnectionDetailQuery(userId, connectionId));
         return BrokerConnectionDetailResponse.from(result);
     }
 
     @GetMapping("/connections/{connectionId}/accounts")
-    public BrokerConnectionAccountsResponse getConnectionAccounts(@PathVariable Long connectionId) {
+    public BrokerConnectionAccountsResponse getConnectionAccounts(
+            @AuthenticationPrincipal Long userId, @PathVariable Long connectionId) {
         ConnectionAccountsResult result = investmentAccountService.getAccountsByConnection(
-                new GetConnectionAccountsQuery(TEMP_USER_ID, connectionId));
+                new GetConnectionAccountsQuery(userId, connectionId));
         return BrokerConnectionAccountsResponse.from(result);
     }
 
     @PostMapping("/connections/{connectionId}/sync")
-    public SyncConnectionResponse syncConnection(@PathVariable Long connectionId) {
+    public SyncConnectionResponse syncConnection(
+            @AuthenticationPrincipal Long userId, @PathVariable Long connectionId) {
         SyncConnectionResult result = brokerConnectionService.syncConnection(
-                new SyncBrokerConnectionCommand(TEMP_USER_ID, connectionId));
+                new SyncBrokerConnectionCommand(userId, connectionId));
         return SyncConnectionResponse.from(result);
     }
 
     @GetMapping("/accounts")
-    public AccountListResponse getAccounts() {
-        AccountListResult result = investmentAccountService.getAccounts(TEMP_USER_ID);
+    public AccountListResponse getAccounts(@AuthenticationPrincipal Long userId) {
+        AccountListResult result = investmentAccountService.getAccounts(userId);
         return AccountListResponse.from(result);
     }
 
     @GetMapping("/accounts/{accountId}")
-    public AccountDetailResponse getAccountDetail(@PathVariable Long accountId) {
+    public AccountDetailResponse getAccountDetail(
+            @AuthenticationPrincipal Long userId, @PathVariable Long accountId) {
         AccountDetailResult result = investmentAccountService.getAccountDetail(
-                new GetAccountDetailQuery(TEMP_USER_ID, accountId));
+                new GetAccountDetailQuery(userId, accountId));
         return AccountDetailResponse.from(result);
     }
 
     @PatchMapping("/accounts/{accountId}")
     public UpdateAccountNameResponse updateAccountName(
-            @PathVariable Long accountId, @RequestBody UpdateAccountNameRequest request) {
-        UpdateAccountNameResult result = investmentAccountService.renameAccount(request.toCommand(TEMP_USER_ID, accountId));
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long accountId,
+            @RequestBody UpdateAccountNameRequest request) {
+        UpdateAccountNameResult result = investmentAccountService.renameAccount(request.toCommand(userId, accountId));
         return UpdateAccountNameResponse.from(result);
     }
 }
