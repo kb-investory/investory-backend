@@ -25,7 +25,7 @@ public class SecurityConfig {
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            @Value("${app.allowed-redirect-origins}") String allowedOriginsRaw
+            @Value("${app.allowed-origins}") String allowedOriginsRaw
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.allowedOriginsRaw = allowedOriginsRaw;

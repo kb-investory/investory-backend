@@ -26,7 +26,7 @@ public class PostLoginRedirectCookieProvider {
     @Value("${app.default-redirect-uri:http://localhost:5173}")
     private String defaultRedirectUri;
 
-    @Value("${app.allowed-redirect-origins:http://localhost:5173}")
+    @Value("${app.allowed-origins:http://localhost:5173}")
     private String allowedOriginsRaw;
 
     @Value("${app.cookie.secure:false}")
