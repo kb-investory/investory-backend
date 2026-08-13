@@ -41,7 +41,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -55,6 +55,9 @@ import java.util.stream.Collectors;
 public class JournalService {
 
     private static final Logger log = LoggerFactory.getLogger(JournalService.class);
+
+    // 미래 날짜 검증("오늘"이 언제인지)은 사용자 기준 시간대(KST)로 판단한다.
+    private static final ZoneId JOURNAL_ZONE = ZoneId.of("Asia/Seoul");
 
     private final JournalRepository journalRepository;
     private final JournalTradeNoteRepository journalTradeNoteRepository;
@@ -210,7 +213,7 @@ public class JournalService {
                 .collect(Collectors.toList());
 
         Instant now = Instant.now();
-        boolean canCreate = journal.isEmpty() && !journalDate.isAfter(LocalDate.ofInstant(now, ZoneOffset.UTC));
+        boolean canCreate = journal.isEmpty() && !journalDate.isAfter(LocalDate.ofInstant(now, JOURNAL_ZONE));
         JournalInfoResult journalInfo = journal.map(j -> JournalInfoResult.from(j, now)).orElse(null);
 
         return new JournalDetailResult(journalDate, canCreate, journalInfo, tradeResults);
@@ -219,7 +222,7 @@ public class JournalService {
     // 검증(트랜잭션 밖) → 라벨링(외부 LLM 호출, 트랜잭션 밖) → 영속화(트랜잭션 안) 순서로 진행한다.
     // LLM 호출처럼 느리고 실패할 수 있는 외부 호출을 DB 트랜잭션 밖으로 빼서 커넥션을 불필요하게 오래 붙잡지 않는다.
     public CreateJournalResult save(CreateJournalCommand command) {
-        if (command.journalDate().isAfter(LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC))) {
+        if (command.journalDate().isAfter(LocalDate.ofInstant(Instant.now(), JOURNAL_ZONE))) {
             throw new JournalException(JournalErrorCode.FUTURE_DATE_NOT_ALLOWED);
         }
         if (journalRepository.findByUserAndDate(command.userId(), command.journalDate()).isPresent()) {

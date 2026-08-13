@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -64,7 +65,7 @@ class TradeLedgerPortImplTest {
     }
 
     @Test
-    void 특정_날짜의_거래만_UTC_기준으로_조회한다() {
+    void 특정_날짜의_거래만_KST_기준으로_조회한다() {
         tradeRepository.add(
                 trade(LocalDate.of(2026, 1, 1), TradeSide.BUY, 1),
                 trade(LocalDate.of(2026, 1, 2), TradeSide.SELL, 2)
@@ -75,6 +76,21 @@ class TradeLedgerPortImplTest {
         assertEquals(1, result.size());
         assertEquals(com.investory.journal.domain.constant.TradeSide.BUY, result.get(0).tradeSide());
         assertEquals(1, result.get(0).quantity());
+    }
+
+    // KST 2026-08-07 00:30 = UTC 2026-08-06T15:30:00Z. DB에는 UTC 그대로 저장되지만,
+    // 일지 조회는 사용자 기준 시간대(KST)로 판단해야 하므로 08-07 쪽에서 조회돼야 한다.
+    @Test
+    void KST_자정_직후_거래는_UTC로_저장돼도_KST_날짜로_조회된다() {
+        Instant tradedAt = Instant.parse("2026-08-06T15:30:00Z");
+        tradeRepository.add(Trade.create(ACCOUNT_ID, SECURITY_ID, TradeSide.BUY, BigDecimal.ONE, BigDecimal.TEN,
+                BigDecimal.ONE, "ext-kst-boundary", tradedAt));
+
+        List<TradeInfo> onKstDate = port.findTradesOn(USER_ID, LocalDate.of(2026, 8, 7));
+        List<TradeInfo> onUtcDate = port.findTradesOn(USER_ID, LocalDate.of(2026, 8, 6));
+
+        assertEquals(1, onKstDate.size());
+        assertTrue(onUtcDate.isEmpty());
     }
 
     @Test

@@ -5,13 +5,16 @@ import com.investory.journal.domain.ports.dto.TradeInfo;
 import com.investory.journal.domain.ports.dto.TradeTimelineInfo;
 
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class FakeTradeLedgerPort implements TradeLedgerPort {
+
+    // 실제 TradeLedgerPortImpl과 동일하게 날짜 판단을 KST 기준으로 한다.
+    private static final ZoneId JOURNAL_ZONE = ZoneId.of("Asia/Seoul");
 
     private record TimelineEntry(Long securityId, TradeTimelineInfo trade) {
     }
@@ -44,7 +47,7 @@ public class FakeTradeLedgerPort implements TradeLedgerPort {
     @Override
     public List<TradeInfo> findTradesOn(Long userId, LocalDate date) {
         return trades.stream()
-                .filter(trade -> LocalDate.ofInstant(trade.tradedAt(), ZoneOffset.UTC).isEqual(date))
+                .filter(trade -> LocalDate.ofInstant(trade.tradedAt(), JOURNAL_ZONE).isEqual(date))
                 .collect(Collectors.toList());
     }
 
@@ -64,8 +67,8 @@ public class FakeTradeLedgerPort implements TradeLedgerPort {
     private List<TradeTimelineInfo> filterTimelineEntries(Long securityId, LocalDate startDate, LocalDate endDate) {
         return timelineEntries.stream()
                 .filter(entry -> entry.securityId().equals(securityId))
-                .filter(entry -> startDate == null || !LocalDate.ofInstant(entry.trade().tradedAt(), ZoneOffset.UTC).isBefore(startDate))
-                .filter(entry -> endDate == null || !LocalDate.ofInstant(entry.trade().tradedAt(), ZoneOffset.UTC).isAfter(endDate))
+                .filter(entry -> startDate == null || !LocalDate.ofInstant(entry.trade().tradedAt(), JOURNAL_ZONE).isBefore(startDate))
+                .filter(entry -> endDate == null || !LocalDate.ofInstant(entry.trade().tradedAt(), JOURNAL_ZONE).isAfter(endDate))
                 .map(TimelineEntry::trade)
                 .sorted(Comparator.comparing(TradeTimelineInfo::tradedAt).reversed())
                 .collect(Collectors.toList());

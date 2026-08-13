@@ -12,7 +12,7 @@ import com.investory.ledger.domain.services.dto.result.TradeResult;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +23,10 @@ public class TradeLedgerPortImpl implements TradeLedgerPort {
 
     // ledger.TradeQueryService의 페이지 크기 상한과 동일 (전체 이력을 다 받을 때까지 이 크기로 반복 조회)
     private static final int PAGE_SIZE = 100;
+
+    // 투자일지의 날짜별 집계는 사용자 기준 시간대(KST)로 판단한다 — UTC 자정 근처 거래가
+    // 엉뚱한 날짜로 집계되는 걸 막기 위함.
+    private static final ZoneId JOURNAL_ZONE = ZoneId.of("Asia/Seoul");
 
     private final TradeQueryService tradeQueryService;
 
@@ -78,7 +82,7 @@ public class TradeLedgerPortImpl implements TradeLedgerPort {
     }
 
     private LocalDate tradedOnDate(TradeResult trade) {
-        return LocalDate.ofInstant(trade.tradedAt(), ZoneOffset.UTC);
+        return LocalDate.ofInstant(trade.tradedAt(), JOURNAL_ZONE);
     }
 
     private TradeInfo toTradeInfo(TradeResult trade) {
