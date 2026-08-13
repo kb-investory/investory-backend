@@ -3,7 +3,7 @@ package com.investory.ledger.domain.repositories;
 import com.investory.ledger.domain.model.Trade;
 
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -11,6 +11,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class FakeTradeRepository implements TradeRepository {
+
+    // 실제 TradeRepositoryImpl과 동일하게 from/to 날짜 경계를 KST 기준으로 해석한다.
+    private static final ZoneId JOURNAL_ZONE = ZoneId.of("Asia/Seoul");
 
     private final List<Trade> trades = new ArrayList<>();
     private long nextId = 1L;
@@ -46,7 +49,7 @@ public class FakeTradeRepository implements TradeRepository {
     }
 
     private LocalDate toDate(Trade trade) {
-        return trade.getTradedAt().atZone(ZoneOffset.UTC).toLocalDate();
+        return trade.getTradedAt().atZone(JOURNAL_ZONE).toLocalDate();
     }
 
     @Override
