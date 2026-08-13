@@ -2,6 +2,7 @@ package com.investory.ledger.domain.repositories;
 
 import com.investory.ledger.domain.model.TradeMatch;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface TradeMatchRepository {
@@ -10,4 +11,8 @@ public interface TradeMatchRepository {
     void deleteByAccountIdAndSecurityId(Long accountId, Long securityId);
 
     void saveAll(List<TradeMatch> matches);
+
+    // 지정한 계좌들의 매칭 중 created_at이 since 이후인 것들의 holding_days만 조회한다.
+    // holding_days는 매칭 시점에 이미 계산되어 저장된 값을 그대로 반환한다 — 여기서 다시 계산하지 않는다.
+    List<Integer> findHoldingDaysByAccountIdsSince(List<Long> accountIds, Instant since);
 }

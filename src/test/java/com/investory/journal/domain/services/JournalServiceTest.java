@@ -8,6 +8,7 @@ import com.investory.journal.domain.models.JournalFixture;
 import com.investory.journal.domain.models.JournalTradeNote;
 import com.investory.journal.domain.models.JournalTradeNoteFixture;
 import com.investory.journal.domain.ports.FakeMarketDataPort;
+import com.investory.journal.domain.ports.FakeRationaleLabelingPort;
 import com.investory.journal.domain.ports.FakeTradeLedgerPort;
 import com.investory.journal.domain.ports.dto.SecurityInfoFixture;
 import com.investory.journal.domain.ports.dto.TradeCountInfo;
@@ -50,6 +51,7 @@ class JournalServiceTest {
     private FakeJournalTradeNoteRepository journalTradeNoteRepository;
     private FakeTradeLedgerPort tradeLedgerPort;
     private FakeMarketDataPort marketDataPort;
+    private FakeRationaleLabelingPort rationaleLabelingPort;
     private JournalService journalService;
 
     @BeforeEach
@@ -58,7 +60,9 @@ class JournalServiceTest {
         journalTradeNoteRepository = new FakeJournalTradeNoteRepository();
         tradeLedgerPort = new FakeTradeLedgerPort();
         marketDataPort = new FakeMarketDataPort();
-        journalService = new JournalService(journalRepository, journalTradeNoteRepository, tradeLedgerPort, marketDataPort);
+        rationaleLabelingPort = new FakeRationaleLabelingPort();
+        journalService = new JournalService(journalRepository, journalTradeNoteRepository, tradeLedgerPort,
+                marketDataPort, rationaleLabelingPort, new FakeTransactionManager());
     }
 
     @Test

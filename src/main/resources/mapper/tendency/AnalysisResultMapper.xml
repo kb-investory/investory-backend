@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.tendency.infra.mappers.AnalysisResultMapper">
+    <insert id="insert" parameterType="com.investory.tendency.infra.entities.AnalysisResultRow"
+            useGeneratedKeys="true" keyProperty="analysisResultId" keyColumn="analysis_result_id">
+        INSERT INTO analysis_results (
+            analysis_run_id, analysis_dimension_code, primary_analysis_type_code, evidence_json
+        ) VALUES (
+            #{analysisRunId}, #{analysisDimensionCode}, #{primaryAnalysisTypeCode}, #{evidenceJson}
+        )
+    </insert>
+
+    <resultMap id="analysisResultDetailRowMap" type="com.investory.tendency.infra.entities.AnalysisResultDetailRow">
+        <id property="analysisResultId" column="analysis_result_id"/>
+        <result property="dimensionCode" column="dimension_code"/>
+        <result property="dimensionName" column="dimension_name"/>
+        <result property="typeCode" column="type_code"/>
+        <result property="typeName" column="type_name"/>
+        <result property="typeDescription" column="type_description"/>
+        <result property="evidenceJson" column="evidence_json"/>
+    </resultMap>
+
+    <select id="findDetailByAnalysisRunId" resultMap="analysisResultDetailRowMap">
+        SELECT
+            r.analysis_result_id AS analysis_result_id,
+            r.analysis_dimension_code AS dimension_code,
+            d.analysis_dimension_name AS dimension_name,
+            r.primary_analysis_type_code AS type_code,
+            t.analysis_type_name AS type_name,
+            t.description AS type_description,
+            r.evidence_json AS evidence_json
+        FROM analysis_results r
+        JOIN analysis_dimensions d ON d.analysis_dimension_code = r.analysis_dimension_code
+        JOIN analysis_types t ON t.analysis_type_code = r.primary_analysis_type_code
+        WHERE r.analysis_run_id = #{analysisRunId}
+        ORDER BY d.sort_order ASC
+    </select>
+
+    <select id="findDetailById" resultMap="analysisResultDetailRowMap">
+        SELECT
+            r.analysis_result_id AS analysis_result_id,
+            r.analysis_dimension_code AS dimension_code,
+            d.analysis_dimension_name AS dimension_name,
+            r.primary_analysis_type_code AS type_code,
+            t.analysis_type_name AS type_name,
+            t.description AS type_description,
+            r.evidence_json AS evidence_json
+        FROM analysis_results r
+        JOIN analysis_dimensions d ON d.analysis_dimension_code = r.analysis_dimension_code
+        JOIN analysis_types t ON t.analysis_type_code = r.primary_analysis_type_code
+        WHERE r.analysis_result_id = #{analysisResultId}
+    </select>
+</mapper>

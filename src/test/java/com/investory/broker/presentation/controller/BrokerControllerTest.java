@@ -21,8 +21,13 @@ import com.investory.broker.domain.services.BrokerProviderService;
 import com.investory.broker.domain.services.InvestmentAccountService;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.global.error.GlobalExceptionHandler;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -40,6 +45,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class BrokerControllerTest {
+
+    // 컨트롤러 파라미터의 @AuthenticationPrincipal Long userId가 SecurityContext의 principal(=userId)을
+    // 읽어오므로, standaloneSetup 테스트에서는 리졸버 등록과 인증 정보 세팅을 직접 해줘야 한다.
+    // 기존 픽스처들이 전부 userId=1L 기준으로 데이터를 넣어뒀으므로 그 값을 그대로 쓴다.
+    @BeforeEach
+    void setUpAuthentication() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(1L, null, List.of()));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     private static BrokerConnectionService newConnectionService(FakeBrokerConnectionRepository repository) {
         return newConnectionService(repository, new FakeBrokerProviderRepository());
@@ -82,7 +101,7 @@ class BrokerControllerTest {
         repository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerProviderService providerService = new BrokerProviderService(repository);
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/providers"))
                 .andExpect(status().isOk())
@@ -104,7 +123,7 @@ class BrokerControllerTest {
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/providers"))
                 .andExpect(status().isInternalServerError())
@@ -123,7 +142,7 @@ class BrokerControllerTest {
         FakeBrokerConnectionRepository repository = new FakeBrokerConnectionRepository();
         repository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(repository);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections"))
                 .andExpect(status().isOk())
@@ -144,7 +163,7 @@ class BrokerControllerTest {
     void 연동한_증권사가_없으면_빈_배열을_반환한다() throws Exception {
         BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections"))
                 .andExpect(status().isOk())
@@ -162,7 +181,7 @@ class BrokerControllerTest {
         providerRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerProviderService providerService = new BrokerProviderService(providerRepository);
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository(), providerRepository);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(post("/broker/connections")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -184,7 +203,7 @@ class BrokerControllerTest {
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(post("/broker/connections")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -204,7 +223,7 @@ class BrokerControllerTest {
         FakeBrokerConnectionRepository repository = new FakeBrokerConnectionRepository();
         repository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(repository);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections/15"))
                 .andExpect(status().isOk())
@@ -225,7 +244,7 @@ class BrokerControllerTest {
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections/999"))
                 .andExpect(status().isNotFound())
@@ -249,7 +268,7 @@ class BrokerControllerTest {
                 com.investory.broker.domain.constant.AccountType.STOCK, "KRW"));
         InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new BrokerController(providerService, connectionService, accountService)).build();
+                new BrokerController(providerService, connectionService, accountService)).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/connections/15/accounts"))
                 .andExpect(status().isOk())
@@ -272,7 +291,7 @@ class BrokerControllerTest {
         connectionRepository.addMockProfileCode(15L, "demo1");
         BrokerConnectionService connectionService = newConnectionService(connectionRepository);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new BrokerController(providerService, connectionService, newAccountService())).build();
+                new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(post("/broker/connections/15/sync"))
                 .andExpect(status().isOk())
@@ -292,7 +311,7 @@ class BrokerControllerTest {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
                         new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(post("/broker/connections/999/sync"))
                 .andExpect(status().isNotFound())
@@ -316,7 +335,7 @@ class BrokerControllerTest {
                 com.investory.broker.domain.constant.AccountType.STOCK, "KRW"));
         InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new BrokerController(providerService, connectionService, accountService)).build();
+                new BrokerController(providerService, connectionService, accountService)).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/accounts"))
                 .andExpect(status().isOk())
@@ -337,7 +356,7 @@ class BrokerControllerTest {
     void 계좌가_없으면_전체_계좌_목록도_빈_배열을_반환한다() throws Exception {
         BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/accounts"))
                 .andExpect(status().isOk())
@@ -369,7 +388,7 @@ class BrokerControllerTest {
                         BigDecimal.valueOf(30000), BigDecimal.valueOf(8.91), LocalDate.parse("2026-07-29")))));
         InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository, holdingDetailPort);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new BrokerController(providerService, connectionService, accountService)).build();
+                new BrokerController(providerService, connectionService, accountService)).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/accounts/25"))
                 .andExpect(status().isOk())
@@ -390,7 +409,7 @@ class BrokerControllerTest {
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(get("/broker/accounts/999"))
                 .andExpect(status().isNotFound())
@@ -413,7 +432,7 @@ class BrokerControllerTest {
         BrokerConnectionService connectionService = newConnectionService(connectionRepository);
         InvestmentAccountService accountService = newAccountService(accountRepository, connectionRepository);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new BrokerController(providerService, connectionService, accountService)).build();
+                new BrokerController(providerService, connectionService, accountService)).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(patch("/broker/accounts/25")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -434,7 +453,7 @@ class BrokerControllerTest {
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
         MvcResult result = mockMvc.perform(patch("/broker/accounts/999")
                         .contentType(MediaType.APPLICATION_JSON)

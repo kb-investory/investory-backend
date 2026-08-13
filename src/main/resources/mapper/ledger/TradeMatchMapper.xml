@@ -21,4 +21,16 @@
         </foreach>
     </insert>
 
+    <!-- trade_matches에는 account_id가 없어(security_id만 비정규화) buy_trade_id로 trades를 조인해서 계좌 조건을 건다. -->
+    <select id="findHoldingDaysByAccountIdsSince" resultType="int">
+        SELECT tm.holding_days
+        FROM trade_matches tm
+        JOIN trades t ON t.trade_id = tm.buy_trade_id
+        WHERE t.account_id IN
+        <foreach collection="accountIds" item="accountId" open="(" separator="," close=")">
+            #{accountId}
+        </foreach>
+        AND tm.created_at &gt;= #{since}
+    </select>
+
 </mapper>

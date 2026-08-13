@@ -2,16 +2,23 @@ package com.investory.journal.domain.repositories;
 
 import com.investory.journal.domain.models.JournalTradeNote;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class FakeJournalTradeNoteRepository implements JournalTradeNoteRepository {
 
     private final List<JournalTradeNote> notes = new ArrayList<>();
+    private Map<String, Long> rationaleLabelCounts = Map.of();
 
     public void add(JournalTradeNote... notes) {
         this.notes.addAll(List.of(notes));
+    }
+
+    public void setRationaleLabelCounts(Map<String, Long> rationaleLabelCounts) {
+        this.rationaleLabelCounts = rationaleLabelCounts;
     }
 
     @Override
@@ -43,6 +50,11 @@ public class FakeJournalTradeNoteRepository implements JournalTradeNoteRepositor
     @Override
     public void deleteByTradeIds(List<Long> tradeIds) {
         this.notes.removeIf(note -> tradeIds.contains(note.getTradeId()));
+    }
+
+    @Override
+    public Map<String, Long> countRationaleLabelsByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
+        return rationaleLabelCounts;
     }
 
     public List<JournalTradeNote> getSaved() {
