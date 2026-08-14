@@ -29,6 +29,9 @@ public class PostLoginRedirectCookieProvider {
     @Value("${app.allowed-origins:http://localhost:5173}")
     private String allowedOriginsRaw;
 
+    @Value("${app.existing-user-redirect-uri:http://www.investory.kr/home}")
+    private String existingUserRedirectUri;
+
     @Value("${app.cookie.secure:false}")
     private boolean secure;
 
@@ -42,6 +45,15 @@ public class PostLoginRedirectCookieProvider {
                 .map(String::trim)
                 .anyMatch(redirectUri::startsWith);
         return allowed ? redirectUri : defaultRedirectUri;
+    }
+
+    // 로그인 콜백에서 최종적으로 리다이렉트할 주소를 결정한다.
+    // 이미 users 테이블에 있는 기존 회원이면 프론트가 요청한 주소를 무시하고 고정된 서비스 홈으로 보낸다.
+    public String resolveRedirectUri(String redirectUri, boolean newUser) {
+        if (!newUser) {
+            return existingUserRedirectUri;
+        }
+        return sanitize(redirectUri);
     }
 
     // 검증된 리다이렉트 목적지를 authorize 응답에 실어 보낼 httpOnly 쿠키로 만든다.
