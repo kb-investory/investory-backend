@@ -16,6 +16,7 @@ import com.investory.broker.domain.repositories.FakeAccountSyncBatchRepository;
 import com.investory.broker.domain.repositories.FakeBrokerConnectionRepository;
 import com.investory.broker.domain.repositories.FakeBrokerProviderRepository;
 import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
+import com.investory.broker.domain.services.BrokerAccountSyncService;
 import com.investory.broker.domain.services.BrokerConnectionService;
 import com.investory.broker.domain.services.BrokerProviderService;
 import com.investory.broker.domain.services.InvestmentAccountService;
@@ -72,14 +73,14 @@ class BrokerControllerTest {
     private static BrokerConnectionService newConnectionService(
             FakeBrokerConnectionRepository repository, FakeBrokerProviderRepository providerRepository,
             FakeBrokerFeedPort brokerFeedPort) {
+        BrokerAccountSyncService brokerAccountSyncService = new BrokerAccountSyncService(
+                new FakeInvestmentAccountRepository(), new FakeTradeIngestionPort(), new FakeHoldingIngestionPort(), brokerFeedPort);
         return new BrokerConnectionService(
                 repository,
                 providerRepository,
-                new FakeInvestmentAccountRepository(),
                 new FakeAccountSyncBatchRepository(),
-                new FakeTradeIngestionPort(),
-                new FakeHoldingIngestionPort(),
-                brokerFeedPort
+                brokerFeedPort,
+                brokerAccountSyncService
         );
     }
 
