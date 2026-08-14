@@ -65,7 +65,7 @@ public class AuthController {
 
         ResponseCookie refreshTokenCookie = refreshTokenCookieProvider.create(result.refreshToken());
 
-        String redirectTo = postLoginRedirectCookieProvider.sanitize(savedRedirectUri);
+        String redirectTo = postLoginRedirectCookieProvider.resolveRedirectUri(savedRedirectUri, result.newUser());
         ResponseCookie expiredRedirectCookie = postLoginRedirectCookieProvider.expire();
 
         return ResponseEntity
@@ -112,7 +112,7 @@ public class AuthController {
         ResponseCookie refreshTokenCookie = refreshTokenCookieProvider.create(result.refreshToken());
         ResponseCookie expiredStateCookie = oAuthStateCookieProvider.expire(); // 검증 끝났으니 state 쿠키는 바로 지운다
         ResponseCookie expiredRedirectCookie = postLoginRedirectCookieProvider.expire();
-        String redirectTo = postLoginRedirectCookieProvider.sanitize(savedRedirectUri);
+        String redirectTo = postLoginRedirectCookieProvider.resolveRedirectUri(savedRedirectUri, result.newUser());
 
         return ResponseEntity
                 .status(HttpStatus.FOUND)
@@ -147,7 +147,7 @@ public class AuthController {
 
         ResponseCookie refreshTokenCookie = refreshTokenCookieProvider.create(result.refreshToken());
         ResponseCookie expiredRedirectCookie = postLoginRedirectCookieProvider.expire();
-        String redirectTo = postLoginRedirectCookieProvider.sanitize(savedRedirectUri);
+        String redirectTo = postLoginRedirectCookieProvider.resolveRedirectUri(savedRedirectUri, result.newUser());
 
         return ResponseEntity
                 .status(HttpStatus.FOUND)
