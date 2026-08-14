@@ -11,13 +11,18 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
 public class TradeRepositoryImpl implements TradeRepository {
+
+    // from/to로 들어오는 LocalDate는 사용자가 보는 화면(투자일지 등)의 날짜 경계이므로,
+    // UTC가 아니라 사용자 기준 시간대(KST)의 하루로 해석해서 UTC Instant로 변환한다.
+    // journal 도메인뿐 아니라 이 리포지토리를 쓰는 /ledger/trades 자체의 from/to 필터에도 동일하게 적용된다.
+    private static final ZoneId JOURNAL_ZONE = ZoneId.of("Asia/Seoul");
 
     private final TradeMapper tradeMapper;
 
@@ -93,13 +98,13 @@ public class TradeRepositoryImpl implements TradeRepository {
         return row.toDomain();
     }
 
-    // 시작일 00:00:00(UTC) 포함
+    // 시작일 00:00:00(KST) 포함 — UTC Instant로 변환해서 저장된 traded_at과 비교한다.
     private Instant toInclusiveStart(LocalDate date) {
-        return date == null ? null : date.atStartOfDay(ZoneOffset.UTC).toInstant();
+        return date == null ? null : date.atStartOfDay(JOURNAL_ZONE).toInstant();
     }
 
-    // 종료일 다음날 00:00:00(UTC) 미포함 — traded_at < toExclusive
+    // 종료일 다음날 00:00:00(KST) 미포함 — traded_at < toExclusive
     private Instant toExclusiveEnd(LocalDate date) {
-        return date == null ? null : date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        return date == null ? null : date.plusDays(1).atStartOfDay(JOURNAL_ZONE).toInstant();
     }
 }
