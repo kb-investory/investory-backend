@@ -126,6 +126,18 @@ class BrokerConnectionServiceTest {
     }
 
     @Test
+    void 로그인한_계정의_실제_소속과_선택한_증권사가_다르면_예외가_발생하고_커넥션이_생성되지_않는다() {
+        brokerProviderRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
+        brokerFeedPort.willLoginAs("KIWOOM", "키움증권(모의)");
+        CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, 1L, "demo1", "1234");
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> brokerConnectionService.createConnection(command));
+
+        assertEquals(BrokerErrorCode.ORG_MISMATCH, exception.getErrorCode());
+        assertTrue(brokerConnectionService.getConnections(1L).isEmpty());
+    }
+
+    @Test
     void 입력값이_유효하지_않으면_예외가_발생한다() {
         CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, null, "", "1234");
 
@@ -144,6 +156,7 @@ class BrokerConnectionServiceTest {
 
         assertEquals(ConnectionStatus.CONNECTED, result.connectionStatus());
         assertEquals(SyncStatus.FAILED, result.syncResult().syncStatus());
+        assertEquals("목 서버 응답 오류", result.syncResult().errorMessage());
         assertEquals(0, result.syncResult().accountCount());
     }
 
@@ -212,5 +225,6 @@ class BrokerConnectionServiceTest {
 
         assertEquals(SyncStatus.FAILED, result.syncStatus());
         assertEquals(0, result.accountCount());
+        assertEquals("목 서버 응답 오류", result.errorMessage());
     }
 }

@@ -102,6 +102,13 @@ public class BrokerConnectionService {
 
         BrokerLoginResult login = authenticate(command.loginId(), command.password());
 
+        // login()은 loginId/password만으로 인증하고 org는 검증하지 않는다 — 즉 클라이언트가 고른
+        // brokerId(provider)와 실제로 인증된 계정의 소속 org가 다를 수 있다. 여기서 막지 않으면
+        // 엉뚱한 증권사 이름표를 단 커넥션에 다른 증권사의 계좌/거래 데이터가 저장된다.
+        if (!login.orgCode().equals(provider.getBrokerCode())) {
+            throw new BrokerException(BrokerErrorCode.ORG_MISMATCH);
+        }
+
         Instant connectedAt = Instant.now();
         Long connectionId = brokerConnectionRepository.insert(command.userId(), command.brokerId(), login.mockConnectionId(), connectedAt);
         Long syncBatchId = accountSyncBatchRepository.create(connectionId);
@@ -121,7 +128,8 @@ public class BrokerConnectionService {
         }
 
         CreateBrokerConnectionResult.SyncResult syncResult = new CreateBrokerConnectionResult.SyncResult(
-                syncBatchId, syncStatus, outcome.accountCount(), outcome.insertedTradeCount(), outcome.holdingCount());
+                syncBatchId, syncStatus, outcome.accountCount(), outcome.insertedTradeCount(), outcome.holdingCount(),
+                outcome.errorMessage());
 
         return new CreateBrokerConnectionResult(
                 connectionId,
@@ -169,7 +177,8 @@ public class BrokerConnectionService {
                 outcome.accountCount(),
                 outcome.insertedTradeCount(),
                 outcome.skippedTradeCount(),
-                outcome.holdingCount()
+                outcome.holdingCount(),
+                outcome.errorMessage()
         );
     }
 
