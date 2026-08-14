@@ -52,6 +52,10 @@ public class FakeBrokerFeedPort implements BrokerFeedPort {
         this.organizations = organizations;
     }
 
+    public void willLoginAs(String orgCode, String orgName) {
+        this.loginResult = new BrokerLoginResult(loginResult.mockConnectionId(), orgCode, orgName);
+    }
+
     @Override
     public BrokerLoginResult login(String loginId, String password) {
         if (loginAuthFails) {
