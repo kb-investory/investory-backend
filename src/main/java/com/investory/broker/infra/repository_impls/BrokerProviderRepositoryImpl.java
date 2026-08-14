@@ -42,4 +42,31 @@ public class BrokerProviderRepositoryImpl implements BrokerProviderRepository {
             throw new BrokerInfraException(e);
         }
     }
+
+    @Override
+    public void upsertByCode(String brokerCode, String brokerName) {
+        try {
+            boolean exists = !brokerProviderMapper.findByCode(brokerCode).isEmpty();
+            if (exists) {
+                brokerProviderMapper.updateByCode(brokerCode, brokerName);
+            } else {
+                BrokerProviderRow row = new BrokerProviderRow();
+                row.setBrokerCode(brokerCode);
+                row.setBrokerName(brokerName);
+                row.setActive(true);
+                brokerProviderMapper.insert(row);
+            }
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(e);
+        }
+    }
+
+    @Override
+    public void deactivateExcept(List<String> brokerCodes) {
+        try {
+            brokerProviderMapper.deactivateExcept(brokerCodes);
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(e);
+        }
+    }
 }

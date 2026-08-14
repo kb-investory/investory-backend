@@ -52,14 +52,14 @@ class BrokerConnectionServiceTest {
         tradeIngestionPort = new FakeTradeIngestionPort();
         holdingIngestionPort = new FakeHoldingIngestionPort();
         brokerFeedPort = new FakeBrokerFeedPort();
+        BrokerAccountSyncService brokerAccountSyncService = new BrokerAccountSyncService(
+                investmentAccountRepository, tradeIngestionPort, holdingIngestionPort, brokerFeedPort);
         brokerConnectionService = new BrokerConnectionService(
                 brokerConnectionRepository,
                 brokerProviderRepository,
-                investmentAccountRepository,
                 accountSyncBatchRepository,
-                tradeIngestionPort,
-                holdingIngestionPort,
-                brokerFeedPort
+                brokerFeedPort,
+                brokerAccountSyncService
         );
     }
 
@@ -126,6 +126,18 @@ class BrokerConnectionServiceTest {
     }
 
     @Test
+    void 로그인한_계정의_실제_소속과_선택한_증권사가_다르면_예외가_발생하고_커넥션이_생성되지_않는다() {
+        brokerProviderRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
+        brokerFeedPort.willLoginAs("KIWOOM", "키움증권(모의)");
+        CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, 1L, "demo1", "1234");
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> brokerConnectionService.createConnection(command));
+
+        assertEquals(BrokerErrorCode.ORG_MISMATCH, exception.getErrorCode());
+        assertTrue(brokerConnectionService.getConnections(1L).isEmpty());
+    }
+
+    @Test
     void 입력값이_유효하지_않으면_예외가_발생한다() {
         CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, null, "", "1234");
 
@@ -138,6 +150,24 @@ class BrokerConnectionServiceTest {
     void 동기화_도중_오류가_나면_연결은_유지되고_FAILED_상태를_반환한다() {
         brokerProviderRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
         brokerFeedPort.willFailSyncWith(new RuntimeException("목 서버 응답 오류"));
+        CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, 1L, "demo1", "1234");
+
+        CreateBrokerConnectionResult result = brokerConnectionService.createConnection(command);
+
+        assertEquals(ConnectionStatus.CONNECTED, result.connectionStatus());
+        assertEquals(SyncStatus.FAILED, result.syncResult().syncStatus());
+        assertEquals("목 서버 응답 오류", result.syncResult().errorMessage());
+        assertEquals(0, result.syncResult().accountCount());
+    }
+
+    @Test
+    void 여러_계좌_중_하나라도_실패하면_전체_동기화가_실패로_처리된다() {
+        brokerProviderRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
+        brokerFeedPort.willReturnAccounts(List.of(
+                new com.investory.broker.domain.ports.dto.RawAccountRecord("111-111", "계좌1", "101", "KRW"),
+                new com.investory.broker.domain.ports.dto.RawAccountRecord("222-222", "계좌2", "101", "KRW")
+        ));
+        brokerFeedPort.willFailAccountWith("222-222", new RuntimeException("두번째 계좌 조회 실패"));
         CreateBrokerConnectionCommand command = new CreateBrokerConnectionCommand(1L, 1L, "demo1", "1234");
 
         CreateBrokerConnectionResult result = brokerConnectionService.createConnection(command);
@@ -212,5 +242,6 @@ class BrokerConnectionServiceTest {
 
         assertEquals(SyncStatus.FAILED, result.syncStatus());
         assertEquals(0, result.accountCount());
+        assertEquals("목 서버 응답 오류", result.errorMessage());
     }
 }

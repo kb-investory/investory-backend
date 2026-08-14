@@ -34,7 +34,8 @@ public record CreateBrokerConnectionResponse(
         SyncStatus syncStatus,
         int accountCount,
         int insertedTradeCount,
-        int holdingCount
+        int holdingCount,
+        String errorMessage
     ) {
         public static SyncResultResponse from(CreateBrokerConnectionResult.SyncResult syncResult) {
             return new SyncResultResponse(
@@ -42,7 +43,8 @@ public record CreateBrokerConnectionResponse(
                     syncResult.syncStatus(),
                     syncResult.accountCount(),
                     syncResult.insertedTradeCount(),
-                    syncResult.holdingCount()
+                    syncResult.holdingCount(),
+                    syncResult.errorMessage()
             );
         }
     }

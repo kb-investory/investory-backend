@@ -1,6 +1,5 @@
 package com.investory.broker.domain.services;
 
-import com.investory.broker.domain.constant.AccountType;
 import com.investory.broker.domain.constant.ConnectionStatus;
 import com.investory.broker.domain.constant.SyncStatus;
 import com.investory.broker.domain.exception.BrokerErrorCode;
@@ -9,17 +8,11 @@ import com.investory.broker.domain.model.AccountSyncBatch;
 import com.investory.broker.domain.model.BrokerConnection;
 import com.investory.broker.domain.model.BrokerProvider;
 import com.investory.broker.domain.ports.BrokerFeedPort;
-import com.investory.broker.domain.ports.HoldingIngestionPort;
-import com.investory.broker.domain.ports.TradeIngestionPort;
 import com.investory.broker.domain.ports.dto.BrokerLoginResult;
-import com.investory.broker.domain.ports.dto.IngestResult;
 import com.investory.broker.domain.ports.dto.RawAccountRecord;
-import com.investory.broker.domain.ports.dto.RawHoldingBatch;
-import com.investory.broker.domain.ports.dto.RawTradeRecord;
 import com.investory.broker.domain.repositories.AccountSyncBatchRepository;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.domain.repositories.BrokerProviderRepository;
-import com.investory.broker.domain.repositories.InvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
@@ -48,27 +41,21 @@ public class BrokerConnectionService {
 
     private final BrokerConnectionRepository brokerConnectionRepository;
     private final BrokerProviderRepository brokerProviderRepository;
-    private final InvestmentAccountRepository investmentAccountRepository;
     private final AccountSyncBatchRepository accountSyncBatchRepository;
-    private final TradeIngestionPort tradeIngestionPort;
-    private final HoldingIngestionPort holdingIngestionPort;
     private final BrokerFeedPort brokerFeedPort;
+    private final BrokerAccountSyncService brokerAccountSyncService;
 
     public BrokerConnectionService(
             BrokerConnectionRepository brokerConnectionRepository,
             BrokerProviderRepository brokerProviderRepository,
-            InvestmentAccountRepository investmentAccountRepository,
             AccountSyncBatchRepository accountSyncBatchRepository,
-            TradeIngestionPort tradeIngestionPort,
-            HoldingIngestionPort holdingIngestionPort,
-            BrokerFeedPort brokerFeedPort) {
+            BrokerFeedPort brokerFeedPort,
+            BrokerAccountSyncService brokerAccountSyncService) {
         this.brokerConnectionRepository = brokerConnectionRepository;
         this.brokerProviderRepository = brokerProviderRepository;
-        this.investmentAccountRepository = investmentAccountRepository;
         this.accountSyncBatchRepository = accountSyncBatchRepository;
-        this.tradeIngestionPort = tradeIngestionPort;
-        this.holdingIngestionPort = holdingIngestionPort;
         this.brokerFeedPort = brokerFeedPort;
+        this.brokerAccountSyncService = brokerAccountSyncService;
     }
 
     public List<BrokerConnectionResult> getConnections(Long userId) {
@@ -102,6 +89,13 @@ public class BrokerConnectionService {
 
         BrokerLoginResult login = authenticate(command.loginId(), command.password());
 
+        // login()은 loginId/password만으로 인증하고 org는 검증하지 않는다 — 즉 클라이언트가 고른
+        // brokerId(provider)와 실제로 인증된 계정의 소속 org가 다를 수 있다. 여기서 막지 않으면
+        // 엉뚱한 증권사 이름표를 단 커넥션에 다른 증권사의 계좌/거래 데이터가 저장된다.
+        if (!login.orgCode().equals(provider.getBrokerCode())) {
+            throw new BrokerException(BrokerErrorCode.ORG_MISMATCH);
+        }
+
         Instant connectedAt = Instant.now();
         Long connectionId = brokerConnectionRepository.insert(command.userId(), command.brokerId(), login.mockConnectionId(), connectedAt);
         Long syncBatchId = accountSyncBatchRepository.create(connectionId);
@@ -121,7 +115,8 @@ public class BrokerConnectionService {
         }
 
         CreateBrokerConnectionResult.SyncResult syncResult = new CreateBrokerConnectionResult.SyncResult(
-                syncBatchId, syncStatus, outcome.accountCount(), outcome.insertedTradeCount(), outcome.holdingCount());
+                syncBatchId, syncStatus, outcome.accountCount(), outcome.insertedTradeCount(), outcome.holdingCount(),
+                outcome.errorMessage());
 
         return new CreateBrokerConnectionResult(
                 connectionId,
@@ -169,7 +164,8 @@ public class BrokerConnectionService {
                 outcome.accountCount(),
                 outcome.insertedTradeCount(),
                 outcome.skippedTradeCount(),
-                outcome.holdingCount()
+                outcome.holdingCount(),
+                outcome.errorMessage()
         );
     }
 
@@ -197,66 +193,26 @@ public class BrokerConnectionService {
         }
     }
 
-    // 계좌 목록부터 계좌별 거래내역/보유상품까지 조회해서 investment_accounts에 저장하고,
-    // 거래/보유종목은 ledger 쪽 Port로 저장 요청만 넘긴다. 도중에 실패해도 커넥션 자체는 롤백하지 않고
-    // 실패 사실만 호출자에게 돌려준다 (배치 상태를 FAILED로 남기기 위함).
+    // 계좌 목록을 조회하고, 계좌·거래·보유종목 적재는 BrokerAccountSyncService에 통째로 위임한다.
+    // 그 메서드가 REQUIRES_NEW라 계좌 하나라도 실패하면 이번 시도의 계좌 데이터 전체가 원자적으로
+    // 롤백되고, 그 실패가 커넥션 row 자체에는 번지지 않는다 — 실패 사실만 호출자에게 돌려주면
+    // (배치 상태를 FAILED로 남기기 위함) 커넥션은 CONNECTED로 유지된다.
     // createConnection/syncConnection 양쪽에서 재사용 — mockConnectionId만 있으면 되고
     // 별도 재인증 단계가 필요 없어서(client-id/secret + connectionId 방식) 하나로 합쳐도 된다.
     private SyncOutcome runSync(Long userId, Long connectionId, String mockConnectionId, String orgCode) {
         try {
             List<RawAccountRecord> accounts = brokerFeedPort.fetchAccounts(mockConnectionId, orgCode);
 
-            int accountCount = 0;
-            int insertedTradeCount = 0;
-            int skippedTradeCount = 0;
-            int holdingCount = 0;
+            BrokerAccountSyncService.AccountsSyncOutcome outcome =
+                    brokerAccountSyncService.syncAccounts(userId, connectionId, mockConnectionId, accounts);
 
-            for (RawAccountRecord account : accounts) {
-                Long accountId = createInvestmentAccount(connectionId, account);
-                accountCount++;
-
-                List<RawTradeRecord> trades = brokerFeedPort.fetchTrades(mockConnectionId, account.accountNum());
-                IngestResult tradeResult = tradeIngestionPort.ingestTrades(userId, accountId, trades);
-                insertedTradeCount += tradeResult.successCount();
-                skippedTradeCount += tradeResult.skippedCount();
-
-                RawHoldingBatch holdingBatch = brokerFeedPort.fetchHoldings(mockConnectionId, account.accountNum());
-                IngestResult holdingResult = holdingIngestionPort.ingestHoldings(
-                        userId, accountId, holdingBatch.baseDate(), holdingBatch.holdings());
-                holdingCount += holdingResult.successCount();
-            }
-
-            return new SyncOutcome(true, null, accountCount, insertedTradeCount, skippedTradeCount, holdingCount);
+            return new SyncOutcome(true, null, outcome.accountCount(), outcome.insertedTradeCount(),
+                    outcome.skippedTradeCount(), outcome.holdingCount());
         } catch (Exception e) {
             log.error("증권사 동기화 중 오류가 발생했습니다. connectionId={}", connectionId, e);
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             return new SyncOutcome(false, truncate(message, ERROR_MESSAGE_MAX_LENGTH), 0, 0, 0, 0);
         }
-    }
-
-    private Long createInvestmentAccount(Long connectionId, RawAccountRecord account) {
-        return investmentAccountRepository.upsert(
-                connectionId,
-                account.accountNum(),
-                maskAccountNo(account.accountNum()),
-                account.accountName(),
-                mapAccountType(account.accountType()),
-                account.currencyCode()
-        );
-    }
-
-    // 마이데이터 account_type 코드 중 "101"(종합위탁계좌)만 문서화되어 있어 일단 전부 STOCK으로 매핑한다.
-    private AccountType mapAccountType(String mydataAccountType) {
-        return AccountType.STOCK;
-    }
-
-    private String maskAccountNo(String accountNo) {
-        if (accountNo == null || accountNo.length() <= 7) {
-            return accountNo;
-        }
-        String first = accountNo.substring(0, 3);
-        String last = accountNo.substring(accountNo.length() - 4);
-        return first + "*".repeat(accountNo.length() - 7) + last;
     }
 
     private String truncate(String message, int maxLength) {

@@ -14,7 +14,8 @@ public record SyncConnectionResponse(
     int accountCount,
     int insertedTradeCount,
     int skippedTradeCount,
-    int holdingCount
+    int holdingCount,
+    String errorMessage
 ) {
     public static SyncConnectionResponse from(SyncConnectionResult result) {
         return new SyncConnectionResponse(
@@ -26,7 +27,8 @@ public record SyncConnectionResponse(
                 result.accountCount(),
                 result.insertedTradeCount(),
                 result.skippedTradeCount(),
-                result.holdingCount()
+                result.holdingCount(),
+                result.errorMessage()
         );
     }
 }
