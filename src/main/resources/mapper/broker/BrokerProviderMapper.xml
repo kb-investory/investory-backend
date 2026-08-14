@@ -30,4 +30,35 @@
         WHERE broker_id = #{brokerId}
     </select>
 
+    <select id="findByCode" resultMap="brokerProviderRowResultMap">
+        SELECT
+            broker_id,
+            broker_code,
+            broker_name,
+            is_active
+        FROM broker_providers
+        WHERE broker_code = #{brokerCode}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="brokerId">
+        INSERT INTO broker_providers (broker_code, broker_name, is_active)
+        VALUES (#{brokerCode}, #{brokerName}, TRUE)
+    </insert>
+
+    <update id="updateByCode">
+        UPDATE broker_providers
+        SET broker_name = #{brokerName},
+            is_active = TRUE
+        WHERE broker_code = #{brokerCode}
+    </update>
+
+    <update id="deactivateExcept">
+        UPDATE broker_providers
+        SET is_active = FALSE
+        WHERE broker_code NOT IN
+        <foreach item="brokerCode" collection="brokerCodes" open="(" separator="," close=")">
+            #{brokerCode}
+        </foreach>
+    </update>
+
 </mapper>

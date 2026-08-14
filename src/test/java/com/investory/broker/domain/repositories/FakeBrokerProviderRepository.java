@@ -28,4 +28,30 @@ public class FakeBrokerProviderRepository implements BrokerProviderRepository {
                 .filter(provider -> provider.getBrokerId().equals(brokerId))
                 .findFirst();
     }
+
+    @Override
+    public void upsertByCode(String brokerCode, String brokerName) {
+        Optional<BrokerProvider> existing = providers.stream()
+                .filter(provider -> provider.getBrokerCode().equals(brokerCode))
+                .findFirst();
+        if (existing.isPresent()) {
+            BrokerProvider updated = BrokerProvider.of(existing.get().getBrokerId(), brokerCode, brokerName, true);
+            providers.remove(existing.get());
+            providers.add(updated);
+        } else {
+            long nextId = providers.stream().mapToLong(BrokerProvider::getBrokerId).max().orElse(0L) + 1;
+            providers.add(BrokerProvider.of(nextId, brokerCode, brokerName, true));
+        }
+    }
+
+    @Override
+    public void deactivateExcept(List<String> brokerCodes) {
+        List<BrokerProvider> updated = providers.stream()
+                .map(provider -> brokerCodes.contains(provider.getBrokerCode())
+                        ? provider
+                        : BrokerProvider.of(provider.getBrokerId(), provider.getBrokerCode(), provider.getBrokerName(), false))
+                .collect(Collectors.toList());
+        providers.clear();
+        providers.addAll(updated);
+    }
 }

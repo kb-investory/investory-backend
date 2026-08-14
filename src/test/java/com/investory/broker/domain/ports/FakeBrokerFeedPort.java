@@ -3,6 +3,7 @@ package com.investory.broker.domain.ports;
 import com.investory.broker.domain.ports.dto.BrokerLoginResult;
 import com.investory.broker.domain.ports.dto.RawAccountRecord;
 import com.investory.broker.domain.ports.dto.RawHoldingBatch;
+import com.investory.broker.domain.ports.dto.RawOrganizationRecord;
 import com.investory.broker.domain.ports.dto.RawTradeRecord;
 import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.broker.infra.exception.BrokerInfraException;
@@ -21,6 +22,7 @@ public class FakeBrokerFeedPort implements BrokerFeedPort {
     private List<RawTradeRecord> trades = List.of();
     private RawHoldingBatch holdingBatch = new RawHoldingBatch(LocalDate.now(), List.of());
     private RuntimeException syncFailure;
+    private List<RawOrganizationRecord> organizations = List.of();
 
     public void willFailLoginWithUnauthorized() {
         this.loginAuthFails = true;
@@ -44,6 +46,10 @@ public class FakeBrokerFeedPort implements BrokerFeedPort {
 
     public void willFailSyncWith(RuntimeException exception) {
         this.syncFailure = exception;
+    }
+
+    public void willReturnOrganizations(List<RawOrganizationRecord> organizations) {
+        this.organizations = organizations;
     }
 
     @Override
@@ -73,5 +79,10 @@ public class FakeBrokerFeedPort implements BrokerFeedPort {
     @Override
     public RawHoldingBatch fetchHoldings(String accessToken, String accountNum) {
         return holdingBatch;
+    }
+
+    @Override
+    public List<RawOrganizationRecord> fetchOrganizations() {
+        return organizations;
     }
 }

@@ -77,6 +77,11 @@ class BrokerControllerTest {
         );
     }
 
+    private static BrokerProviderService newProviderService(
+            com.investory.broker.domain.repositories.BrokerProviderRepository repository) {
+        return new BrokerProviderService(repository, new FakeBrokerFeedPort());
+    }
+
     private static InvestmentAccountService newAccountService() {
         return newAccountService(new FakeInvestmentAccountRepository(), new FakeBrokerConnectionRepository());
     }
@@ -99,7 +104,7 @@ class BrokerControllerTest {
     void 지원_증권사_목록을_반환한다() throws Exception {
         FakeBrokerProviderRepository repository = new FakeBrokerProviderRepository();
         repository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
-        BrokerProviderService providerService = new BrokerProviderService(repository);
+        BrokerProviderService providerService = newProviderService(repository);
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
@@ -119,7 +124,7 @@ class BrokerControllerTest {
 
     @Test
     void 인프라_예외는_GlobalExceptionHandler_응답_포맷으로_변환된다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FailingBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FailingBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -138,7 +143,7 @@ class BrokerControllerTest {
 
     @Test
     void 연동된_증권사_목록을_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         FakeBrokerConnectionRepository repository = new FakeBrokerConnectionRepository();
         repository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(repository);
@@ -161,7 +166,7 @@ class BrokerControllerTest {
 
     @Test
     void 연동한_증권사가_없으면_빈_배열을_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
@@ -179,7 +184,7 @@ class BrokerControllerTest {
     void 증권사_연동_요청이_성공하면_201과_연동결과를_반환한다() throws Exception {
         FakeBrokerProviderRepository providerRepository = new FakeBrokerProviderRepository();
         providerRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
-        BrokerProviderService providerService = new BrokerProviderService(providerRepository);
+        BrokerProviderService providerService = newProviderService(providerRepository);
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository(), providerRepository);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
@@ -199,7 +204,7 @@ class BrokerControllerTest {
 
     @Test
     void 존재하지_않는_브로커로_연동_요청하면_404를_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -219,7 +224,7 @@ class BrokerControllerTest {
 
     @Test
     void 연결_상세를_조회한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         FakeBrokerConnectionRepository repository = new FakeBrokerConnectionRepository();
         repository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(repository);
@@ -240,7 +245,7 @@ class BrokerControllerTest {
 
     @Test
     void 존재하지_않는_연결을_조회하면_404를_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -258,7 +263,7 @@ class BrokerControllerTest {
 
     @Test
     void 연결의_계좌_목록을_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
         connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(connectionRepository);
@@ -285,7 +290,7 @@ class BrokerControllerTest {
 
     @Test
     void 연결_재동기화에_성공하면_200과_결과를_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
         connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         connectionRepository.addMockProfileCode(15L, "demo1");
@@ -306,7 +311,7 @@ class BrokerControllerTest {
 
     @Test
     void 존재하지_않는_연결을_재동기화하면_404를_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
                         new BrokerController(providerService, connectionService, newAccountService()))
@@ -325,7 +330,7 @@ class BrokerControllerTest {
 
     @Test
     void 전체_계좌_목록을_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
         connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(connectionRepository);
@@ -354,7 +359,7 @@ class BrokerControllerTest {
 
     @Test
     void 계좌가_없으면_전체_계좌_목록도_빈_배열을_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
 
@@ -371,7 +376,7 @@ class BrokerControllerTest {
 
     @Test
     void 계좌_상세와_보유종목_목록을_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
         connectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
         BrokerConnectionService connectionService = newConnectionService(connectionRepository);
@@ -405,7 +410,7 @@ class BrokerControllerTest {
 
     @Test
     void 존재하지_않는_계좌_상세를_조회하면_404를_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -423,7 +428,7 @@ class BrokerControllerTest {
 
     @Test
     void 계좌_이름을_변경한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         FakeBrokerConnectionRepository connectionRepository = new FakeBrokerConnectionRepository();
         FakeInvestmentAccountRepository accountRepository = new FakeInvestmentAccountRepository();
         accountRepository.add(1L, com.investory.broker.domain.model.InvestmentAccount.of(
@@ -449,7 +454,7 @@ class BrokerControllerTest {
 
     @Test
     void 본인_소유가_아닌_계좌_이름을_변경하면_404를_반환한다() throws Exception {
-        BrokerProviderService providerService = new BrokerProviderService(new FakeBrokerProviderRepository());
+        BrokerProviderService providerService = newProviderService(new FakeBrokerProviderRepository());
         BrokerConnectionService connectionService = newConnectionService(new FakeBrokerConnectionRepository());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService()))
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -475,6 +480,16 @@ class BrokerControllerTest {
 
         @Override
         public java.util.Optional<com.investory.broker.domain.model.BrokerProvider> findById(Long brokerId) {
+            throw new BrokerInfraException(new RuntimeException("DB down"));
+        }
+
+        @Override
+        public void upsertByCode(String brokerCode, String brokerName) {
+            throw new BrokerInfraException(new RuntimeException("DB down"));
+        }
+
+        @Override
+        public void deactivateExcept(java.util.List<String> brokerCodes) {
             throw new BrokerInfraException(new RuntimeException("DB down"));
         }
     }
