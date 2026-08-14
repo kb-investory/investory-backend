@@ -13,6 +13,7 @@ public record SyncConnectionResult(
     int accountCount,
     int insertedTradeCount,
     int skippedTradeCount,
-    int holdingCount
+    int holdingCount,
+    String errorMessage
 ) {
 }

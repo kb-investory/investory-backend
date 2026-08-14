@@ -144,6 +144,7 @@ class BrokerConnectionServiceTest {
 
         assertEquals(ConnectionStatus.CONNECTED, result.connectionStatus());
         assertEquals(SyncStatus.FAILED, result.syncResult().syncStatus());
+        assertEquals("목 서버 응답 오류", result.syncResult().errorMessage());
         assertEquals(0, result.syncResult().accountCount());
     }
 
@@ -212,5 +213,6 @@ class BrokerConnectionServiceTest {
 
         assertEquals(SyncStatus.FAILED, result.syncStatus());
         assertEquals(0, result.accountCount());
+        assertEquals("목 서버 응답 오류", result.errorMessage());
     }
 }

@@ -121,7 +121,8 @@ public class BrokerConnectionService {
         }
 
         CreateBrokerConnectionResult.SyncResult syncResult = new CreateBrokerConnectionResult.SyncResult(
-                syncBatchId, syncStatus, outcome.accountCount(), outcome.insertedTradeCount(), outcome.holdingCount());
+                syncBatchId, syncStatus, outcome.accountCount(), outcome.insertedTradeCount(), outcome.holdingCount(),
+                outcome.errorMessage());
 
         return new CreateBrokerConnectionResult(
                 connectionId,
@@ -169,7 +170,8 @@ public class BrokerConnectionService {
                 outcome.accountCount(),
                 outcome.insertedTradeCount(),
                 outcome.skippedTradeCount(),
-                outcome.holdingCount()
+                outcome.holdingCount(),
+                outcome.errorMessage()
         );
     }
 

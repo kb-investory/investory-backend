@@ -66,6 +66,12 @@ class BrokerControllerTest {
 
     private static BrokerConnectionService newConnectionService(
             FakeBrokerConnectionRepository repository, FakeBrokerProviderRepository providerRepository) {
+        return newConnectionService(repository, providerRepository, new FakeBrokerFeedPort());
+    }
+
+    private static BrokerConnectionService newConnectionService(
+            FakeBrokerConnectionRepository repository, FakeBrokerProviderRepository providerRepository,
+            FakeBrokerFeedPort brokerFeedPort) {
         return new BrokerConnectionService(
                 repository,
                 providerRepository,
@@ -73,7 +79,7 @@ class BrokerControllerTest {
                 new FakeAccountSyncBatchRepository(),
                 new FakeTradeIngestionPort(),
                 new FakeHoldingIngestionPort(),
-                new FakeBrokerFeedPort()
+                brokerFeedPort
         );
     }
 
@@ -200,6 +206,34 @@ class BrokerControllerTest {
         assertEquals("CONNECTED", json.get("connectionStatus").asText());
         assertEquals("S9990001A", json.get("brokerCode").asText());
         assertEquals("SUCCESS", json.get("syncResult").get("syncStatus").asText());
+    }
+
+    // 동기화 실패가 201(CONNECTED)에 묻혀 조용히 넘어가지 않도록, 응답에 실패 사유가 그대로
+    // 담겨오는지 확인한다 — syncStatus만 보고 넘어가면 원인을 알 수 없었던 문제의 회귀 테스트.
+    @Test
+    void 연동_중_동기화가_실패해도_201과_함께_실패_사유가_응답에_포함된다() throws Exception {
+        FakeBrokerProviderRepository providerRepository = new FakeBrokerProviderRepository();
+        providerRepository.add(BrokerProviderFixture.provider(1L, "S9990001A", "미래에셋증권(모의)"));
+        BrokerProviderService providerService = newProviderService(providerRepository);
+        FakeBrokerFeedPort brokerFeedPort = new FakeBrokerFeedPort();
+        brokerFeedPort.willFailSyncWith(new RuntimeException("목 서버 응답 오류"));
+        BrokerConnectionService connectionService = newConnectionService(
+                new FakeBrokerConnectionRepository(), providerRepository, brokerFeedPort);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new BrokerController(providerService, connectionService, newAccountService())).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
+
+        MvcResult result = mockMvc.perform(post("/broker/connections")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"brokerId\":1,\"loginId\":\"demo1\",\"password\":\"1234\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        JsonNode json = new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        assertEquals("CONNECTED", json.get("connectionStatus").asText());
+        assertEquals("FAILED", json.get("syncResult").get("syncStatus").asText());
+        assertEquals(0, json.get("syncResult").get("accountCount").asInt());
+        assertEquals("목 서버 응답 오류", json.get("syncResult").get("errorMessage").asText());
     }
 
     @Test
