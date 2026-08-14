@@ -11,4 +11,12 @@ public interface BrokerProviderMapper {
     List<BrokerProviderRow> findAllActive();
 
     List<BrokerProviderRow> findById(@Param("brokerId") Long brokerId);
+
+    List<BrokerProviderRow> findByCode(@Param("brokerCode") String brokerCode);
+
+    void insert(BrokerProviderRow row);
+
+    void updateByCode(@Param("brokerCode") String brokerCode, @Param("brokerName") String brokerName);
+
+    void deactivateExcept(@Param("brokerCodes") List<String> brokerCodes);
 }
