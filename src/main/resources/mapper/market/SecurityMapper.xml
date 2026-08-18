@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.investory.market.infra.mappers.StockMapper">
-    <resultMap id="stockRowMap" type="com.investory.market.infra.entities.StockRow">
+<mapper namespace="com.investory.market.infra.mappers.SecurityMapper">
+    <resultMap id="securityRowMap" type="com.investory.market.infra.entities.SecurityRow">
         <id property="securityId" column="security_id"/>
-        <result property="stockCode" column="security_code"/>
-        <result property="stockName" column="security_name"/>
+        <result property="securityCode" column="security_code"/>
+        <result property="securityName" column="security_name"/>
         <result property="marketType" column="market_type"/>
+        <result property="sectorCode" column="sector_code"/>
         <result property="sectorName" column="sector_name"/>
         <result property="industryName" column="industry_name"/>
         <result property="listedDate" column="listed_date"/>
@@ -15,9 +16,9 @@
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <sql id="stockColumns">
+    <sql id="securityColumns">
         security_id, security_code, security_name, market_type,
-        sector_name, industry_name,
+        sector_code, sector_name, industry_name,
         listed_date, delisted_date, is_active, created_at, updated_at
     </sql>
 
@@ -33,20 +34,20 @@
         </where>
     </sql>
 
-    <select id="findByStockCode" resultMap="stockRowMap">
-        SELECT <include refid="stockColumns"/>
+    <select id="findBySecurityCode" resultMap="securityRowMap">
+        SELECT <include refid="securityColumns"/>
         FROM securities
-        WHERE security_code = #{stockCode}
+        WHERE security_code = #{securityCode}
     </select>
 
-    <select id="findBySecurityId" resultMap="stockRowMap">
-        SELECT <include refid="stockColumns"/>
+    <select id="findBySecurityId" resultMap="securityRowMap">
+        SELECT <include refid="securityColumns"/>
         FROM securities
         WHERE security_id = #{securityId}
     </select>
 
-    <select id="findBySecurityIds" resultMap="stockRowMap">
-        SELECT <include refid="stockColumns"/>
+    <select id="findBySecurityIds" resultMap="securityRowMap">
+        SELECT <include refid="securityColumns"/>
         FROM securities
         WHERE security_id IN
         <foreach item="id" collection="securityIds" open="(" separator="," close=")">
@@ -54,14 +55,14 @@
         </foreach>
     </select>
 
-    <select id="findAllStockCodes" resultType="string">
+    <select id="findAllSecurityCodes" resultType="string">
         SELECT security_code
         FROM securities
         ORDER BY security_code
     </select>
 
-    <select id="search" resultMap="stockRowMap">
-        SELECT <include refid="stockColumns"/>
+    <select id="search" resultMap="securityRowMap">
+        SELECT <include refid="securityColumns"/>
         FROM securities
         <include refid="searchWhere"/>
         ORDER BY security_code
@@ -74,32 +75,33 @@
         <include refid="searchWhere"/>
     </select>
 
-    <insert id="insert" parameterType="com.investory.market.infra.entities.StockRow"
+    <insert id="insert" parameterType="com.investory.market.infra.entities.SecurityRow"
             useGeneratedKeys="true" keyProperty="securityId" keyColumn="security_id">
         INSERT INTO securities (
         security_code, security_name, market_type,
-        sector_name, industry_name,
+        sector_code, sector_name, industry_name,
         listed_date, delisted_date,
         is_active, created_at, updated_at
         ) VALUES (
-        #{stockCode}, #{stockName}, #{marketType},
-        #{sectorName}, #{industryName},
+        #{securityCode}, #{securityName}, #{marketType},
+        #{sectorCode}, #{sectorName}, #{industryName},
         #{listedDate}, #{delistedDate},
         #{active}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
     <!-- created_at은 절대 건드리지 않는다 (최초 생성 시각 보존) -->
-    <update id="update" parameterType="com.investory.market.infra.entities.StockRow">
+    <update id="update" parameterType="com.investory.market.infra.entities.SecurityRow">
         UPDATE securities
-        SET security_name  = #{stockName},
+        SET security_name  = #{securityName},
         market_type    = #{marketType},
+        sector_code    = #{sectorCode},
         sector_name    = #{sectorName},
         industry_name  = #{industryName},
         listed_date    = #{listedDate},
         delisted_date  = #{delistedDate},
         is_active      = #{active},
         updated_at     = #{updatedAt}
-        WHERE security_code = #{stockCode}
+        WHERE security_code = #{securityCode}
     </update>
 </mapper>
