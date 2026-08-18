@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 // 한 번의 sync 시도에서 계좌·거래·보유종목 적재를 전부 하나의 물리 트랜잭션으로 묶어서 실행한다.
@@ -30,6 +31,15 @@ import java.util.List;
 //
 // BrokerConnectionService가 이 로직을 자기 메서드로 두면 self-invocation이라 프록시를 안 타서
 // REQUIRES_NEW가 아예 안 걸리므로, 반드시 별도 빈으로 분리해야 한다.
+//
+// fetch(외부 HTTP)와 write(DB)를 두 단계로 분리한 이유: 예전엔 계좌 루프 안에서 계좌마다
+// investment_accounts를 upsert한 직후 그 트랜잭션을 물고 있는 채로 fetchTrades/fetchHoldings
+// 외부 호출을 했다. 계좌 수가 많거나 목 서버가 느려지면 트랜잭션이 오래 열려있고, 그동안
+// investment_accounts 행 락을 계속 쥐고 있어서 같은 connectionId에 대한 동시 요청(재시도 등)이
+// 락 대기 끝에 타임아웃나는 문제가 있었다(Lock wait timeout exceeded). fetchAccountBundles()에서
+// 외부 호출을 전부 트랜잭션 밖에서 먼저 끝내고, syncAccounts()는 이미 받아온 데이터를 DB에
+// 쓰기만 하므로 트랜잭션이 짧게 끝나고 락을 오래 쥐지 않는다. 전체 원자성 보장은 그대로 유지된다 —
+// fetch 단계에서 실패하면 write 트랜잭션 자체가 시작되지 않으므로 부분 반영이 없다.
 @Service
 public class BrokerAccountSyncService {
 
@@ -49,26 +59,36 @@ public class BrokerAccountSyncService {
         this.brokerFeedPort = brokerFeedPort;
     }
 
+    // 트랜잭션 없이(=DB 락 없이) 계좌별 거래·보유 원시 데이터를 전부 미리 받아온다.
+    // 외부 호출이 오래 걸리거나 실패해도 DB에는 아직 아무것도 손대지 않은 상태다.
+    public List<AccountSyncBundle> fetchAccountBundles(String mockConnectionId, List<RawAccountRecord> accounts) {
+        List<AccountSyncBundle> bundles = new ArrayList<>(accounts.size());
+        for (RawAccountRecord account : accounts) {
+            List<RawTradeRecord> trades = brokerFeedPort.fetchTrades(mockConnectionId, account.accountNum());
+            RawHoldingBatch holdingBatch = brokerFeedPort.fetchHoldings(mockConnectionId, account.accountNum());
+            bundles.add(new AccountSyncBundle(account, trades, holdingBatch));
+        }
+        return bundles;
+    }
+
+    // fetchAccountBundles()로 이미 받아온 데이터를 DB에 적재한다. 외부 호출이 없어 트랜잭션이 짧다.
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public AccountsSyncOutcome syncAccounts(
-            Long userId, Long connectionId, String mockConnectionId, List<RawAccountRecord> accounts) {
+    public AccountsSyncOutcome syncAccounts(Long userId, Long connectionId, List<AccountSyncBundle> bundles) {
         int accountCount = 0;
         int insertedTradeCount = 0;
         int skippedTradeCount = 0;
         int holdingCount = 0;
 
-        for (RawAccountRecord account : accounts) {
-            Long accountId = createInvestmentAccount(connectionId, account);
+        for (AccountSyncBundle bundle : bundles) {
+            Long accountId = createInvestmentAccount(connectionId, bundle.account());
             accountCount++;
 
-            List<RawTradeRecord> trades = brokerFeedPort.fetchTrades(mockConnectionId, account.accountNum());
-            IngestResult tradeResult = tradeIngestionPort.ingestTrades(userId, accountId, trades);
+            IngestResult tradeResult = tradeIngestionPort.ingestTrades(userId, accountId, bundle.trades());
             insertedTradeCount += tradeResult.successCount();
             skippedTradeCount += tradeResult.skippedCount();
 
-            RawHoldingBatch holdingBatch = brokerFeedPort.fetchHoldings(mockConnectionId, account.accountNum());
             IngestResult holdingResult = holdingIngestionPort.ingestHoldings(
-                    userId, accountId, holdingBatch.baseDate(), holdingBatch.holdings());
+                    userId, accountId, bundle.holdingBatch().baseDate(), bundle.holdingBatch().holdings());
             holdingCount += holdingResult.successCount();
         }
 
@@ -98,6 +118,13 @@ public class BrokerAccountSyncService {
         String first = accountNo.substring(0, 3);
         String last = accountNo.substring(accountNo.length() - 4);
         return first + "*".repeat(accountNo.length() - 7) + last;
+    }
+
+    public record AccountSyncBundle(
+        RawAccountRecord account,
+        List<RawTradeRecord> trades,
+        RawHoldingBatch holdingBatch
+    ) {
     }
 
     public record AccountsSyncOutcome(
