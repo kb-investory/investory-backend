@@ -1,7 +1,7 @@
 package com.investory.market.presentation.dto.response;
 
 import com.investory.market.domain.constant.MarketType;
-import com.investory.market.domain.model.Stock;
+import com.investory.market.domain.model.Security;
 import com.investory.market.domain.services.dto.result.SecuritySearchResult;
 
 import java.util.List;
@@ -14,7 +14,7 @@ public record SecurityListResponse(
         int totalPages
 ) {
     public static SecurityListResponse from(SecuritySearchResult result) {
-        List<SecurityItem> items = result.stocks().stream()
+        List<SecurityItem> items = result.securities().stream()
                 .map(SecurityItem::from)
                 .toList();
 
@@ -31,14 +31,14 @@ public record SecurityListResponse(
             String sectorName,
             String industryName
     ) {
-        public static SecurityItem from(Stock stock) {
+        public static SecurityItem from(Security security) {
             return new SecurityItem(
-                    stock.getSecurityId(),
-                    stock.getStockCode(),
-                    stock.getStockName(),
-                    stock.getMarketType(),
-                    stock.getStdIdstClsfCode(),
-                    stock.getStdIdstClsfName()
+                    security.getSecurityId(),
+                    security.getSecurityCode(),
+                    security.getSecurityName(),
+                    security.getMarketType(),
+                    security.getSectorName(),
+                    security.getStdIdstClsfName()
             );
         }
     }

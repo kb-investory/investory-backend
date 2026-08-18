@@ -2,7 +2,7 @@ package com.investory.market.infra.save;
 
 
 import com.investory.market.domain.constant.MarketType;
-import com.investory.market.domain.model.Stock;
+import com.investory.market.domain.model.Security;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * 앞부분(front) = line[0 : length-228] -> 단축코드(9) / 표준코드(12, 사용 안 함) / 한글명
  * 뒷부분(rear)  = 마지막 228byte, KIS 공식 field_specs 순서대로 고정폭 파싱 (상장일자만 사용)
  */
-public final class StockMstLineParser {
+public final class SecurityMstLineParser {
 
     /** front(단축코드/표준코드/한글명)를 제외한 뒷부분 고정폭 바이트 수 */
     private static final int REAR_LENGTH = 228;
@@ -42,19 +42,19 @@ public final class StockMstLineParser {
     // FIELD_WIDTHS 상에서 실제로 사용하는 필드의 인덱스 (0-based)
     private static final int IDX_LISTED_DATE = 49; // 상장일자 (yyyyMMdd)
 
-    private StockMstLineParser() {
+    private SecurityMstLineParser() {
         // 인스턴스화 방지
     }
 
     /**
-     * 한 줄을 파싱해서 Stock 도메인 객체로 변환한다.
+     * 한 줄을 파싱해서 Security 도메인 객체로 변환한다.
      * 라인 형식이 올바르지 않거나 단축코드가 비어있으면 null을 반환한다.
      *
-     * 주의: mst 파일에는 industry_code/industry_name(표준산업분류), delisted_date에
+     * 주의: mst 파일에는 sector_code/sector_name(업종), industry_name(표준산업분류), delisted_date에
      * 대응하는 원본 데이터가 없어 null로 채워진다. active는 마스터파일에 등재된
      * 종목이므로 true로 기본 설정한다. securityId(내부 숫자 PK)는 DB가 채워준다.
      */
-    public static Stock parse(String line, MarketType marketType) {
+    public static Security parse(String line, MarketType marketType) {
         if (line == null || line.length() <= REAR_LENGTH) {
             return null;
         }
@@ -63,10 +63,10 @@ public final class StockMstLineParser {
         String front = line.substring(0, splitPoint);
         String rear = line.substring(splitPoint);
 
-        String stockCode = front.length() >= 9 ? front.substring(0, 9).trim() : "";
-        String stockName = front.length() > 21 ? front.substring(21).trim() : "";
+        String securityCode = front.length() >= 9 ? front.substring(0, 9).trim() : "";
+        String securityName = front.length() > 21 ? front.substring(21).trim() : "";
 
-        if (stockCode.isEmpty()) {
+        if (securityCode.isEmpty()) {
             return null;
         }
 
@@ -75,9 +75,9 @@ public final class StockMstLineParser {
                 (IDX_LISTED_DATE >= 0 && IDX_LISTED_DATE < fields.size()) ? fields.get(IDX_LISTED_DATE) : "");
 
         LocalDateTime now = LocalDateTime.now();
-        return Stock.of(
-                null, stockCode, stockName, marketType,
-                null, null,          // industry_code / industry_name: mst 파일에 없음
+        return Security.of(
+                null, securityCode, securityName, marketType,
+                null, null, null, // sector_code / sector_name / industry_name: mst 파일에 없음
                 listedDate, null,    // delisted_date: mst 파일에 없음 -> null
                 true, now, now
         );

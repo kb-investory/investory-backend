@@ -8,21 +8,24 @@ import java.time.LocalDate;
 
 @Getter
 @Builder
-public class StockInfoDto {
+public class SecurityInfoDto {
 
     /** 종목 코드 */
-    private final String stockCode;
+    private final String securityCode;
 
     /** 종목명 */
-    private final String stockName;
+    private final String securityName;
 
     /** 시장 종류 */
     private final MarketType marketType;
 
-    /** 표준산업분류 코드 (industry_code) */
-    private final String stdIdstClsfCode;
+    /** 업종 대분류 코드 (idx_bztp_lcls_cd) */
+    private final String sectorCode;
 
-    /** 표준산업분류명 (industry_name) */
+    /** 업종 대분류명 (idx_bztp_lcls_cd_name) */
+    private final String sectorName;
+
+    /** 표준산업분류명 (std_idst_clsf_cd_name) */
     private final String stdIdstClsfName;
 
     /** 상장일 */
