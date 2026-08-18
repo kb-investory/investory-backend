@@ -11,6 +11,7 @@ import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.core.exception.ErrorType;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -147,13 +148,14 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
             headers.add("x-client-id", clientId);
             headers.add("x-client-secret", clientSecret);
             HttpEntity<Void> entity = new HttpEntity<>(headers);
-            ResponseEntity<OrgListResponse> response = restTemplate.exchange(
-                    baseUrl + "/mock/system/orgs", HttpMethod.GET, entity, OrgListResponse.class);
-            OrgListResponse body = response.getBody();
-            if (body == null || body.orgList() == null) {
+            ResponseEntity<List<OrgItem>> response = restTemplate.exchange(
+                    baseUrl + "/mock/system/orgs", HttpMethod.GET, entity,
+                    new ParameterizedTypeReference<List<OrgItem>>() {});
+            List<OrgItem> body = response.getBody();
+            if (body == null) {
                 return List.of();
             }
-            return body.orgList().stream()
+            return body.stream()
                     .map(item -> new RawOrganizationRecord(item.orgCode(), item.orgName()))
                     .collect(Collectors.toList());
         } catch (RestClientException e) {
