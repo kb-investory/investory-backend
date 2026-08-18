@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 @Getter
 @Builder
-public class StockPriceDto {
+public class SecurityPriceDto {
 
     /** 종목 식별자 */
     private final String securityId;

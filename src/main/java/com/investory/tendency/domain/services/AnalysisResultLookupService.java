@@ -13,7 +13,7 @@ import java.util.Optional;
 // 의존하는데, 그 서비스는 PrinciplePort(→principle.PrincipleService)에 의존한다. 그 경로가 다시 이 조회로
 // 되돌아오면(TendencyAnalysisPortImpl→AnalysisRunService→...→PrinciplePortImpl→PrincipleService) 스프링 빈
 // 생성 시 순환 참조가 생긴다. 이 서비스는 리포지토리만 의존해서 그 순환을 끊는다
-// (broker.AccountLookupService/market.StockLookupService와 동일한 이유·패턴).
+// (broker.AccountLookupService/market.SecurityLookupService와 동일한 이유·패턴).
 @Service
 public class AnalysisResultLookupService {
 
