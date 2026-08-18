@@ -193,18 +193,24 @@ public class BrokerConnectionService {
         }
     }
 
-    // 계좌 목록을 조회하고, 계좌·거래·보유종목 적재는 BrokerAccountSyncService에 통째로 위임한다.
+    // 계좌 목록을 조회하고, 계좌별 거래·보유 원시 데이터를 전부 미리 받아온 뒤(외부 호출,
+    // 트랜잭션 없음) DB 적재는 BrokerAccountSyncService.syncAccounts에 통째로 위임한다.
     // 그 메서드가 REQUIRES_NEW라 계좌 하나라도 실패하면 이번 시도의 계좌 데이터 전체가 원자적으로
     // 롤백되고, 그 실패가 커넥션 row 자체에는 번지지 않는다 — 실패 사실만 호출자에게 돌려주면
     // (배치 상태를 FAILED로 남기기 위함) 커넥션은 CONNECTED로 유지된다.
+    // fetch와 write를 분리한 이유는 BrokerAccountSyncService 상단 주석 참고 — 외부 호출을
+    // DB 트랜잭션 밖으로 빼서 같은 connectionId에 대한 동시 요청이 락 대기로 타임아웃나는 문제를 없앤다.
     // createConnection/syncConnection 양쪽에서 재사용 — mockConnectionId만 있으면 되고
     // 별도 재인증 단계가 필요 없어서(client-id/secret + connectionId 방식) 하나로 합쳐도 된다.
     private SyncOutcome runSync(Long userId, Long connectionId, String mockConnectionId, String orgCode) {
         try {
             List<RawAccountRecord> accounts = brokerFeedPort.fetchAccounts(mockConnectionId, orgCode);
 
+            List<BrokerAccountSyncService.AccountSyncBundle> bundles =
+                    brokerAccountSyncService.fetchAccountBundles(mockConnectionId, accounts);
+
             BrokerAccountSyncService.AccountsSyncOutcome outcome =
-                    brokerAccountSyncService.syncAccounts(userId, connectionId, mockConnectionId, accounts);
+                    brokerAccountSyncService.syncAccounts(userId, connectionId, bundles);
 
             return new SyncOutcome(true, null, outcome.accountCount(), outcome.insertedTradeCount(),
                     outcome.skippedTradeCount(), outcome.holdingCount());
