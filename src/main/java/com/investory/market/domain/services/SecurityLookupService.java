@@ -33,4 +33,8 @@ public class SecurityLookupService {
     public List<Security> findByIds(List<Long> securityIds) {
         return securityRepository.findBySecurityIds(securityIds);
     }
+
+    public List<Security> findByCodes(List<String> securityCodes) {
+        return securityRepository.findBySecurityCodes(securityCodes);
+    }
 }

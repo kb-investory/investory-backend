@@ -7,7 +7,9 @@ import com.investory.market.domain.services.SecurityLookupService;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 // 빈 이름 명시: journal.infra.port_impls.MarketDataPortImpl과 클래스명이 겹쳐서
@@ -31,6 +33,16 @@ public class MarketDataPortImpl implements MarketDataPort {
     @Override
     public Optional<SecurityInfo> resolveByCode(String securityCode) {
         return securityLookupService.findByCode(securityCode).map(this::toSecurityInfo);
+    }
+
+    @Override
+    public Map<String, SecurityInfo> resolveByCodes(List<String> securityCodes) {
+        if (securityCodes.isEmpty()) {
+            return Map.of();
+        }
+        return securityLookupService.findByCodes(securityCodes).stream()
+                .map(this::toSecurityInfo)
+                .collect(Collectors.toMap(SecurityInfo::securityCode, Function.identity()));
     }
 
     private SecurityInfo toSecurityInfo(Security security) {

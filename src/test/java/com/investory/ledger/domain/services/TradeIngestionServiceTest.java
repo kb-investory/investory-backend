@@ -86,4 +86,33 @@ class TradeIngestionServiceTest {
         assertTrue(tradeRepository.search(new TradeSearchCriteria(List.of(ACCOUNT_ID), null, null, null, null, 0, 10)).isEmpty());
         assertEquals(0, tradeMatchRepository.deleteCallCount());
     }
+
+    @Test
+    void 한_배치에_신규_중복_알수없는종목이_섞여있어도_각각_올바르게_처리한다() {
+        Long otherSecurityId = 102L;
+        marketDataPort.add(new SecurityInfo(otherSecurityId, "000660", "SK하이닉스", "KOSPI", "반도체"));
+        RawTradeRecord existing = new RawTradeRecord("T-1", "005930", TradeSide.BUY,
+                BigDecimal.TEN, BigDecimal.valueOf(70000), BigDecimal.valueOf(500), Instant.parse("2026-07-29T01:15:00Z"));
+        tradeIngestionService.ingestTrades(new IngestRawTradesCommand(USER_ID, ACCOUNT_ID, List.of(existing)));
+
+        RawTradeRecord duplicate = existing;
+        RawTradeRecord newTradeSameSecurity = new RawTradeRecord("T-2", "005930", TradeSide.SELL,
+                BigDecimal.ONE, BigDecimal.valueOf(71000), BigDecimal.valueOf(100), Instant.parse("2026-07-30T01:15:00Z"));
+        RawTradeRecord newTradeOtherSecurity = new RawTradeRecord("T-3", "000660", TradeSide.BUY,
+                BigDecimal.valueOf(5), BigDecimal.valueOf(120000), BigDecimal.valueOf(300), Instant.parse("2026-07-30T02:15:00Z"));
+        RawTradeRecord unknownSecurity = new RawTradeRecord("T-4", "999999", TradeSide.BUY,
+                BigDecimal.ONE, BigDecimal.valueOf(1000), BigDecimal.ZERO, Instant.parse("2026-07-30T03:15:00Z"));
+
+        IngestResult result = tradeIngestionService.ingestTrades(new IngestRawTradesCommand(
+                USER_ID, ACCOUNT_ID, List.of(duplicate, newTradeSameSecurity, newTradeOtherSecurity, unknownSecurity)));
+
+        assertEquals(2, result.successCount());
+        assertEquals(1, result.skippedCount());
+        assertTrue(result.skippedReasons().get(0).contains("999999"));
+        List<Trade> saved = tradeRepository.search(new TradeSearchCriteria(List.of(ACCOUNT_ID), null, null, null, null, 0, 10));
+        assertEquals(3, saved.size()); // 최초 1건 + 이번에 새로 적재된 2건
+        // 첫 호출(setUp의 existing 적재)에서 1번, 이번 호출에서 새로 건드린 종목 2개(005930, 000660)로 2번 —
+        // deleteCallCount는 두 호출 누적값이라 총 3
+        assertEquals(3, tradeMatchRepository.deleteCallCount());
+    }
 }

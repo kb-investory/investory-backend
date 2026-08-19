@@ -51,12 +51,12 @@ class TradeRepositoryImplTest {
     }
 
     @Test
-    void findByAccountIdAndExternalTradeId_DB_예외는_LedgerInfraException으로_변환된다() {
+    void findExistingExternalTradeIds_DB_예외는_LedgerInfraException으로_변환된다() {
         DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
         TradeRepositoryImpl repository = new TradeRepositoryImpl(new FailingTradeMapper(cause));
 
         LedgerInfraException exception = assertThrows(LedgerInfraException.class,
-                () -> repository.findByAccountIdAndExternalTradeId(1L, "ext-1"));
+                () -> repository.findExistingExternalTradeIds(1L, List.of("ext-1")));
 
         assertSame(cause, exception.getCause());
     }
@@ -79,6 +79,18 @@ class TradeRepositoryImplTest {
 
         LedgerInfraException exception = assertThrows(LedgerInfraException.class,
                 () -> repository.save(TradeFixture.trade(1L, 101L, TradeSide.BUY, "ext-1", Instant.parse("2026-07-29T01:15:00Z"))));
+
+        assertSame(cause, exception.getCause());
+    }
+
+    @Test
+    void saveAll_DB_예외는_LedgerInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        TradeRepositoryImpl repository = new TradeRepositoryImpl(new FailingTradeMapper(cause));
+
+        LedgerInfraException exception = assertThrows(LedgerInfraException.class,
+                () -> repository.saveAll(List.of(
+                        TradeFixture.trade(1L, 101L, TradeSide.BUY, "ext-1", Instant.parse("2026-07-29T01:15:00Z")))));
 
         assertSame(cause, exception.getCause());
     }
@@ -108,7 +120,7 @@ class TradeRepositoryImplTest {
         }
 
         @Override
-        public List<TradeRow> findByAccountIdAndExternalTradeId(Long accountId, String externalTradeId) {
+        public List<String> findExistingExternalTradeIds(Long accountId, List<String> externalTradeIds) {
             throw toThrow;
         }
 
@@ -119,6 +131,11 @@ class TradeRepositoryImplTest {
 
         @Override
         public void insert(TradeRow row) {
+            throw toThrow;
+        }
+
+        @Override
+        public void insertAll(List<TradeRow> rows) {
             throw toThrow;
         }
 

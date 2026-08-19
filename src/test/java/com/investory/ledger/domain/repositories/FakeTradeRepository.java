@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class FakeTradeRepository implements TradeRepository {
@@ -58,10 +59,11 @@ public class FakeTradeRepository implements TradeRepository {
     }
 
     @Override
-    public Optional<Trade> findByAccountIdAndExternalTradeId(Long accountId, String externalTradeId) {
+    public Set<String> findExistingExternalTradeIds(Long accountId, List<String> externalTradeIds) {
         return trades.stream()
-                .filter(trade -> trade.getAccountId().equals(accountId) && trade.getExternalTradeId().equals(externalTradeId))
-                .findFirst();
+                .filter(trade -> trade.getAccountId().equals(accountId) && externalTradeIds.contains(trade.getExternalTradeId()))
+                .map(Trade::getExternalTradeId)
+                .collect(Collectors.toSet());
     }
 
     @Override
@@ -77,6 +79,13 @@ public class FakeTradeRepository implements TradeRepository {
         Trade saved = withId(trade);
         trades.add(saved);
         return saved;
+    }
+
+    @Override
+    public void saveAll(List<Trade> newTrades) {
+        for (Trade trade : newTrades) {
+            trades.add(withId(trade));
+        }
     }
 
     @Override
