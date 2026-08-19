@@ -4,12 +4,16 @@ import com.investory.auth.domain.constant.OAuthProviderType;
 import com.investory.auth.domain.constant.UserStatusType;
 import com.investory.auth.domain.exception.AuthErrorCode;
 import com.investory.auth.domain.exception.AuthException;
+import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.domain.model.User;
 import com.investory.auth.domain.ports.FakeBrokerConnectionCleanupPort;
 import com.investory.auth.domain.ports.FakeJournalCleanupPort;
 import com.investory.auth.domain.ports.FakePrincipleCleanupPort;
 import com.investory.auth.domain.ports.FakeTokenProvider;
 import com.investory.auth.domain.repositories.FakeUserRepository;
+import com.investory.auth.domain.services.dto.command.OAuthLoginCommand;
+import com.investory.auth.domain.services.dto.result.LoginResult;
+import com.investory.auth.infra.clients.FakeOAuthClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +32,7 @@ class AuthServiceTest {
     private FakeBrokerConnectionCleanupPort brokerConnectionCleanupPort;
     private FakeJournalCleanupPort journalCleanupPort;
     private FakePrincipleCleanupPort principleCleanupPort;
+    private FakeOAuthClient kakaoClient;
     private AuthService authService;
 
     @BeforeEach
@@ -36,7 +41,8 @@ class AuthServiceTest {
         brokerConnectionCleanupPort = new FakeBrokerConnectionCleanupPort();
         journalCleanupPort = new FakeJournalCleanupPort();
         principleCleanupPort = new FakePrincipleCleanupPort();
-        authService = new AuthService(List.of(), userRepository, new FakeTokenProvider(),
+        kakaoClient = new FakeOAuthClient(OAuthProviderType.KAKAO);
+        authService = new AuthService(List.of(kakaoClient), userRepository, new FakeTokenProvider(),
                 brokerConnectionCleanupPort, journalCleanupPort, principleCleanupPort);
 
         userRepository.add(activeUser());
@@ -70,6 +76,37 @@ class AuthServiceTest {
         AuthException exception = assertThrows(AuthException.class, () -> authService.withdraw(999L));
 
         assertEquals(AuthErrorCode.USER_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 탈퇴한_회원이_같은_OAuth_계정으로_로그인하면_재활성화된다() {
+        Long withdrawnUserId = 200L;
+        User withdrawn = User.of(withdrawnUserId, OAuthProviderType.KAKAO, "sub-2", "user2@example.com", "닉네임2",
+                UserStatusType.WITHDRAWN, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now());
+        userRepository.add(withdrawn);
+        kakaoClient.willReturnUserInfo(OAuthUserInfo.builder().oauthSubId("sub-2").email("user2@example.com").nickname("닉네임2").build());
+
+        LoginResult result = authService.login(new OAuthLoginCommand(OAuthProviderType.KAKAO, "code", null));
+
+        assertEquals(withdrawnUserId, result.userId());
+        assertTrue(result.newUser());
+        User reactivated = userRepository.findByUserId(withdrawnUserId).orElseThrow();
+        assertEquals(UserStatusType.ACTIVE, reactivated.getUserStatus());
+        assertEquals(null, reactivated.getWithdrawnAt());
+    }
+
+    @Test
+    void 재활성화된_회원은_다시_탈퇴할_수_있다() {
+        Long withdrawnUserId = 200L;
+        User withdrawn = User.of(withdrawnUserId, OAuthProviderType.KAKAO, "sub-2", "user2@example.com", "닉네임2",
+                UserStatusType.WITHDRAWN, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now());
+        userRepository.add(withdrawn);
+        kakaoClient.willReturnUserInfo(OAuthUserInfo.builder().oauthSubId("sub-2").email("user2@example.com").nickname("닉네임2").build());
+        authService.login(new OAuthLoginCommand(OAuthProviderType.KAKAO, "code", null));
+
+        authService.withdraw(withdrawnUserId);
+
+        assertEquals(UserStatusType.WITHDRAWN, userRepository.findByUserId(withdrawnUserId).orElseThrow().getUserStatus());
     }
 
     private User activeUser() {
