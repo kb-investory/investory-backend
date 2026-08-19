@@ -513,22 +513,22 @@ class BrokerControllerTest {
     private static class FailingBrokerProviderRepository implements com.investory.broker.domain.repositories.BrokerProviderRepository {
         @Override
         public java.util.List<com.investory.broker.domain.model.BrokerProvider> findAllActive() {
-            throw new BrokerInfraException(new RuntimeException("DB down"));
+            throw new BrokerInfraException(com.investory.core.exception.ErrorType.INTERNAL_ERROR, "DB down", new RuntimeException("DB down"));
         }
 
         @Override
         public java.util.Optional<com.investory.broker.domain.model.BrokerProvider> findById(Long brokerId) {
-            throw new BrokerInfraException(new RuntimeException("DB down"));
+            throw new BrokerInfraException(com.investory.core.exception.ErrorType.INTERNAL_ERROR, "DB down", new RuntimeException("DB down"));
         }
 
         @Override
         public void upsertByCode(String brokerCode, String brokerName) {
-            throw new BrokerInfraException(new RuntimeException("DB down"));
+            throw new BrokerInfraException(com.investory.core.exception.ErrorType.INTERNAL_ERROR, "DB down", new RuntimeException("DB down"));
         }
 
         @Override
         public void deactivateExcept(java.util.List<String> brokerCodes) {
-            throw new BrokerInfraException(new RuntimeException("DB down"));
+            throw new BrokerInfraException(com.investory.core.exception.ErrorType.INTERNAL_ERROR, "DB down", new RuntimeException("DB down"));
         }
     }
 }
