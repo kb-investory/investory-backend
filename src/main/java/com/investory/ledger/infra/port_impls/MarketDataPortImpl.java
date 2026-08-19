@@ -2,8 +2,8 @@ package com.investory.ledger.infra.port_impls;
 
 import com.investory.ledger.domain.ports.MarketDataPort;
 import com.investory.ledger.domain.ports.dto.SecurityInfo;
-import com.investory.market.domain.model.Stock;
-import com.investory.market.domain.services.StockLookupService;
+import com.investory.market.domain.model.Security;
+import com.investory.market.domain.services.SecurityLookupService;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -15,34 +15,31 @@ import java.util.stream.Collectors;
 @Component("ledgerMarketDataPortImpl")
 public class MarketDataPortImpl implements MarketDataPort {
 
-    private final StockLookupService stockLookupService;
+    private final SecurityLookupService securityLookupService;
 
-    public MarketDataPortImpl(StockLookupService stockLookupService) {
-        this.stockLookupService = stockLookupService;
+    public MarketDataPortImpl(SecurityLookupService securityLookupService) {
+        this.securityLookupService = securityLookupService;
     }
 
     @Override
     public List<SecurityInfo> findSecurities(List<Long> securityIds) {
-        return stockLookupService.findByIds(securityIds).stream()
+        return securityLookupService.findByIds(securityIds).stream()
                 .map(this::toSecurityInfo)
                 .collect(Collectors.toList());
     }
 
     @Override
     public Optional<SecurityInfo> resolveByCode(String securityCode) {
-        return stockLookupService.findByCode(securityCode).map(this::toSecurityInfo);
+        return securityLookupService.findByCode(securityCode).map(this::toSecurityInfo);
     }
 
-    // SecurityInfo.sectorName 필드명은 그대로 두고 industry name 값을 담는다.
-    // securities ERD가 sector_name -> industry_code/industry_name으로 바뀌었지만
-    // DB 마이그레이션 전이라 필드 rename은 보류 (ledger 담당자 복귀 후 처리 예정).
-    private SecurityInfo toSecurityInfo(Stock stock) {
+    private SecurityInfo toSecurityInfo(Security security) {
         return new SecurityInfo(
-                stock.getSecurityId(),
-                stock.getStockCode(),
-                stock.getStockName(),
-                stock.getMarketType().name(),
-                stock.getStdIdstClsfName()
+                security.getSecurityId(),
+                security.getSecurityCode(),
+                security.getSecurityName(),
+                security.getMarketType().name(),
+                security.getSectorName()
         );
     }
 }

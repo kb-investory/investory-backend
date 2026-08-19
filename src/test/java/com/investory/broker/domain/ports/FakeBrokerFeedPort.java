@@ -3,13 +3,16 @@ package com.investory.broker.domain.ports;
 import com.investory.broker.domain.ports.dto.BrokerLoginResult;
 import com.investory.broker.domain.ports.dto.RawAccountRecord;
 import com.investory.broker.domain.ports.dto.RawHoldingBatch;
+import com.investory.broker.domain.ports.dto.RawOrganizationRecord;
 import com.investory.broker.domain.ports.dto.RawTradeRecord;
 import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.core.exception.ErrorType;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class FakeBrokerFeedPort implements BrokerFeedPort {
 
@@ -21,6 +24,8 @@ public class FakeBrokerFeedPort implements BrokerFeedPort {
     private List<RawTradeRecord> trades = List.of();
     private RawHoldingBatch holdingBatch = new RawHoldingBatch(LocalDate.now(), List.of());
     private RuntimeException syncFailure;
+    private List<RawOrganizationRecord> organizations = List.of();
+    private final Map<String, RuntimeException> accountFailures = new HashMap<>();
 
     public void willFailLoginWithUnauthorized() {
         this.loginAuthFails = true;
@@ -46,6 +51,20 @@ public class FakeBrokerFeedPort implements BrokerFeedPort {
         this.syncFailure = exception;
     }
 
+    public void willReturnOrganizations(List<RawOrganizationRecord> organizations) {
+        this.organizations = organizations;
+    }
+
+    public void willLoginAs(String orgCode, String orgName) {
+        this.loginResult = new BrokerLoginResult(loginResult.mockConnectionId(), orgCode, orgName);
+    }
+
+    // 특정 계좌만 콕 집어 실패시킨다 — 계좌 여러 개 중 일부만 실패했을 때 전체가 원자적으로
+    // 실패 처리되는지 검증하는 테스트용.
+    public void willFailAccountWith(String accountNum, RuntimeException exception) {
+        accountFailures.put(accountNum, exception);
+    }
+
     @Override
     public BrokerLoginResult login(String loginId, String password) {
         if (loginAuthFails) {
@@ -67,11 +86,20 @@ public class FakeBrokerFeedPort implements BrokerFeedPort {
 
     @Override
     public List<RawTradeRecord> fetchTrades(String accessToken, String accountNum) {
+        RuntimeException failure = accountFailures.get(accountNum);
+        if (failure != null) {
+            throw failure;
+        }
         return trades;
     }
 
     @Override
     public RawHoldingBatch fetchHoldings(String accessToken, String accountNum) {
         return holdingBatch;
+    }
+
+    @Override
+    public List<RawOrganizationRecord> fetchOrganizations() {
+        return organizations;
     }
 }

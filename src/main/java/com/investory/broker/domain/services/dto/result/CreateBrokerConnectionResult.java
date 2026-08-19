@@ -20,7 +20,8 @@ public record CreateBrokerConnectionResult(
         SyncStatus syncStatus,
         int accountCount,
         int insertedTradeCount,
-        int holdingCount
+        int holdingCount,
+        String errorMessage
     ) {
     }
 }

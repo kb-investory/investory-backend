@@ -3,6 +3,7 @@ package com.investory.broker.domain.ports;
 import com.investory.broker.domain.ports.dto.BrokerLoginResult;
 import com.investory.broker.domain.ports.dto.RawAccountRecord;
 import com.investory.broker.domain.ports.dto.RawHoldingBatch;
+import com.investory.broker.domain.ports.dto.RawOrganizationRecord;
 import com.investory.broker.domain.ports.dto.RawTradeRecord;
 
 import java.util.List;
@@ -22,4 +23,8 @@ public interface BrokerFeedPort {
     List<RawTradeRecord> fetchTrades(String mockConnectionId, String accountNum);
 
     RawHoldingBatch fetchHoldings(String mockConnectionId, String accountNum);
+
+    // 로그인 없이 client-id/secret만으로 호출 가능한 시스템 API — 목 서버가 알고 있는
+    // 전체 기관(org) 목록을 그대로 반환한다. broker_providers 동기화용.
+    List<RawOrganizationRecord> fetchOrganizations();
 }

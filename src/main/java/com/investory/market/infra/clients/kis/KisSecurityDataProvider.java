@@ -3,12 +3,13 @@ package com.investory.market.infra.clients.kis;
 import com.investory.market.domain.constant.MarketType;
 import com.investory.market.domain.exception.MarketErrorCode;
 import com.investory.market.domain.exception.MarketException;
-import com.investory.market.domain.ports.KisMarketDataPort;
-import com.investory.market.domain.ports.dto.StockInfoDto;
-import com.investory.market.domain.ports.dto.StockPriceDto;
+import com.investory.market.domain.ports.SecurityDataProviderPort;
+import com.investory.market.domain.ports.dto.SecurityInfoDto;
+import com.investory.market.domain.ports.dto.SecurityPriceDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -28,9 +29,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Component
-public class KisMarketDataClient implements KisMarketDataPort {
+@Conditional(KisEnabledCondition.class)
+public class KisSecurityDataProvider implements SecurityDataProviderPort {
 
-    private static final Logger log = LoggerFactory.getLogger(KisMarketDataClient.class);
+    private static final Logger log = LoggerFactory.getLogger(KisSecurityDataProvider.class);
     private static final DateTimeFormatter KIS_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final String STOCK_INFO_TR_ID = "CTPF1002R";
     private static final String PRICE_TR_ID = "FHPST01010000";
@@ -57,19 +59,19 @@ public class KisMarketDataClient implements KisMarketDataPort {
     private volatile String cachedAccessToken;
     private volatile Instant cachedTokenExpiry = Instant.EPOCH;
 
-    public KisMarketDataClient(RestTemplate restTemplate) {
+    public KisSecurityDataProvider(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
     @Override
-    public StockInfoDto fetchStockInfo(String stockCode) {
+    public SecurityInfoDto fetchSecurityInfo(String securityCode) {
         HttpHeaders headers = defaultHeaders(STOCK_INFO_TR_ID);
 
         HttpEntity<Void> request = new HttpEntity<>(headers);
 
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl + "/uapi/domestic-stock/v1/quotations/search-stock-info")
                 .queryParam("PRDT_TYPE_CD", "300")
-                .queryParam("PDNO", stockCode)
+                .queryParam("PDNO", securityCode)
                 .toUriString();
 
         KisStockInfoResponse response = exchange(url, request, KisStockInfoResponse.class);
@@ -88,15 +90,16 @@ public class KisMarketDataClient implements KisMarketDataPort {
                 ? parseKisDate(output.getScts_mket_lstg_abol_dt())
                 : parseKisDate(output.getKosdaq_mket_lstg_abol_dt());
 
-        String stockName = StringUtils.hasText(output.getPrdt_name())
+        String securityName = StringUtils.hasText(output.getPrdt_name())
                 ? output.getPrdt_name()
                 : output.getPrdt_abrv_name();
 
-        return StockInfoDto.builder()
-                .stockCode(stockCode)
-                .stockName(stockName)
+        return SecurityInfoDto.builder()
+                .securityCode(securityCode)
+                .securityName(securityName)
                 .marketType(marketType)
-                .stdIdstClsfCode(output.getStd_idst_clsf_cd())
+                .sectorCode(output.getIdx_bztp_lcls_cd())
+                .sectorName(output.getIdx_bztp_lcls_cd_name())
                 .stdIdstClsfName(output.getStd_idst_clsf_cd_name())
                 .listedDate(listedDate)
                 .delistedDate(delistedDate)
@@ -105,19 +108,19 @@ public class KisMarketDataClient implements KisMarketDataPort {
     }
 
     @Override
-    public StockPriceDto fetchDailyPrice(String stockCode) {
+    public SecurityPriceDto fetchDailyPrice(String securityCode) {
         HttpHeaders headers = defaultHeaders(PRICE_TR_ID);
         HttpEntity<Void> request = new HttpEntity<>(headers);
 
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl + "/uapi/domestic-stock/v1/quotations/inquire-price-2")
                 .queryParam("FID_COND_MRKT_DIV_CODE", "J")
-                .queryParam("FID_INPUT_ISCD", stockCode)
+                .queryParam("FID_INPUT_ISCD", securityCode)
                 .toUriString();
 
         KisPriceResponse response = exchange(url, request, KisPriceResponse.class);
         KisPriceResponse.Output output = response.getOutput();
 
-        return StockPriceDto.builder()
+        return SecurityPriceDto.builder()
                 .priceDate(LocalDate.now())
                 .lowPrice(toLong(output.getStck_lwpr()))
                 .highPrice(toLong(output.getStck_hgpr()))

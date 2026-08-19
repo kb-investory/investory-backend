@@ -13,7 +13,7 @@ import java.nio.file.Paths;
 
 /**
  * 애플리케이션(root) 컨텍스트가 기동될 때 kospi_code.mst / kosdaq_code.mst 파일을
- * 읽어 stocks 테이블로 자동 import 한다.
+ * 읽어 securities 테이블로 자동 import 한다.
  *
  * 이 프로젝트는 Spring Boot가 아니라 순수 Spring MVC(WAR)라서 ApplicationRunner를
  * 쓸 수 없으므로, ContextRefreshedEvent를 이용해 컨텍스트 초기화 완료 시점에 실행한다.
@@ -27,11 +27,11 @@ import java.nio.file.Paths;
  *   stock.mst.auto-import-on-startup=true
  */
 @Component
-public class StockMstInitializer implements ApplicationListener<ContextRefreshedEvent> {
+public class SecurityMstInitializer implements ApplicationListener<ContextRefreshedEvent> {
 
-    private static final Logger log = LoggerFactory.getLogger(StockMstInitializer.class);
+    private static final Logger log = LoggerFactory.getLogger(SecurityMstInitializer.class);
 
-    private final StockMstImportService stockMstImportService;
+    private final SecurityMstImportService securityMstImportService;
 
     @Value("${stock.mst.kospi-path:./data/kospi_code.mst}")
     private String kospiPath;
@@ -44,8 +44,8 @@ public class StockMstInitializer implements ApplicationListener<ContextRefreshed
 
     private boolean alreadyRan = false;
 
-    public StockMstInitializer(StockMstImportService stockMstImportService) {
-        this.stockMstImportService = stockMstImportService;
+    public SecurityMstInitializer(SecurityMstImportService securityMstImportService) {
+        this.securityMstImportService = securityMstImportService;
     }
 
     @Override
@@ -75,7 +75,7 @@ public class StockMstInitializer implements ApplicationListener<ContextRefreshed
             return;
         }
         try {
-            int count = stockMstImportService.importKospi(path);
+            int count = securityMstImportService.importKospi(path);
             log.info("KOSPI 종목 마스터 import 완료. 처리 건수={}", count);
         } catch (Exception e) {
             log.error("KOSPI 종목 마스터 import 중 오류가 발생했습니다. path={}", kospiPath, e);
@@ -89,7 +89,7 @@ public class StockMstInitializer implements ApplicationListener<ContextRefreshed
             return;
         }
         try {
-            int count = stockMstImportService.importKosdaq(path);
+            int count = securityMstImportService.importKosdaq(path);
             log.info("KOSDAQ 종목 마스터 import 완료. 처리 건수={}", count);
         } catch (Exception e) {
             log.error("KOSDAQ 종목 마스터 import 중 오류가 발생했습니다. path={}", kosdaqPath, e);

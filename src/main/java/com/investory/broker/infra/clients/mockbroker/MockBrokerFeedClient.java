@@ -5,11 +5,13 @@ import com.investory.broker.domain.ports.dto.BrokerLoginResult;
 import com.investory.broker.domain.ports.dto.RawAccountRecord;
 import com.investory.broker.domain.ports.dto.RawHoldingBatch;
 import com.investory.broker.domain.ports.dto.RawHoldingRecord;
+import com.investory.broker.domain.ports.dto.RawOrganizationRecord;
 import com.investory.broker.domain.ports.dto.RawTradeRecord;
 import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.core.exception.ErrorType;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -133,6 +135,31 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
             return new RawHoldingBatch(LocalDate.parse(body.baseDate(), YYYYMMDD_FORMAT), holdings);
         } catch (RestClientException e) {
             throw new BrokerInfraException(ErrorType.EXTERNAL_ERROR, "증권사 보유종목을 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    // GET /mock/system/orgs — /mock/system/connections(login)과 마찬가지로 client-id/secret만
+    // 증명하면 되는 시스템 API. 특정 유저의 connectionId가 필요 없어 investHeaders() 대신
+    // jsonHeaders()+client-id/secret 조합을 그대로 재사용한다.
+    @Override
+    public List<RawOrganizationRecord> fetchOrganizations() {
+        try {
+            HttpHeaders headers = jsonHeaders();
+            headers.add("x-client-id", clientId);
+            headers.add("x-client-secret", clientSecret);
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<List<OrgItem>> response = restTemplate.exchange(
+                    baseUrl + "/mock/system/orgs", HttpMethod.GET, entity,
+                    new ParameterizedTypeReference<List<OrgItem>>() {});
+            List<OrgItem> body = response.getBody();
+            if (body == null) {
+                return List.of();
+            }
+            return body.stream()
+                    .map(item -> new RawOrganizationRecord(item.orgCode(), item.orgName()))
+                    .collect(Collectors.toList());
+        } catch (RestClientException e) {
+            throw new BrokerInfraException(ErrorType.EXTERNAL_ERROR, "증권사 기관 목록을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 

@@ -1,12 +1,12 @@
 package com.investory.market.infra.repository_impls;
 
 import com.investory.market.domain.constant.MarketType;
-import com.investory.market.domain.model.Stock;
-import com.investory.market.domain.repositories.StockRepository;
-import com.investory.market.infra.entities.StockRow;
+import com.investory.market.domain.model.Security;
+import com.investory.market.domain.repositories.SecurityRepository;
+import com.investory.market.infra.entities.SecurityRow;
 import com.investory.market.infra.exception.MarketInfraErrorCode;
 import com.investory.market.infra.exception.MarketInfraException;
-import com.investory.market.infra.mappers.StockMapper;
+import com.investory.market.infra.mappers.SecurityMapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
@@ -15,62 +15,62 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
-public class StockRepositoryImpl implements StockRepository {
+public class SecurityRepositoryImpl implements SecurityRepository {
 
-    private final StockMapper stockMapper;
+    private final SecurityMapper securityMapper;
 
-    public StockRepositoryImpl(StockMapper stockMapper) {
-        this.stockMapper = stockMapper;
+    public SecurityRepositoryImpl(SecurityMapper securityMapper) {
+        this.securityMapper = securityMapper;
     }
 
     @Override
-    public Optional<Stock> findByStockCode(String stockCode) {
+    public Optional<Security> findBySecurityCode(String securityCode) {
         try {
-            StockRow row = stockMapper.findByStockCode(stockCode);
-            return Optional.ofNullable(row).map(StockRow::toDomain);
+            SecurityRow row = securityMapper.findBySecurityCode(securityCode);
+            return Optional.ofNullable(row).map(SecurityRow::toDomain);
         } catch (DataAccessException e) {
             throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
         }
     }
 
     @Override
-    public Optional<Stock> findBySecurityId(Long securityId) {
+    public Optional<Security> findBySecurityId(Long securityId) {
         try {
-            StockRow row = stockMapper.findBySecurityId(securityId);
-            return Optional.ofNullable(row).map(StockRow::toDomain);
+            SecurityRow row = securityMapper.findBySecurityId(securityId);
+            return Optional.ofNullable(row).map(SecurityRow::toDomain);
         } catch (DataAccessException e) {
             throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
         }
     }
 
     @Override
-    public List<Stock> findBySecurityIds(List<Long> securityIds) {
+    public List<Security> findBySecurityIds(List<Long> securityIds) {
         if (securityIds == null || securityIds.isEmpty()) {
             return List.of();
         }
         try {
-            List<StockRow> rows = stockMapper.findBySecurityIds(securityIds);
-            return rows.stream().map(StockRow::toDomain).collect(Collectors.toList());
+            List<SecurityRow> rows = securityMapper.findBySecurityIds(securityIds);
+            return rows.stream().map(SecurityRow::toDomain).collect(Collectors.toList());
         } catch (DataAccessException e) {
             throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
         }
     }
 
     @Override
-    public List<String> findAllStockCodes() {
+    public List<String> findAllSecurityCodes() {
         try {
-            return stockMapper.findAllStockCodes();
+            return securityMapper.findAllSecurityCodes();
         } catch (DataAccessException e) {
             throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
         }
     }
 
     @Override
-    public List<Stock> search(String keyword, MarketType marketType, int offset, int limit) {
+    public List<Security> search(String keyword, MarketType marketType, int offset, int limit) {
         try {
             String marketTypeName = marketType != null ? marketType.name() : null;
-            List<StockRow> rows = stockMapper.search(keyword, marketTypeName, offset, limit);
-            return rows.stream().map(StockRow::toDomain).collect(Collectors.toList());
+            List<SecurityRow> rows = securityMapper.search(keyword, marketTypeName, offset, limit);
+            return rows.stream().map(SecurityRow::toDomain).collect(Collectors.toList());
         } catch (DataAccessException e) {
             throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
         }
@@ -80,7 +80,7 @@ public class StockRepositoryImpl implements StockRepository {
     public long countSearch(String keyword, MarketType marketType) {
         try {
             String marketTypeName = marketType != null ? marketType.name() : null;
-            return stockMapper.countSearch(keyword, marketTypeName);
+            return securityMapper.countSearch(keyword, marketTypeName);
         } catch (DataAccessException e) {
             throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
         }
@@ -88,14 +88,14 @@ public class StockRepositoryImpl implements StockRepository {
 
     // security_code 존재 여부로 insert/update를 분기하는 upsert
     @Override
-    public Stock save(Stock stock) {
+    public Security save(Security security) {
         try {
-            StockRow row = StockRow.from(stock);
-            boolean exists = (stockMapper.findByStockCode(row.getStockCode()) != null);
+            SecurityRow row = SecurityRow.from(security);
+            boolean exists = (securityMapper.findBySecurityCode(row.getSecurityCode()) != null);
             if (exists) {
-                stockMapper.update(row);
+                securityMapper.update(row);
             } else {
-                stockMapper.insert(row);
+                securityMapper.insert(row);
             }
             return row.toDomain();
         } catch (DataAccessException e) {
