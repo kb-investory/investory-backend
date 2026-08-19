@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,8 +45,10 @@ public class PrincipleController {
     }
 
     @GetMapping("/recommendations")
-    public PrincipleRecommendationListResponse getRecommendations(@AuthenticationPrincipal Long userId) {
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(userId));
+    public PrincipleRecommendationListResponse getRecommendations(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(required = false) Long analysisRunId) {
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(userId, analysisRunId));
         return PrincipleRecommendationListResponse.from(result);
     }
 }
