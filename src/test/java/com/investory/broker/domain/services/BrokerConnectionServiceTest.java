@@ -85,6 +85,21 @@ class BrokerConnectionServiceTest {
     }
 
     @Test
+    void 해지된_연결은_목록에_나오지_않는다() {
+        // 해지 후 같은 증권사에 재연동하면 옛 DISCONNECTED 행과 새 CONNECTED 행이 함께 남는데,
+        // 목록에는 재연동한 것만 보여야 한다.
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connection(
+                10L, 1L, "S9990001A", "미래에셋증권(모의)", ConnectionStatus.DISCONNECTED,
+                Instant.parse("2026-07-29T13:40:00Z"), null, 0));
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(20L, 1L, "S9990001A", "미래에셋증권(모의)"));
+
+        List<BrokerConnectionResult> results = brokerConnectionService.getConnections(1L);
+
+        assertEquals(1, results.size());
+        assertEquals(20L, results.get(0).connectionId());
+    }
+
+    @Test
     void 연동한_증권사가_없으면_빈_목록을_반환한다() {
         List<BrokerConnectionResult> results = brokerConnectionService.getConnections(1L);
 
