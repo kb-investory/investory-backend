@@ -36,4 +36,11 @@
         WHERE sync_batch_id = #{syncBatchId}
     </update>
 
+    <select id="countInProgress" resultType="int">
+        SELECT COUNT(*)
+        FROM account_sync_batches
+        WHERE connection_id = #{connectionId}
+          AND sync_status = 'REQUESTED'
+    </select>
+
 </mapper>

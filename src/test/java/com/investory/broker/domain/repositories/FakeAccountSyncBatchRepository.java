@@ -46,6 +46,12 @@ public class FakeAccountSyncBatchRepository implements AccountSyncBatchRepositor
                 .max(Comparator.comparing(AccountSyncBatch::getRequestedAt));
     }
 
+    @Override
+    public boolean existsInProgress(Long connectionId) {
+        return batches.stream()
+                .anyMatch(batch -> batch.getConnectionId().equals(connectionId) && batch.getSyncStatus() == SyncStatus.REQUESTED);
+    }
+
     private void replace(Long syncBatchId, java.util.function.UnaryOperator<AccountSyncBatch> updater) {
         for (int i = 0; i < batches.size(); i++) {
             if (batches.get(i).getSyncBatchId().equals(syncBatchId)) {
