@@ -10,9 +10,12 @@ import com.investory.principle.domain.services.PrincipleService;
 import com.investory.tendency.domain.events.TendencyAnalyzedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.scheduling.annotation.Async;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TendencyAnalyzedEventListenerTest {
@@ -48,5 +51,15 @@ class TendencyAnalyzedEventListenerTest {
 
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).size() > 0);
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(20L).size() > 0);
+    }
+
+    // 이 테스트는 listener.handle()을 직접 호출해서 @Async가 실제로 비동기 실행을 만드는지는
+    // 검증하지 못한다(Spring 프록시를 안 거치므로). 대신 애너테이션 자체가 남아있는지만 지켜서,
+    // 누군가 무심코 지웠을 때 POST /tendency/analyses가 다시 이 리스너의 LLM 호출을 물고
+    // 504로 되돌아가는 회귀를 잡는다 — 실제 원인이었던 문제라 회귀 감지 가치가 크다.
+    @Test
+    void handle은_Async로_응답_경로에서_분리되어_있다() throws NoSuchMethodException {
+        Method handle = TendencyAnalyzedEventListener.class.getMethod("handle", TendencyAnalyzedEvent.class);
+        assertNotNull(handle.getAnnotation(Async.class));
     }
 }
