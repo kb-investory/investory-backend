@@ -14,6 +14,8 @@ public interface SecurityMapper {
 
     List<SecurityRow> findBySecurityIds(@Param("securityIds") List<Long> securityIds);
 
+    List<SecurityRow> findBySecurityCodes(@Param("securityCodes") List<String> securityCodes);
+
     List<String> findAllSecurityCodes();
 
     // keyword: 종목명/종목코드 부분일치 검색어 (null이면 전체), marketType: 시장 구분 문자열(KOSPI/KOSDAQ/KONEX, null이면 전체)

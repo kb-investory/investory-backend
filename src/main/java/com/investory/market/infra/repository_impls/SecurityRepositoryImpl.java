@@ -57,6 +57,19 @@ public class SecurityRepositoryImpl implements SecurityRepository {
     }
 
     @Override
+    public List<Security> findBySecurityCodes(List<String> securityCodes) {
+        if (securityCodes == null || securityCodes.isEmpty()) {
+            return List.of();
+        }
+        try {
+            List<SecurityRow> rows = securityMapper.findBySecurityCodes(securityCodes);
+            return rows.stream().map(SecurityRow::toDomain).collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new MarketInfraException(MarketInfraErrorCode.STOCK_QUERY_FAILED, e);
+        }
+    }
+
+    @Override
     public List<String> findAllSecurityCodes() {
         try {
             return securityMapper.findAllSecurityCodes();

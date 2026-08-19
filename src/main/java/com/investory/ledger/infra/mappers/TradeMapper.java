@@ -27,13 +27,15 @@ public interface TradeMapper {
 
     List<TradeRow> findById(@Param("tradeId") Long tradeId);
 
-    List<TradeRow> findByAccountIdAndExternalTradeId(@Param("accountId") Long accountId,
-                                                       @Param("externalTradeId") String externalTradeId);
+    List<String> findExistingExternalTradeIds(@Param("accountId") Long accountId,
+                                               @Param("externalTradeIds") List<String> externalTradeIds);
 
     List<TradeRow> findAllByAccountIdAndSecurityId(@Param("accountId") Long accountId,
                                                      @Param("securityId") Long securityId);
 
     void insert(TradeRow row);
+
+    void insertAll(@Param("rows") List<TradeRow> rows);
 
     List<Long> findTradeIdsByAccountId(@Param("accountId") Long accountId);
 

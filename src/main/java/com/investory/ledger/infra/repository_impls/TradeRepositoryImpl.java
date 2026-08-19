@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Repository
@@ -66,11 +67,12 @@ public class TradeRepositoryImpl implements TradeRepository {
     }
 
     @Override
-    public Optional<Trade> findByAccountIdAndExternalTradeId(Long accountId, String externalTradeId) {
+    public Set<String> findExistingExternalTradeIds(Long accountId, List<String> externalTradeIds) {
+        if (externalTradeIds.isEmpty()) {
+            return Set.of();
+        }
         try {
-            return tradeMapper.findByAccountIdAndExternalTradeId(accountId, externalTradeId).stream()
-                    .map(TradeRow::toDomain)
-                    .findFirst();
+            return Set.copyOf(tradeMapper.findExistingExternalTradeIds(accountId, externalTradeIds));
         } catch (DataAccessException e) {
             throw new LedgerInfraException("거래 중복 여부를 조회하는 중 오류가 발생했습니다.", e);
         }
@@ -96,6 +98,19 @@ public class TradeRepositoryImpl implements TradeRepository {
             throw new LedgerInfraException("거래를 저장하는 중 오류가 발생했습니다.", e);
         }
         return row.toDomain();
+    }
+
+    @Override
+    public void saveAll(List<Trade> trades) {
+        if (trades.isEmpty()) {
+            return;
+        }
+        List<TradeRow> rows = trades.stream().map(TradeRow::from).collect(Collectors.toList());
+        try {
+            tradeMapper.insertAll(rows);
+        } catch (DataAccessException e) {
+            throw new LedgerInfraException("거래를 일괄 저장하는 중 오류가 발생했습니다.", e);
+        }
     }
 
     @Override

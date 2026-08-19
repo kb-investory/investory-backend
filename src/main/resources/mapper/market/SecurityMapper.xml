@@ -55,6 +55,15 @@
         </foreach>
     </select>
 
+    <select id="findBySecurityCodes" resultMap="securityRowMap">
+        SELECT <include refid="securityColumns"/>
+        FROM securities
+        WHERE security_code IN
+        <foreach item="code" collection="securityCodes" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+
     <select id="findAllSecurityCodes" resultType="string">
         SELECT security_code
         FROM securities

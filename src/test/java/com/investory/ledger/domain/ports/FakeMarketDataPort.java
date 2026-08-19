@@ -4,7 +4,9 @@ import com.investory.ledger.domain.ports.dto.SecurityInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class FakeMarketDataPort implements MarketDataPort {
@@ -27,5 +29,12 @@ public class FakeMarketDataPort implements MarketDataPort {
         return securities.stream()
                 .filter(security -> security.securityCode().equals(securityCode))
                 .findFirst();
+    }
+
+    @Override
+    public Map<String, SecurityInfo> resolveByCodes(List<String> securityCodes) {
+        return securities.stream()
+                .filter(security -> securityCodes.contains(security.securityCode()))
+                .collect(Collectors.toMap(SecurityInfo::securityCode, Function.identity()));
     }
 }

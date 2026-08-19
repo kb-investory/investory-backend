@@ -57,12 +57,14 @@
         WHERE trade_id = #{tradeId}
     </select>
 
-    <select id="findByAccountIdAndExternalTradeId" resultMap="tradeRowResultMap">
-        SELECT trade_id, account_id, security_id, trade_side, quantity, unit_price,
-               transaction_cost_amount, external_trade_id, traded_at
+    <select id="findExistingExternalTradeIds" resultType="string">
+        SELECT external_trade_id
         FROM trades
         WHERE account_id = #{accountId}
-          AND external_trade_id = #{externalTradeId}
+          AND external_trade_id IN
+        <foreach collection="externalTradeIds" item="externalTradeId" open="(" separator="," close=")">
+            #{externalTradeId}
+        </foreach>
     </select>
 
     <select id="findAllByAccountIdAndSecurityId" resultMap="tradeRowResultMap">
@@ -79,6 +81,16 @@
             (account_id, security_id, trade_side, quantity, unit_price, transaction_cost_amount, external_trade_id, traded_at)
         VALUES
             (#{accountId}, #{securityId}, #{tradeSide}, #{quantity}, #{unitPrice}, #{transactionCostAmount}, #{externalTradeId}, #{tradedAt})
+    </insert>
+
+    <insert id="insertAll">
+        INSERT INTO trades
+            (account_id, security_id, trade_side, quantity, unit_price, transaction_cost_amount, external_trade_id, traded_at)
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.accountId}, #{row.securityId}, #{row.tradeSide}, #{row.quantity}, #{row.unitPrice},
+             #{row.transactionCostAmount}, #{row.externalTradeId}, #{row.tradedAt})
+        </foreach>
     </insert>
 
     <select id="findTradeIdsByAccountId" resultType="long">

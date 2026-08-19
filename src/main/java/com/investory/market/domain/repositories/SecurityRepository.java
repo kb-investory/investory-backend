@@ -15,6 +15,9 @@ public interface SecurityRepository {
     // securityId 목록 일괄 조회 (다른 도메인의 상세 조회 등에서 N+1 없이 한 번에 가져올 때 사용)
     List<Security> findBySecurityIds(List<Long> securityIds);
 
+    // securityCode 목록 일괄 조회 (거래/보유 적재 시 종목코드별로 하나씩 조회하던 N+1 제거용)
+    List<Security> findBySecurityCodes(List<String> securityCodes);
+
     // 매일 배치가 갱신 대상을 정할 때 사용 - 이미 등록된 종목코드 전체 목록
     List<String> findAllSecurityCodes();
 
