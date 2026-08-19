@@ -236,6 +236,13 @@ public class PrincipleService {
     // 컨디션을 최소화하고, 항목별 job(CompletableFuture)이 전부 join되면(개별 실패는 이미 위에서
     // 흡수됐으므로 여기 도달하면 전부 "끝난" 것) SUCCESS로 바꿔 프론트가 폴링을 멈출 수 있게 한다.
     // saveAll() 자체가 실패하는 것처럼 실행 전체가 죽는 드문 경우에만 FAILED로 남는다.
+    //
+    // 알려진 한계: REQUESTED를 기록한 직후 프로세스가 죽는 것처럼 이 메서드가 아예 끝까지 실행되지
+    // 못하면 그 analysisRunId는 REQUESTED에 영원히 머문다 — 지금은 이 경우를 감지·정리하지 않는다.
+    // 지금 규모(항목 몇 개, 몇 초 내 완료)에서는 발생 확률이 낮고 발생해도 프론트 폴링이 타임아웃
+    // 후 "잠시 후 다시 시도" 정도로 안내하면 그만이라 당장 필요하진 않지만, 나중에 필요해지면
+    // "일정 시간 지나도 REQUESTED면 FAILED로 간주"하는 정책(예: 배치로 오래된 REQUESTED 행을
+    // 정리하거나, 조회 시점에 createdAt으로 판단)을 추가로 고려한다.
     @Transactional
     public void refreshRecommendationsForRun(Long userId, Long analysisRunId, List<RefreshRecommendationsCommand> commands) {
         RecommendationGeneration generation = RecommendationGeneration.requested(analysisRunId, userId);
