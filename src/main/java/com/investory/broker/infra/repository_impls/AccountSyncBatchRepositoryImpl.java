@@ -5,6 +5,7 @@ import com.investory.broker.domain.repositories.AccountSyncBatchRepository;
 import com.investory.broker.infra.entities.AccountSyncBatchRow;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.broker.infra.mappers.AccountSyncBatchMapper;
+import com.investory.core.exception.ErrorType;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
@@ -26,7 +27,7 @@ public class AccountSyncBatchRepositoryImpl implements AccountSyncBatchRepositor
         try {
             accountSyncBatchMapper.insert(row);
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "동기화 배치를 생성하는 중 오류가 발생했습니다.", e);
         }
         return row.getSyncBatchId();
     }
@@ -36,7 +37,7 @@ public class AccountSyncBatchRepositoryImpl implements AccountSyncBatchRepositor
         try {
             accountSyncBatchMapper.markSuccess(syncBatchId);
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "동기화 배치를 성공 처리하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -45,7 +46,7 @@ public class AccountSyncBatchRepositoryImpl implements AccountSyncBatchRepositor
         try {
             accountSyncBatchMapper.markFailed(syncBatchId, errorMessage);
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "동기화 배치를 실패 처리하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -56,7 +57,7 @@ public class AccountSyncBatchRepositoryImpl implements AccountSyncBatchRepositor
                     .map(AccountSyncBatchRow::toDomain)
                     .findFirst();
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "최근 동기화 이력을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 }

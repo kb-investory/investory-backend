@@ -5,6 +5,7 @@ import com.investory.broker.domain.repositories.BrokerProviderRepository;
 import com.investory.broker.infra.entities.BrokerProviderRow;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.broker.infra.mappers.BrokerProviderMapper;
+import com.investory.core.exception.ErrorType;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
@@ -28,7 +29,7 @@ public class BrokerProviderRepositoryImpl implements BrokerProviderRepository {
                     .map(BrokerProviderRow::toDomain)
                     .collect(Collectors.toList());
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 목록을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -39,7 +40,7 @@ public class BrokerProviderRepositoryImpl implements BrokerProviderRepository {
                     .map(BrokerProviderRow::toDomain)
                     .findFirst();
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 정보를 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -57,7 +58,7 @@ public class BrokerProviderRepositoryImpl implements BrokerProviderRepository {
                 brokerProviderMapper.insert(row);
             }
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 정보를 저장하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -66,7 +67,7 @@ public class BrokerProviderRepositoryImpl implements BrokerProviderRepository {
         try {
             brokerProviderMapper.deactivateExcept(brokerCodes);
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 목록을 갱신하는 중 오류가 발생했습니다.", e);
         }
     }
 }

@@ -6,6 +6,7 @@ import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.infra.entities.BrokerConnectionRow;
 import com.investory.broker.infra.exception.BrokerInfraException;
 import com.investory.broker.infra.mappers.BrokerConnectionMapper;
+import com.investory.core.exception.ErrorType;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
@@ -30,7 +31,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
                     .map(BrokerConnectionRow::toDomain)
                     .collect(Collectors.toList());
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 연결 목록을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -41,7 +42,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
                     .map(BrokerConnectionRow::toDomain)
                     .findFirst();
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "활성 증권사 연결을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -52,7 +53,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
                     .map(BrokerConnectionRow::toDomain)
                     .findFirst();
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 연결을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -66,7 +67,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
                     .map(BrokerConnectionRow::toDomain)
                     .collect(Collectors.toList());
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "connectionId 목록으로 증권사 연결을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -75,7 +76,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
         try {
             return brokerConnectionMapper.findMockProfileCodeByConnectionId(connectionId).stream().findFirst();
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 연결의 인증 정보를 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -89,7 +90,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
         try {
             brokerConnectionMapper.insert(row);
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 연결을 생성하는 중 오류가 발생했습니다.", e);
         }
         return row.getConnectionId();
     }
@@ -99,7 +100,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
         try {
             brokerConnectionMapper.updateLastSyncedAt(connectionId, lastSyncedAt);
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 연결의 최근 동기화 시각을 갱신하는 중 오류가 발생했습니다.", e);
         }
     }
 
@@ -108,7 +109,7 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
         try {
             brokerConnectionMapper.updateStatus(connectionId, status.name());
         } catch (DataAccessException e) {
-            throw new BrokerInfraException(e);
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 연결 상태를 변경하는 중 오류가 발생했습니다.", e);
         }
     }
 }
