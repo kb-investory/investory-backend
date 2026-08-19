@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investory.broker.domain.model.BrokerConnectionFixture;
 import com.investory.broker.domain.model.BrokerProviderFixture;
+import com.investory.broker.domain.ports.FakeAccountDataCleanupPort;
 import com.investory.broker.domain.ports.FakeBrokerFeedPort;
 import com.investory.broker.domain.ports.FakeHoldingDetailPort;
 import com.investory.broker.domain.ports.FakeHoldingIngestionPort;
@@ -79,8 +80,10 @@ class BrokerControllerTest {
                 repository,
                 providerRepository,
                 new FakeAccountSyncBatchRepository(),
+                new FakeInvestmentAccountRepository(),
                 brokerFeedPort,
-                brokerAccountSyncService
+                brokerAccountSyncService,
+                new FakeAccountDataCleanupPort()
         );
     }
 

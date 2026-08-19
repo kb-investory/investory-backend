@@ -7,6 +7,10 @@ import com.investory.broker.domain.exception.BrokerException;
 import com.investory.broker.domain.model.AccountSyncBatch;
 import com.investory.broker.domain.model.BrokerConnectionFixture;
 import com.investory.broker.domain.model.BrokerProviderFixture;
+import com.investory.broker.domain.model.InvestmentAccount;
+import com.investory.broker.domain.constant.AccountType;
+import com.investory.broker.domain.constant.ConnectionStatus;
+import com.investory.broker.domain.ports.FakeAccountDataCleanupPort;
 import com.investory.broker.domain.ports.FakeHoldingIngestionPort;
 import com.investory.broker.domain.ports.FakeTradeIngestionPort;
 import com.investory.broker.domain.repositories.FakeAccountSyncBatchRepository;
@@ -14,11 +18,13 @@ import com.investory.broker.domain.repositories.FakeBrokerConnectionRepository;
 import com.investory.broker.domain.repositories.FakeBrokerProviderRepository;
 import com.investory.broker.domain.repositories.FakeInvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
+import com.investory.broker.domain.services.dto.command.DisconnectBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
+import com.investory.broker.domain.services.dto.result.DisconnectBrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.domain.ports.FakeBrokerFeedPort;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +47,7 @@ class BrokerConnectionServiceTest {
     private FakeTradeIngestionPort tradeIngestionPort;
     private FakeHoldingIngestionPort holdingIngestionPort;
     private FakeBrokerFeedPort brokerFeedPort;
+    private FakeAccountDataCleanupPort accountDataCleanupPort;
     private BrokerConnectionService brokerConnectionService;
 
     @BeforeEach
@@ -52,14 +59,17 @@ class BrokerConnectionServiceTest {
         tradeIngestionPort = new FakeTradeIngestionPort();
         holdingIngestionPort = new FakeHoldingIngestionPort();
         brokerFeedPort = new FakeBrokerFeedPort();
+        accountDataCleanupPort = new FakeAccountDataCleanupPort();
         BrokerAccountSyncService brokerAccountSyncService = new BrokerAccountSyncService(
                 investmentAccountRepository, tradeIngestionPort, holdingIngestionPort, brokerFeedPort);
         brokerConnectionService = new BrokerConnectionService(
                 brokerConnectionRepository,
                 brokerProviderRepository,
                 accountSyncBatchRepository,
+                investmentAccountRepository,
                 brokerFeedPort,
-                brokerAccountSyncService
+                brokerAccountSyncService,
+                accountDataCleanupPort
         );
     }
 
@@ -243,5 +253,53 @@ class BrokerConnectionServiceTest {
         assertEquals(SyncStatus.FAILED, result.syncStatus());
         assertEquals(0, result.accountCount());
         assertEquals("목 서버 응답 오류", result.errorMessage());
+    }
+
+    @Test
+    void 연동을_해지하면_계좌별로_ledger_데이터_삭제를_위임하고_계좌를_지우고_상태를_전이한다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        investmentAccountRepository.add(1L, InvestmentAccount.of(
+                2000L, 15L, "111-111", "111-***-111", "계좌1", AccountType.STOCK, "KRW"));
+        investmentAccountRepository.add(1L, InvestmentAccount.of(
+                2001L, 15L, "222-222", "222-***-222", "계좌2", AccountType.STOCK, "KRW"));
+
+        DisconnectBrokerConnectionResult result = brokerConnectionService.disconnectConnection(
+                new DisconnectBrokerConnectionCommand(1L, 15L));
+
+        assertEquals(ConnectionStatus.DISCONNECTED, result.connectionStatus());
+        assertEquals(List.of(2000L, 2001L), accountDataCleanupPort.deletedAccountIds());
+        assertTrue(investmentAccountRepository.findByConnectionId(15L).isEmpty());
+    }
+
+    @Test
+    void 존재하지_않는_연결을_해지하면_예외가_발생한다() {
+        DisconnectBrokerConnectionCommand command = new DisconnectBrokerConnectionCommand(1L, 999L);
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> brokerConnectionService.disconnectConnection(command));
+
+        assertEquals(BrokerErrorCode.CONNECTION_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 본인_소유가_아닌_연결을_해지하려_하면_예외가_발생한다() {
+        brokerConnectionRepository.add(2L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        DisconnectBrokerConnectionCommand command = new DisconnectBrokerConnectionCommand(1L, 15L);
+
+        BrokerException exception = assertThrows(BrokerException.class, () -> brokerConnectionService.disconnectConnection(command));
+
+        assertEquals(BrokerErrorCode.CONNECTION_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 이미_해지된_연결을_다시_해지해도_데이터_삭제가_재실행되지_않는다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connection(
+                15L, 1L, "S9990001A", "미래에셋증권(모의)", ConnectionStatus.DISCONNECTED,
+                Instant.parse("2026-07-29T13:40:00Z"), null, 0));
+
+        DisconnectBrokerConnectionResult result = brokerConnectionService.disconnectConnection(
+                new DisconnectBrokerConnectionCommand(1L, 15L));
+
+        assertEquals(ConnectionStatus.DISCONNECTED, result.connectionStatus());
+        assertTrue(accountDataCleanupPort.deletedAccountIds().isEmpty());
     }
 }

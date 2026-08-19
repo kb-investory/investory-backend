@@ -7,18 +7,23 @@ import com.investory.broker.domain.exception.BrokerException;
 import com.investory.broker.domain.model.AccountSyncBatch;
 import com.investory.broker.domain.model.BrokerConnection;
 import com.investory.broker.domain.model.BrokerProvider;
+import com.investory.broker.domain.model.InvestmentAccount;
+import com.investory.broker.domain.ports.AccountDataCleanupPort;
 import com.investory.broker.domain.ports.BrokerFeedPort;
 import com.investory.broker.domain.ports.dto.BrokerLoginResult;
 import com.investory.broker.domain.ports.dto.RawAccountRecord;
 import com.investory.broker.domain.repositories.AccountSyncBatchRepository;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.domain.repositories.BrokerProviderRepository;
+import com.investory.broker.domain.repositories.InvestmentAccountRepository;
 import com.investory.broker.domain.services.dto.command.CreateBrokerConnectionCommand;
+import com.investory.broker.domain.services.dto.command.DisconnectBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
+import com.investory.broker.domain.services.dto.result.DisconnectBrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.core.exception.FieldError;
@@ -42,20 +47,26 @@ public class BrokerConnectionService {
     private final BrokerConnectionRepository brokerConnectionRepository;
     private final BrokerProviderRepository brokerProviderRepository;
     private final AccountSyncBatchRepository accountSyncBatchRepository;
+    private final InvestmentAccountRepository investmentAccountRepository;
     private final BrokerFeedPort brokerFeedPort;
     private final BrokerAccountSyncService brokerAccountSyncService;
+    private final AccountDataCleanupPort accountDataCleanupPort;
 
     public BrokerConnectionService(
             BrokerConnectionRepository brokerConnectionRepository,
             BrokerProviderRepository brokerProviderRepository,
             AccountSyncBatchRepository accountSyncBatchRepository,
+            InvestmentAccountRepository investmentAccountRepository,
             BrokerFeedPort brokerFeedPort,
-            BrokerAccountSyncService brokerAccountSyncService) {
+            BrokerAccountSyncService brokerAccountSyncService,
+            AccountDataCleanupPort accountDataCleanupPort) {
         this.brokerConnectionRepository = brokerConnectionRepository;
         this.brokerProviderRepository = brokerProviderRepository;
         this.accountSyncBatchRepository = accountSyncBatchRepository;
+        this.investmentAccountRepository = investmentAccountRepository;
         this.brokerFeedPort = brokerFeedPort;
         this.brokerAccountSyncService = brokerAccountSyncService;
+        this.accountDataCleanupPort = accountDataCleanupPort;
     }
 
     public List<BrokerConnectionResult> getConnections(Long userId) {
@@ -167,6 +178,28 @@ public class BrokerConnectionService {
                 outcome.holdingCount(),
                 outcome.errorMessage()
         );
+    }
+
+    // 이미 DISCONNECTED면 데이터가 이미 지워진 상태이므로 멱등적으로 그대로 반환하고 재실행하지 않는다.
+    // 그 외의 경우 계좌별로 ledger 데이터(거래/매칭/보유, 그리고 journal의 매매 근거)를 먼저 지운 뒤
+    // investment_accounts를 지우고 마지막에 커넥션 상태를 전이한다 — 전부 한 트랜잭션으로 묶인다.
+    @Transactional
+    public DisconnectBrokerConnectionResult disconnectConnection(DisconnectBrokerConnectionCommand command) {
+        BrokerConnection connection = brokerConnectionRepository.findByIdAndUserId(command.connectionId(), command.userId())
+                .orElseThrow(() -> new BrokerException(BrokerErrorCode.CONNECTION_NOT_FOUND));
+
+        if (connection.getConnectionStatus() == ConnectionStatus.DISCONNECTED) {
+            return new DisconnectBrokerConnectionResult(connection.getConnectionId(), ConnectionStatus.DISCONNECTED);
+        }
+
+        List<InvestmentAccount> accounts = investmentAccountRepository.findByConnectionId(connection.getConnectionId());
+        for (InvestmentAccount account : accounts) {
+            accountDataCleanupPort.deleteAccountData(account.getAccountId());
+        }
+        investmentAccountRepository.deleteByConnectionId(connection.getConnectionId());
+        brokerConnectionRepository.updateStatus(connection.getConnectionId(), ConnectionStatus.DISCONNECTED);
+
+        return new DisconnectBrokerConnectionResult(connection.getConnectionId(), ConnectionStatus.DISCONNECTED);
     }
 
     private void validate(CreateBrokerConnectionCommand command) {

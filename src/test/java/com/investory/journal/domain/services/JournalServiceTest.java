@@ -475,6 +475,17 @@ class JournalServiceTest {
         assertEquals(2, result.totalPages());
     }
 
+    @Test
+    void tradeId_목록으로_매매근거를_삭제한다() {
+        journalTradeNoteRepository.add(JournalTradeNoteFixture.note(501L, "근거1", Instant.now()));
+        journalTradeNoteRepository.add(JournalTradeNoteFixture.note(502L, "근거2", Instant.now()));
+
+        journalService.deleteNotesByTradeIds(List.of(501L));
+
+        assertTrue(journalTradeNoteRepository.findByTradeIds(List.of(501L)).isEmpty());
+        assertFalse(journalTradeNoteRepository.findByTradeIds(List.of(502L)).isEmpty());
+    }
+
     private List<JournalEntryResult> getEntries(LocalDate startDate, LocalDate endDate) {
         return journalService.getEntries(new GetJournalEntriesQuery(USER_ID, startDate, endDate));
     }

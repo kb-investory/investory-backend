@@ -79,6 +79,19 @@ public class FakeTradeRepository implements TradeRepository {
         return saved;
     }
 
+    @Override
+    public List<Long> findTradeIdsByAccountId(Long accountId) {
+        return trades.stream()
+                .filter(trade -> trade.getAccountId().equals(accountId))
+                .map(Trade::getTradeId)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public void deleteByAccountId(Long accountId) {
+        trades.removeIf(trade -> trade.getAccountId().equals(accountId));
+    }
+
     private Trade withId(Trade trade) {
         return Trade.of(nextId++, trade.getAccountId(), trade.getSecurityId(), trade.getTradeSide(),
                 trade.getQuantity(), trade.getUnitPrice(), trade.getTransactionCostAmount(),

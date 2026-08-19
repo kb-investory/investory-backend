@@ -59,5 +59,10 @@ class InvestmentAccountRepositoryImplTest {
         public void updateAccountName(Long accountId, String accountName) {
             throw toThrow;
         }
+
+        @Override
+        public void deleteByConnectionId(Long connectionId) {
+            throw toThrow;
+        }
     }
 }

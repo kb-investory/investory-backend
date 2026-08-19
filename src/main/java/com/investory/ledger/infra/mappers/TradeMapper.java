@@ -34,4 +34,8 @@ public interface TradeMapper {
                                                      @Param("securityId") Long securityId);
 
     void insert(TradeRow row);
+
+    List<Long> findTradeIdsByAccountId(@Param("accountId") Long accountId);
+
+    void deleteByAccountId(@Param("accountId") Long accountId);
 }

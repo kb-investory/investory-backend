@@ -51,4 +51,9 @@
             unrealized_pnl = VALUES(unrealized_pnl)
     </insert>
 
+    <delete id="deleteByAccountId">
+        DELETE FROM holding_snapshots
+        WHERE account_id = #{accountId}
+    </delete>
+
 </mapper>

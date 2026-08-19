@@ -80,6 +80,13 @@ public class JournalService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
+    // ledger.domain.ports.JournalNotePort 구현체(JournalNotePortImpl)에서만 호출된다 — 증권사 연동
+    // 해지로 거래가 삭제될 때 그 거래에 달린 근거도 함께 지운다. 별도 트랜잭션을 열지 않는다 — 호출자인
+    // AccountDataCleanupService가 이미 연 트랜잭션에 합류해, 계좌 삭제 전체가 원자적으로 처리된다.
+    public void deleteNotesByTradeIds(List<Long> tradeIds) {
+        journalTradeNoteRepository.deleteByTradeIds(tradeIds);
+    }
+
     public List<JournalEntryResult> getEntries(GetJournalEntriesQuery query) {
         if (query.startDate().isAfter(query.endDate())) {
             throw new JournalException(JournalErrorCode.INVALID_DATE_RANGE);

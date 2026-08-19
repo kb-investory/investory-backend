@@ -17,4 +17,9 @@ public interface TradeRepository {
     List<Trade> findAllByAccountIdAndSecurityId(Long accountId, Long securityId);
 
     Trade save(Trade trade);
+
+    // 증권사 연동 해지 시 이 계좌의 거래를 지우기 전에, journal에 알릴 tradeId 목록부터 확보한다.
+    List<Long> findTradeIdsByAccountId(Long accountId);
+
+    void deleteByAccountId(Long accountId);
 }

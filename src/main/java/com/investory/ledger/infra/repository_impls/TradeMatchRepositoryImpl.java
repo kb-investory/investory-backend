@@ -31,6 +31,15 @@ public class TradeMatchRepositoryImpl implements TradeMatchRepository {
     }
 
     @Override
+    public void deleteByAccountId(Long accountId) {
+        try {
+            tradeMatchMapper.deleteByAccountId(accountId);
+        } catch (DataAccessException e) {
+            throw new LedgerInfraException("거래 매칭을 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
     public void saveAll(List<TradeMatch> matches) {
         // 빈 리스트로 INSERT ... VALUES <foreach>를 만들면 SQL 문법 오류가 나므로 매퍼 호출 전에 막는다.
         if (matches.isEmpty()) {

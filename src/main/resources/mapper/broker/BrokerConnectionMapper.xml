@@ -111,4 +111,10 @@
         WHERE connection_id = #{connectionId}
     </update>
 
+    <update id="updateStatus">
+        UPDATE broker_connections
+        SET connection_status = #{status}
+        WHERE connection_id = #{connectionId}
+    </update>
+
 </mapper>

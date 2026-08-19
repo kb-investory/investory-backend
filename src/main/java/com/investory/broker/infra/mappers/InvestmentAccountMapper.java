@@ -19,4 +19,6 @@ public interface InvestmentAccountMapper {
     List<InvestmentAccountRow> findByIdAndUserId(@Param("accountId") Long accountId, @Param("userId") Long userId);
 
     void updateAccountName(@Param("accountId") Long accountId, @Param("accountName") String accountName);
+
+    void deleteByConnectionId(@Param("connectionId") Long connectionId);
 }

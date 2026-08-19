@@ -63,6 +63,11 @@ class TradeMatchRepositoryImplTest {
         }
 
         @Override
+        public void deleteByAccountId(Long accountId) {
+            throw toThrow;
+        }
+
+        @Override
         public void insertAll(List<TradeMatchRow> rows) {
             throw toThrow;
         }

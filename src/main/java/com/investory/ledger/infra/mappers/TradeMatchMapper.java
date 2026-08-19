@@ -12,6 +12,8 @@ public interface TradeMatchMapper {
 
     void deleteByAccountIdAndSecurityId(@Param("accountId") Long accountId, @Param("securityId") Long securityId);
 
+    void deleteByAccountId(@Param("accountId") Long accountId);
+
     void insertAll(@Param("rows") List<TradeMatchRow> rows);
 
     List<Integer> findHoldingDaysByAccountIdsSince(@Param("accountIds") List<Long> accountIds, @Param("since") Instant since);

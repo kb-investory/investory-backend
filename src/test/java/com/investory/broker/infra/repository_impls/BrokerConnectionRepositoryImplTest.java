@@ -65,5 +65,10 @@ class BrokerConnectionRepositoryImplTest {
         public List<String> findMockProfileCodeByConnectionId(Long connectionId) {
             throw toThrow;
         }
+
+        @Override
+        public void updateStatus(Long connectionId, String status) {
+            throw toThrow;
+        }
     }
 }

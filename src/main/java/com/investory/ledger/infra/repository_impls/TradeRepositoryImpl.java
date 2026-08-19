@@ -98,6 +98,24 @@ public class TradeRepositoryImpl implements TradeRepository {
         return row.toDomain();
     }
 
+    @Override
+    public List<Long> findTradeIdsByAccountId(Long accountId) {
+        try {
+            return tradeMapper.findTradeIdsByAccountId(accountId);
+        } catch (DataAccessException e) {
+            throw new LedgerInfraException("계좌의 거래 ID 목록을 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public void deleteByAccountId(Long accountId) {
+        try {
+            tradeMapper.deleteByAccountId(accountId);
+        } catch (DataAccessException e) {
+            throw new LedgerInfraException("계좌의 거래를 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
     // 시작일 00:00:00(KST) 포함 — UTC Instant로 변환해서 저장된 traded_at과 비교한다.
     private Instant toInclusiveStart(LocalDate date) {
         return date == null ? null : date.atStartOfDay(JOURNAL_ZONE).toInstant();

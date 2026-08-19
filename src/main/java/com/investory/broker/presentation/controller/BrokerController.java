@@ -7,6 +7,7 @@ import com.investory.broker.domain.services.dto.result.BrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.BrokerProviderResult;
 import com.investory.broker.domain.services.dto.query.GetAccountDetailQuery;
 import com.investory.broker.domain.services.dto.query.GetBrokerConnectionDetailQuery;
+import com.investory.broker.domain.services.dto.command.DisconnectBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.command.SyncBrokerConnectionCommand;
 import com.investory.broker.domain.services.dto.query.GetConnectionAccountsQuery;
 import com.investory.broker.domain.services.dto.result.AccountDetailResult;
@@ -14,6 +15,7 @@ import com.investory.broker.domain.services.dto.result.AccountListResult;
 import com.investory.broker.domain.services.dto.result.BrokerConnectionDetailResult;
 import com.investory.broker.domain.services.dto.result.ConnectionAccountsResult;
 import com.investory.broker.domain.services.dto.result.CreateBrokerConnectionResult;
+import com.investory.broker.domain.services.dto.result.DisconnectBrokerConnectionResult;
 import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.domain.services.dto.result.UpdateAccountNameResult;
 import com.investory.broker.presentation.dto.request.CreateBrokerConnectionRequest;
@@ -25,10 +27,12 @@ import com.investory.broker.presentation.dto.response.BrokerConnectionDetailResp
 import com.investory.broker.presentation.dto.response.BrokerConnectionListResponse;
 import com.investory.broker.presentation.dto.response.BrokerProviderListResponse;
 import com.investory.broker.presentation.dto.response.CreateBrokerConnectionResponse;
+import com.investory.broker.presentation.dto.response.DisconnectBrokerConnectionResponse;
 import com.investory.broker.presentation.dto.response.SyncConnectionResponse;
 import com.investory.broker.presentation.dto.response.UpdateAccountNameResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -99,6 +103,14 @@ public class BrokerController {
         SyncConnectionResult result = brokerConnectionService.syncConnection(
                 new SyncBrokerConnectionCommand(userId, connectionId));
         return SyncConnectionResponse.from(result);
+    }
+
+    @DeleteMapping("/connections/{connectionId}")
+    public DisconnectBrokerConnectionResponse disconnectConnection(
+            @AuthenticationPrincipal Long userId, @PathVariable Long connectionId) {
+        DisconnectBrokerConnectionResult result = brokerConnectionService.disconnectConnection(
+                new DisconnectBrokerConnectionCommand(userId, connectionId));
+        return DisconnectBrokerConnectionResponse.from(result);
     }
 
     @GetMapping("/accounts")
