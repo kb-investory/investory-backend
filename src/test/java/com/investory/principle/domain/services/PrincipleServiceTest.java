@@ -92,6 +92,32 @@ class PrincipleServiceTest {
     }
 
     @Test
+    void AI_추천으로_채택한_원칙은_조회_응답에_recommendationId가_포함된다() {
+        // 프론트가 재저장 시 recommendationId를 그대로 되돌려보낼 수 있어야 채택 상태가 유지된다 —
+        // 이 값이 응답에서 빠지면 재저장 때 null로 나가 reconcileRecommendationStatuses가 SUGGESTED로 되돌린다.
+        tendencyAnalysisPort.addLatestCompletedAnalysisResult(new TendencyAnalysisInfo(10L, 1L, "CONCENTRATED", "집중투자형"));
+        principleRecommendationRepository.add(
+                PrincipleRecommendation.of(5L, 10L, "한 종목의 비중은 30%를 넘지 않는다.", "집중 위험 완화", null, RecommendationStatus.ADOPTED,
+                        Instant.now(), Instant.now()));
+        PrincipleSetItem item = PrincipleSetItem.of(1L, 5L, "한 종목의 비중은 30%를 넘지 않는다.", null, 1);
+        principleSetRepository.add(activeSet(1L, USER_ID, 1, List.of(item)));
+
+        PrincipleSetResult result = principleService.getActivePrincipleSet(new GetActivePrincipleSetQuery(USER_ID));
+
+        assertEquals(5L, result.principles().get(0).recommendationId());
+    }
+
+    @Test
+    void 직접_추가한_원칙은_조회_응답에_recommendationId가_없다() {
+        PrincipleSetItem item = PrincipleSetItem.of(1L, null, "투자 근거를 기록한다.", null, 1);
+        principleSetRepository.add(activeSet(1L, USER_ID, 1, List.of(item)));
+
+        PrincipleSetResult result = principleService.getActivePrincipleSet(new GetActivePrincipleSetQuery(USER_ID));
+
+        assertNull(result.principles().get(0).recommendationId());
+    }
+
+    @Test
     void 저장하면_버전이_증가하고_기존_활성_세트는_보관된다() {
         principleSetRepository.add(activeSet(1L, USER_ID, 1, List.of()));
 

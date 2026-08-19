@@ -105,7 +105,7 @@ public class PrincipleService {
     private PrincipleItemResult toItemResult(PrincipleSetItem item, Map<Long, PrincipleRecommendation> recommendationsById) {
         if (!item.isAiRecommendation()) {
             PrincipleOriginResult origin = new PrincipleOriginResult(PrincipleOriginType.DIRECT, null);
-            return new PrincipleItemResult(item.getPrincipleSetItemId(), item.getPrincipleText(), origin, item.getSortOrder());
+            return new PrincipleItemResult(item.getPrincipleSetItemId(), null, item.getPrincipleText(), origin, item.getSortOrder());
         }
 
         PrincipleRecommendation recommendation = recommendationsById.get(item.getPrincipleRecommendationId());
@@ -114,7 +114,8 @@ public class PrincipleService {
                         .map(TendencyAnalysisInfo::analysisTypeName)
                         .orElse(null);
         PrincipleOriginResult origin = new PrincipleOriginResult(PrincipleOriginType.AI_RECOMMENDATION, analysisTypeName);
-        return new PrincipleItemResult(item.getPrincipleSetItemId(), item.getPrincipleText(), origin, item.getSortOrder());
+        return new PrincipleItemResult(
+                item.getPrincipleSetItemId(), item.getPrincipleRecommendationId(), item.getPrincipleText(), origin, item.getSortOrder());
     }
 
     // 새 버전을 저장한다: 기존 ACTIVE 세트가 있으면 ARCHIVED로 전환하고, 새 세트를 ACTIVE로 만든다.
