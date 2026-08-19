@@ -284,6 +284,15 @@ class PrincipleServiceTest {
                 RecommendationStatus.SUGGESTED, Instant.now(), Instant.now());
     }
 
+    @Test
+    void 사용자의_투자원칙_세트를_전부_삭제한다() {
+        principleSetRepository.add(activeSet(1L, USER_ID, 1, List.of()));
+
+        principleService.deleteAllPrincipleSets(USER_ID);
+
+        assertTrue(principleSetRepository.findActiveByUserId(USER_ID).isEmpty());
+    }
+
     private PrincipleSet activeSet(Long principleSetId, Long userId, int versionNo, List<PrincipleSetItem> items) {
         Instant now = Instant.now();
         return PrincipleSet.of(principleSetId, userId, null, versionNo,

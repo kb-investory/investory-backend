@@ -76,4 +76,14 @@ public class PrincipleSetRepositoryImpl implements PrincipleSetRepository {
         }
         return row.getPrincipleSetId();
     }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        try {
+            principleSetItemMapper.deleteByUserId(userId);
+            principleSetMapper.deleteByUserId(userId);
+        } catch (DataAccessException e) {
+            throw new PrincipleInfraException("투자원칙을 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

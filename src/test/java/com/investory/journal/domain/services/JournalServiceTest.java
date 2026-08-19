@@ -486,6 +486,15 @@ class JournalServiceTest {
         assertFalse(journalTradeNoteRepository.findByTradeIds(List.of(502L)).isEmpty());
     }
 
+    @Test
+    void 사용자의_투자일지를_전부_삭제한다() {
+        journalRepository.add(JournalFixture.journal(LocalDate.of(2026, 7, 1), Instant.now(), Instant.now().plusSeconds(3600)));
+
+        journalService.deleteAllJournals(USER_ID);
+
+        assertTrue(journalRepository.findByUserAndDateRange(USER_ID, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31)).isEmpty());
+    }
+
     private List<JournalEntryResult> getEntries(LocalDate startDate, LocalDate endDate) {
         return journalService.getEntries(new GetJournalEntriesQuery(USER_ID, startDate, endDate));
     }

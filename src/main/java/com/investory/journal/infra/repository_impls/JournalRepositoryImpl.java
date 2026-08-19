@@ -95,4 +95,13 @@ public class JournalRepositoryImpl implements JournalRepository {
             throw new JournalInfraException("투자일지를 수정하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        try {
+            journalMapper.deleteByUserId(userId);
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("투자일지를 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

@@ -10,4 +10,5 @@ import java.util.List;
 public interface PrincipleSetItemMapper {
     List<PrincipleSetItemRow> findBySetId(@Param("principleSetId") Long principleSetId);
     void insertAll(@Param("items") List<PrincipleSetItemRow> items);
+    void deleteByUserId(@Param("userId") Long userId);
 }

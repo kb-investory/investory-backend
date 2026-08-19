@@ -87,6 +87,13 @@ public class JournalService {
         journalTradeNoteRepository.deleteByTradeIds(tradeIds);
     }
 
+    // auth.domain.ports.JournalCleanupPort 구현체(JournalCleanupPortImpl)에서만 호출된다 — 계정 탈퇴 시
+    // 사용자의 투자일지를 전부 지운다. 호출 시점에 이 사용자의 거래(및 journal_trade_notes)는 이미
+    // 정리됐다고 가정하므로 여기서는 investment_journals만 지우면 된다.
+    public void deleteAllJournals(Long userId) {
+        journalRepository.deleteByUserId(userId);
+    }
+
     public List<JournalEntryResult> getEntries(GetJournalEntriesQuery query) {
         if (query.startDate().isAfter(query.endDate())) {
             throw new JournalException(JournalErrorCode.INVALID_DATE_RANGE);

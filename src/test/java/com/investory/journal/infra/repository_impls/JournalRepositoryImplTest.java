@@ -148,5 +148,10 @@ class JournalRepositoryImplTest {
         public void update(JournalRow row) {
             throw toThrow;
         }
+
+        @Override
+        public void deleteByUserId(Long userId) {
+            throw toThrow;
+        }
     }
 }

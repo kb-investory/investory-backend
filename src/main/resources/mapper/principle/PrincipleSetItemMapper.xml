@@ -28,4 +28,11 @@
         </foreach>
     </insert>
 
+    <!-- principle_set_items에는 user_id가 없어 principle_sets를 조인해서 지운다 -->
+    <delete id="deleteByUserId">
+        DELETE psi FROM principle_set_items psi
+        JOIN principle_sets ps ON ps.principle_set_id = psi.principle_set_id
+        WHERE ps.user_id = #{userId}
+    </delete>
+
 </mapper>

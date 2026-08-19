@@ -40,4 +40,9 @@
             (#{userId}, #{analysisRunId}, #{versionNo}, #{setStatus}, #{createdAt}, #{updatedAt})
     </insert>
 
+    <delete id="deleteByUserId">
+        DELETE FROM principle_sets
+        WHERE user_id = #{userId}
+    </delete>
+
 </mapper>
