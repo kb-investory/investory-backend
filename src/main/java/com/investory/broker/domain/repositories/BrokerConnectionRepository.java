@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BrokerConnectionRepository {
+    // DISCONNECTED는 제외한다 — 해지된 연결은 이력으로 DB에 남지만 "내 연동 목록"에는 노출하지 않는다.
     List<BrokerConnection> findAllByUserId(Long userId);
 
     Optional<BrokerConnection> findActiveByUserIdAndBrokerId(Long userId, Long brokerId);

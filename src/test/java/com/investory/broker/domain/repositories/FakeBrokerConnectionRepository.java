@@ -33,6 +33,7 @@ public class FakeBrokerConnectionRepository implements BrokerConnectionRepositor
         return connections.stream()
                 .filter(owned -> owned.userId().equals(userId))
                 .map(Owned::connection)
+                .filter(connection -> connection.getConnectionStatus() != ConnectionStatus.DISCONNECTED)
                 .collect(Collectors.toList());
     }
 

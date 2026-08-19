@@ -13,6 +13,8 @@
         <result column="account_count" property="accountCount"/>
     </resultMap>
 
+    <!-- DISCONNECTED는 제외한다 — 해지해도 행 자체는 연동 이력으로 남기 때문에(연동 해지 참고), 필터링을
+         안 하면 같은 증권사를 재연동했을 때 옛 DISCONNECTED 행과 새 CONNECTED 행이 같이 노출된다. -->
     <select id="findAllByUserId" resultMap="brokerConnectionRowResultMap">
         SELECT
             bc.connection_id,
@@ -27,6 +29,7 @@
         JOIN broker_providers bp ON bp.broker_id = bc.broker_id
         LEFT JOIN investment_accounts ia ON ia.connection_id = bc.connection_id
         WHERE bc.user_id = #{userId}
+          AND bc.connection_status != 'DISCONNECTED'
         GROUP BY bc.connection_id, bc.broker_id, bp.broker_code, bp.broker_name,
                  bc.connection_status, bc.connected_at, bc.last_synced_at
         ORDER BY bc.connection_id
