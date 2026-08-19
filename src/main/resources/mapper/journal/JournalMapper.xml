@@ -33,6 +33,13 @@
         ORDER BY ij.journal_date DESC
     </select>
 
+    <select id="countByUserAndDateRange" resultType="int">
+        SELECT COUNT(*)
+        FROM investment_journals
+        WHERE user_id = #{userId}
+          AND journal_date BETWEEN #{startDate} AND #{endDate}
+    </select>
+
     <select id="findByUserAndDate" resultMap="journalRowResultMap">
         SELECT
             ij.journal_id,

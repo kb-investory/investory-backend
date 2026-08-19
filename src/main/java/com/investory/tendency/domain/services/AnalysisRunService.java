@@ -9,6 +9,7 @@ import com.investory.tendency.domain.events.TendencyAnalyzedEvent;
 import com.investory.tendency.domain.model.AnalysisResult;
 import com.investory.tendency.domain.model.AnalysisResultDetail;
 import com.investory.tendency.domain.model.AnalysisRun;
+import com.investory.tendency.domain.ports.JournalRationalePort;
 import com.investory.tendency.domain.ports.MarketDataPort;
 import com.investory.tendency.domain.ports.PrincipleRecommendationCleanupPort;
 import com.investory.tendency.domain.ports.TradeLedgerPort;
@@ -75,6 +76,7 @@ public class AnalysisRunService {
     private final PrincipleAdherenceAnalysisService principleAdherenceAnalysisService;
     private final TradeLedgerPort tradeLedgerPort;
     private final MarketDataPort marketDataPort;
+    private final JournalRationalePort journalRationalePort;
     private final ApplicationEventPublisher eventPublisher;
     private final PrincipleRecommendationCleanupPort principleRecommendationCleanupPort;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -87,6 +89,7 @@ public class AnalysisRunService {
                                PrincipleAdherenceAnalysisService principleAdherenceAnalysisService,
                                TradeLedgerPort tradeLedgerPort,
                                MarketDataPort marketDataPort,
+                               JournalRationalePort journalRationalePort,
                                ApplicationEventPublisher eventPublisher,
                                PrincipleRecommendationCleanupPort principleRecommendationCleanupPort) {
         this.analysisRunRepository = analysisRunRepository;
@@ -98,6 +101,7 @@ public class AnalysisRunService {
         this.principleRecommendationCleanupPort = principleRecommendationCleanupPort;
         this.tradeLedgerPort = tradeLedgerPort;
         this.marketDataPort = marketDataPort;
+        this.journalRationalePort = journalRationalePort;
         this.eventPublisher = eventPublisher;
     }
 
@@ -117,9 +121,8 @@ public class AnalysisRunService {
         collectHoldingPeriod(userId, results);
         collectPrincipleAdherence(userId, results);
 
-        // journal_count: journal 도메인이 기간별 일지 건수를 노출하는 Port가 아직 없어 0으로 둔다.
-        // TODO: journal에 카운트 조회 기능이 생기면 여기서 채우기.
-        AnalysisRun run = AnalysisRun.create(userId, windowStart, today, allTrades.size(), 0, ANALYSIS_VERSION);
+        int journalCount = journalRationalePort.countJournalsInRange(userId, windowStart, today);
+        AnalysisRun run = AnalysisRun.create(userId, windowStart, today, allTrades.size(), journalCount, ANALYSIS_VERSION);
         AnalysisRun saved = analysisRunRepository.save(run);
 
         List<AnalysisResult> resultsWithRunId = results.stream()

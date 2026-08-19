@@ -2,6 +2,7 @@ package com.investory.tendency.domain.services;
 
 import com.investory.tendency.domain.events.TendencyAnalyzedEvent;
 import com.investory.tendency.domain.ports.FakeHoldingSummaryPort;
+import com.investory.tendency.domain.ports.FakeJournalRationalePort;
 import com.investory.tendency.domain.ports.FakeMarketDataPort;
 import com.investory.tendency.domain.ports.FakePrincipleRecommendationCleanupPort;
 import com.investory.tendency.domain.ports.FakePrinciplePort;
@@ -37,6 +38,7 @@ class AnalysisRunServiceTest {
     private FakeAnalysisResultRepository analysisResultRepository;
     private CapturingEventPublisher eventPublisher;
     private FakePrincipleRecommendationCleanupPort principleRecommendationCleanupPort;
+    private FakeJournalRationalePort journalRationalePort;
     private AnalysisRunService analysisRunService;
 
     @BeforeEach
@@ -45,6 +47,7 @@ class AnalysisRunServiceTest {
         analysisResultRepository = new FakeAnalysisResultRepository();
         eventPublisher = new CapturingEventPublisher();
         principleRecommendationCleanupPort = new FakePrincipleRecommendationCleanupPort();
+        journalRationalePort = new FakeJournalRationalePort();
 
         PortfolioRiskAnalysisService portfolioRiskAnalysisService =
                 new PortfolioRiskAnalysisService(new FakeHoldingSummaryPort(), new FakeMarketDataPort());
@@ -57,8 +60,8 @@ class AnalysisRunServiceTest {
 
         analysisRunService = new AnalysisRunService(analysisRunRepository, analysisResultRepository,
                 portfolioRiskAnalysisService, rationaleTendencyService, holdingPeriodAnalysisService,
-                principleAdherenceAnalysisService, new FakeTradeLedgerPort(), new FakeMarketDataPort(), eventPublisher,
-                principleRecommendationCleanupPort);
+                principleAdherenceAnalysisService, new FakeTradeLedgerPort(), new FakeMarketDataPort(),
+                journalRationalePort, eventPublisher, principleRecommendationCleanupPort);
     }
 
     @Test
@@ -71,6 +74,15 @@ class AnalysisRunServiceTest {
         assertEquals(result.run().analysisRunId(), event.analysisRunId());
         assertEquals(1, event.results().size()); // 데이터가 전부 없어 원칙 이행(판정불가형)만 결과로 남음
         assertEquals("PRINCIPLE_ADHERENCE", event.results().get(0).analysisDimensionCode());
+    }
+
+    @Test
+    void journalRationalePort가_반환한_건수가_저장된_run의_journalCount로_채워진다() {
+        journalRationalePort.setCount(7);
+
+        AnalysisRunDetailResult result = analysisRunService.runAnalysis(new RunAnalysisCommand(USER_ID));
+
+        assertEquals(7, result.run().journalCount());
     }
 
     @Test
