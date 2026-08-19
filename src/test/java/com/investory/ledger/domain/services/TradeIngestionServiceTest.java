@@ -1,6 +1,7 @@
 package com.investory.ledger.domain.services;
 
 import com.investory.ledger.domain.constant.TradeSide;
+import com.investory.ledger.domain.events.TradesIngestedEvent;
 import com.investory.ledger.domain.model.Trade;
 import com.investory.ledger.domain.ports.FakeMarketDataPort;
 import com.investory.ledger.domain.ports.dto.SecurityInfo;
@@ -12,9 +13,11 @@ import com.investory.ledger.domain.services.dto.command.RawTradeRecord;
 import com.investory.ledger.domain.services.dto.result.IngestResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +32,7 @@ class TradeIngestionServiceTest {
     private FakeTradeRepository tradeRepository;
     private FakeMarketDataPort marketDataPort;
     private FakeTradeMatchRepository tradeMatchRepository;
+    private CapturingEventPublisher eventPublisher;
     private TradeIngestionService tradeIngestionService;
 
     @BeforeEach
@@ -36,8 +40,9 @@ class TradeIngestionServiceTest {
         tradeRepository = new FakeTradeRepository();
         marketDataPort = new FakeMarketDataPort();
         tradeMatchRepository = new FakeTradeMatchRepository();
+        eventPublisher = new CapturingEventPublisher();
         TradeMatchingService tradeMatchingService = new TradeMatchingService(tradeRepository, tradeMatchRepository);
-        tradeIngestionService = new TradeIngestionService(tradeRepository, marketDataPort, tradeMatchingService);
+        tradeIngestionService = new TradeIngestionService(tradeRepository, marketDataPort, tradeMatchingService, eventPublisher);
 
         marketDataPort.add(new SecurityInfo(SECURITY_ID, "005930", "삼성전자", "KOSPI", "반도체"));
     }
@@ -55,6 +60,11 @@ class TradeIngestionServiceTest {
         assertEquals(1, saved.size());
         assertEquals(SECURITY_ID, saved.get(0).getSecurityId());
         assertEquals(1, tradeMatchRepository.deleteCallCount());
+        assertEquals(1, eventPublisher.events().size());
+        TradesIngestedEvent event = eventPublisher.events().get(0);
+        assertEquals(USER_ID, event.userId());
+        assertEquals(ACCOUNT_ID, event.accountId());
+        assertEquals(1, event.insertedTradeCount());
     }
 
     @Test
@@ -71,6 +81,8 @@ class TradeIngestionServiceTest {
         assertEquals(1, saved.size());
         // 두 번째 호출은 전부 중복이라 새로 건드린 종목이 없어 재매칭이 트리거되지 않는다
         assertEquals(1, tradeMatchRepository.deleteCallCount());
+        // 새로 적재된 거래가 없는 두 번째 호출에서는 이벤트가 발행되지 않는다
+        assertEquals(1, eventPublisher.events().size());
     }
 
     @Test
@@ -114,5 +126,30 @@ class TradeIngestionServiceTest {
         // 첫 호출(setUp의 existing 적재)에서 1번, 이번 호출에서 새로 건드린 종목 2개(005930, 000660)로 2번 —
         // deleteCallCount는 두 호출 누적값이라 총 3
         assertEquals(3, tradeMatchRepository.deleteCallCount());
+    }
+
+    @Test
+    void 알수없는_종목코드만_있으면_이벤트가_발행되지_않는다() {
+        RawTradeRecord raw = new RawTradeRecord("T-1", "999999", TradeSide.BUY,
+                BigDecimal.TEN, BigDecimal.valueOf(70000), BigDecimal.valueOf(500), Instant.parse("2026-07-29T01:15:00Z"));
+
+        tradeIngestionService.ingestTrades(new IngestRawTradesCommand(USER_ID, ACCOUNT_ID, List.of(raw)));
+
+        assertTrue(eventPublisher.events().isEmpty());
+    }
+
+    private static class CapturingEventPublisher implements ApplicationEventPublisher {
+        private final List<TradesIngestedEvent> events = new ArrayList<>();
+
+        @Override
+        public void publishEvent(Object event) {
+            if (event instanceof TradesIngestedEvent tradesEvent) {
+                events.add(tradesEvent);
+            }
+        }
+
+        List<TradesIngestedEvent> events() {
+            return events;
+        }
     }
 }

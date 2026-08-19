@@ -189,6 +189,25 @@ public class BrokerConnectionService {
         );
     }
 
+    // BrokerAccountSyncScheduler에서만 호출 — 사용자 요청이 아니라 시스템이 트리거하는 동기화라
+    // 소유권 조회나 응답 DTO가 필요 없다. syncConnection과 동일한 동시성 가드(existsInProgress)를 쓴다 —
+    // 이미 진행 중인 연결은 이번 배치 순회에서 건너뛰고 다음 주기에 다시 시도한다.
+    public void syncForBatch(Long userId, Long connectionId, String mockProfileCode, String brokerCode) {
+        if (accountSyncBatchRepository.existsInProgress(connectionId)) {
+            return;
+        }
+
+        Long syncBatchId = accountSyncBatchRepository.create(connectionId);
+        SyncOutcome outcome = runSync(userId, connectionId, mockProfileCode, brokerCode);
+
+        if (outcome.succeeded()) {
+            accountSyncBatchRepository.markSuccess(syncBatchId);
+            brokerConnectionRepository.updateLastSyncedAt(connectionId, Instant.now());
+        } else {
+            accountSyncBatchRepository.markFailed(syncBatchId, outcome.errorMessage());
+        }
+    }
+
     // 이미 DISCONNECTED면 데이터가 이미 지워진 상태이므로 멱등적으로 그대로 반환하고 재실행하지 않는다.
     // 그 외의 경우 계좌별로 ledger 데이터(거래/매칭/보유, 그리고 journal의 매매 근거)를 먼저 지운 뒤
     // investment_accounts를 지우고 마지막에 커넥션 상태를 전이한다 — 전부 한 트랜잭션으로 묶인다.

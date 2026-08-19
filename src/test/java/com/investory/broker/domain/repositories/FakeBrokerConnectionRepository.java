@@ -70,6 +70,18 @@ public class FakeBrokerConnectionRepository implements BrokerConnectionRepositor
     }
 
     @Override
+    public List<ActiveConnectionSyncTarget> findAllActiveForSync() {
+        return connections.stream()
+                .filter(owned -> owned.connection().getConnectionStatus() == ConnectionStatus.CONNECTED)
+                .map(owned -> new ActiveConnectionSyncTarget(
+                        owned.userId(),
+                        owned.connection().getConnectionId(),
+                        mockProfileCodes.get(owned.connection().getConnectionId()),
+                        owned.connection().getBrokerCode()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Long insert(Long userId, Long brokerId, String mockProfileCode, Instant connectedAt) {
         Long connectionId = nextConnectionId++;
         BrokerConnection connection = BrokerConnection.of(

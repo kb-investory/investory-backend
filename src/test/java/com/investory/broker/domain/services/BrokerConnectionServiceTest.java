@@ -262,6 +262,42 @@ class BrokerConnectionServiceTest {
     }
 
     @Test
+    void 배치_동기화에_성공하면_배치가_SUCCESS로_기록되고_마지막_동기화_시각이_갱신된다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+
+        brokerConnectionService.syncForBatch(1L, 15L, "demo1", "S9990001A");
+
+        AccountSyncBatch latest = accountSyncBatchRepository.findLatestByConnectionId(15L).orElseThrow();
+        assertEquals(SyncStatus.SUCCESS, latest.getSyncStatus());
+    }
+
+    @Test
+    void 이미_진행_중인_동기화가_있으면_배치_동기화_요청은_조용히_건너뛴다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        accountSyncBatchRepository.add(AccountSyncBatch.of(
+                200L, 15L, SyncStatus.REQUESTED, Instant.now(), null, null));
+
+        brokerConnectionService.syncForBatch(1L, 15L, "demo1", "S9990001A");
+
+        // 새 배치가 생성되지 않고 기존 REQUESTED 배치가 그대로 최신 상태로 남는다
+        AccountSyncBatch latest = accountSyncBatchRepository.findLatestByConnectionId(15L).orElseThrow();
+        assertEquals(200L, latest.getSyncBatchId());
+        assertEquals(SyncStatus.REQUESTED, latest.getSyncStatus());
+    }
+
+    @Test
+    void 배치_동기화_도중_오류가_나면_배치는_FAILED로_기록되고_예외는_던지지_않는다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        brokerFeedPort.willFailSyncWith(new RuntimeException("목 서버 응답 오류"));
+
+        brokerConnectionService.syncForBatch(1L, 15L, "demo1", "S9990001A");
+
+        AccountSyncBatch latest = accountSyncBatchRepository.findLatestByConnectionId(15L).orElseThrow();
+        assertEquals(SyncStatus.FAILED, latest.getSyncStatus());
+        assertEquals("목 서버 응답 오류", latest.getErrorMessage());
+    }
+
+    @Test
     void 존재하지_않는_연결을_재동기화하면_예외가_발생한다() {
         SyncBrokerConnectionCommand command = new SyncBrokerConnectionCommand(1L, 999L);
 

@@ -22,6 +22,9 @@ public interface BrokerConnectionRepository {
     // 호출 전에 findByIdAndUserId로 소유권을 이미 확인했다고 가정한다.
     Optional<String> findMockProfileCodeByConnectionId(Long connectionId);
 
+    // BrokerAccountSyncScheduler 전용 — 사용자 구분 없이 CONNECTED 상태인 모든 연결의 배치 동기화 재료를 반환한다.
+    List<ActiveConnectionSyncTarget> findAllActiveForSync();
+
     Long insert(Long userId, Long brokerId, String mockProfileCode, Instant connectedAt);
 
     void updateLastSyncedAt(Long connectionId, Instant lastSyncedAt);

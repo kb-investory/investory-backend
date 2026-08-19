@@ -13,6 +13,14 @@
         <result column="account_count" property="accountCount"/>
     </resultMap>
 
+    <!-- BrokerAccountSyncScheduler 전용 — brokerConnectionRowResultMap과 컬럼 구성이 달라 별도로 둔다. -->
+    <resultMap id="activeConnectionSyncRowResultMap" type="com.investory.broker.infra.entities.BrokerConnectionRow">
+        <id column="connection_id" property="connectionId"/>
+        <result column="user_id" property="userId"/>
+        <result column="mock_profile_code" property="mockProfileCode"/>
+        <result column="broker_code" property="brokerCode"/>
+    </resultMap>
+
     <!-- DISCONNECTED는 제외한다 — 해지해도 행 자체는 연동 이력으로 남기 때문에(연동 해지 참고), 필터링을
          안 하면 같은 증권사를 재연동했을 때 옛 DISCONNECTED 행과 새 CONNECTED 행이 같이 노출된다. -->
     <select id="findAllByUserId" resultMap="brokerConnectionRowResultMap">
@@ -99,6 +107,15 @@
         SELECT mock_profile_code
         FROM broker_connections
         WHERE connection_id = #{connectionId}
+    </select>
+
+    <!-- 배치 스케줄러용 — 사용자 구분 없이 CONNECTED 상태인 모든 연결을 순회한다. -->
+    <select id="findAllActiveForSync" resultMap="activeConnectionSyncRowResultMap">
+        SELECT bc.connection_id, bc.user_id, bc.mock_profile_code, bp.broker_code
+        FROM broker_connections bc
+        JOIN broker_providers bp ON bp.broker_id = bc.broker_id
+        WHERE bc.connection_status = 'CONNECTED'
+        ORDER BY bc.connection_id
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="connectionId">
