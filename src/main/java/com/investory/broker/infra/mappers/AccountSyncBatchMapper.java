@@ -15,4 +15,6 @@ public interface AccountSyncBatchMapper {
     void markFailed(@Param("syncBatchId") Long syncBatchId, @Param("errorMessage") String errorMessage);
 
     List<AccountSyncBatchRow> findLatestByConnectionId(@Param("connectionId") Long connectionId);
+
+    int countInProgress(@Param("connectionId") Long connectionId);
 }

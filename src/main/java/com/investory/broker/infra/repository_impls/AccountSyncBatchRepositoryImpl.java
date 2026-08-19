@@ -60,4 +60,13 @@ public class AccountSyncBatchRepositoryImpl implements AccountSyncBatchRepositor
             throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "최근 동기화 이력을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public boolean existsInProgress(Long connectionId) {
+        try {
+            return accountSyncBatchMapper.countInProgress(connectionId) > 0;
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "동기화 진행 여부를 확인하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

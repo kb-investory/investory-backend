@@ -87,7 +87,12 @@ public class BrokerConnectionService {
         return BrokerConnectionDetailResult.of(connection, latestSyncBatch);
     }
 
-    @Transactional
+    // 메서드 전체를 @Transactional로 묶지 않는다 — runSync() 안의 외부 API 호출(계좌/거래/보유 순차 조회)이
+    // 수십 초씩 걸릴 수 있는데, 메서드 레벨 트랜잭션은 그 동안 DB 커넥션을 계속 붙잡고 있는다(Spring이
+    // 트랜잭션 시작 시점에 커넥션을 미리 꺼내두기 때문). 원자성이 필요한 실제 쓰기 구간은 이미
+    // BrokerAccountSyncService.syncAccounts()가 REQUIRES_NEW로 짧게 처리하고, 여기 나머지 쓰기들
+    // (연결 insert, 배치 생성/상태갱신)은 서로 원자적으로 묶일 필요가 없다 — "동기화 실패해도 연결은
+    // CONNECTED로 남는다"는 정책 자체가 이미 그 전제로 설계돼 있다.
     public CreateBrokerConnectionResult createConnection(CreateBrokerConnectionCommand command) {
         validate(command);
 
@@ -141,12 +146,16 @@ public class BrokerConnectionService {
         );
     }
 
-    @Transactional
+    // createConnection()과 같은 이유로 메서드 레벨 @Transactional을 두지 않는다.
     public SyncConnectionResult syncConnection(SyncBrokerConnectionCommand command) {
         BrokerConnection connection = brokerConnectionRepository.findByIdAndUserId(command.connectionId(), command.userId())
                 .orElseThrow(() -> new BrokerException(BrokerErrorCode.CONNECTION_NOT_FOUND));
         String mockProfileCode = brokerConnectionRepository.findMockProfileCodeByConnectionId(connection.getConnectionId())
                 .orElseThrow(() -> new BrokerException(BrokerErrorCode.CONNECTION_NOT_FOUND));
+
+        if (accountSyncBatchRepository.existsInProgress(connection.getConnectionId())) {
+            throw new BrokerException(BrokerErrorCode.SYNC_IN_PROGRESS);
+        }
 
         Long syncBatchId = accountSyncBatchRepository.create(connection.getConnectionId());
         AccountSyncBatch createdBatch = accountSyncBatchRepository.findLatestByConnectionId(connection.getConnectionId())

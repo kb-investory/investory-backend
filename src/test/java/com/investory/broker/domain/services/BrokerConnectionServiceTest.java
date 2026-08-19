@@ -249,6 +249,19 @@ class BrokerConnectionServiceTest {
     }
 
     @Test
+    void 이미_진행_중인_동기화가_있으면_새_동기화_요청은_즉시_거부된다() {
+        brokerConnectionRepository.add(1L, BrokerConnectionFixture.connected(15L, 1L, "S9990001A", "미래에셋증권(모의)"));
+        brokerConnectionRepository.addMockProfileCode(15L, "demo1");
+        accountSyncBatchRepository.add(AccountSyncBatch.of(
+                200L, 15L, SyncStatus.REQUESTED, Instant.now(), null, null));
+
+        BrokerException exception = assertThrows(BrokerException.class,
+                () -> brokerConnectionService.syncConnection(new SyncBrokerConnectionCommand(1L, 15L)));
+
+        assertEquals(BrokerErrorCode.SYNC_IN_PROGRESS, exception.getErrorCode());
+    }
+
+    @Test
     void 존재하지_않는_연결을_재동기화하면_예외가_발생한다() {
         SyncBrokerConnectionCommand command = new SyncBrokerConnectionCommand(1L, 999L);
 

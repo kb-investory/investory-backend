@@ -10,7 +10,8 @@ public enum BrokerErrorCode implements ErrorCode {
     INVALID_CONNECTION_DATA(ErrorType.INVALID_INPUT, "BRK_004", "계좌 연동 정보가 올바르지 않습니다."),
     CONNECTION_NOT_FOUND(ErrorType.NOT_FOUND, "BRK_005", "존재하지 않는 증권사 연결입니다."),
     ACCOUNT_NOT_FOUND(ErrorType.NOT_FOUND, "BRK_006", "존재하지 않는 계좌입니다."),
-    ORG_MISMATCH(ErrorType.UNAUTHORIZED, "BRK_007", "선택한 증권사와 일치하지 않는 계정입니다. 증권사를 다시 확인해주세요.");
+    ORG_MISMATCH(ErrorType.UNAUTHORIZED, "BRK_007", "선택한 증권사와 일치하지 않는 계정입니다. 증권사를 다시 확인해주세요."),
+    SYNC_IN_PROGRESS(ErrorType.CONFLICT, "BRK_008", "이미 동기화가 진행 중입니다. 잠시 후 다시 시도해주세요.");
 
     private final ErrorType errorType;
     private final String code;
