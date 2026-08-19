@@ -15,4 +15,9 @@ public interface AnalysisResultRepository {
 
     // analysisResultId 단건 조회 — principle 등 다른 도메인이 특정 결과 하나의 타입 정보를 알고 싶을 때 사용
     Optional<AnalysisResultDetail> findDetailById(Long analysisResultId);
+
+    // 계정 탈퇴 시 — 삭제 전에 principle에 넘겨줄 id 목록을 먼저 확보한다.
+    List<Long> findIdsByUserId(Long userId);
+
+    void deleteByUserId(Long userId);
 }

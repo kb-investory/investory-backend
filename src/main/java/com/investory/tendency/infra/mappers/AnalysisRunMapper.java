@@ -13,4 +13,6 @@ public interface AnalysisRunMapper {
     List<AnalysisRunRow> findByUserId(@Param("userId") Long userId);
 
     AnalysisRunRow findByIdAndUserId(@Param("analysisRunId") Long analysisRunId, @Param("userId") Long userId);
+
+    void deleteByUserId(@Param("userId") Long userId);
 }

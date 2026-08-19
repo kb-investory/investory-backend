@@ -13,4 +13,8 @@ public interface PrincipleRecommendationRepository {
     List<PrincipleRecommendation> saveAll(List<PrincipleRecommendation> recommendations);
 
     void updateStatus(Long principleRecommendationId, RecommendationStatus status);
+
+    // 계정 탈퇴 시 — tendency가 analysis_results를 지우기 전에 넘겨주는 id 목록으로 그 결과를
+    // 참조하는 추천들을 함께 지운다.
+    void deleteByAnalysisResultIds(List<Long> analysisResultIds);
 }

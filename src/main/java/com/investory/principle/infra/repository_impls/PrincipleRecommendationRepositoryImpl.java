@@ -73,4 +73,16 @@ public class PrincipleRecommendationRepositoryImpl implements PrincipleRecommend
             throw new PrincipleInfraException("추천 원칙 상태를 변경하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public void deleteByAnalysisResultIds(List<Long> analysisResultIds) {
+        if (analysisResultIds.isEmpty()) {
+            return;
+        }
+        try {
+            principleRecommendationMapper.deleteByAnalysisResultIds(analysisResultIds);
+        } catch (DataAccessException e) {
+            throw new PrincipleInfraException("추천 원칙을 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

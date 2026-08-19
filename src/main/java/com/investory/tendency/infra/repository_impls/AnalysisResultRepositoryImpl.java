@@ -55,4 +55,22 @@ public class AnalysisResultRepositoryImpl implements AnalysisResultRepository {
             throw new TendencyInfraException("성향 분석 결과를 조회하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public List<Long> findIdsByUserId(Long userId) {
+        try {
+            return analysisResultMapper.findIdsByUserId(userId);
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("성향 분석 결과 ID 목록을 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        try {
+            analysisResultMapper.deleteByUserId(userId);
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("성향 분석 결과를 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

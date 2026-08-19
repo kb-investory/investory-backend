@@ -34,4 +34,9 @@
         WHERE analysis_run_id = #{analysisRunId}
           AND user_id = #{userId}
     </select>
+
+    <delete id="deleteByUserId">
+        DELETE FROM analysis_runs
+        WHERE user_id = #{userId}
+    </delete>
 </mapper>

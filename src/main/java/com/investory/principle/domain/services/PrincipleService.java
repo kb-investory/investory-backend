@@ -246,11 +246,19 @@ public class PrincipleService {
 
     // auth.domain.ports.PrincipleCleanupPort 구현체(PrincipleCleanupPortImpl)에서만 호출된다 — 계정
     // 탈퇴 시 사용자의 투자원칙(모든 버전)을 전부 지운다. 원본 추천(principle_recommendations)은
-    // analysisResultId로만 연결돼 있어 여기서 건드리지 않는다 — tendency의 분석 결과가 살아있는 한
-    // 남아 있어도 무해하다.
+    // analysisResultId로만 연결돼 있어 여기서 건드리지 않는다 — tendency가 자기 analysis_results를
+    // 지울 때 deleteRecommendationsForAnalysisResults()를 통해 별도로 정리한다.
     @Transactional
     public void deleteAllPrincipleSets(Long userId) {
         principleSetRepository.deleteByUserId(userId);
+    }
+
+    // tendency.domain.ports.PrincipleRecommendationCleanupPort 구현체(PrincipleRecommendationCleanupPortImpl)
+    // 에서만 호출된다 — 계정 탈퇴로 tendency가 analysis_results를 지우기 전에, 그 결과를 참조하는
+    // 추천들을 먼저 지운다. principle은 이 호출이 탈퇴에서 온 것인지 모른다.
+    @Transactional
+    public void deleteRecommendationsForAnalysisResults(List<Long> analysisResultIds) {
+        principleRecommendationRepository.deleteByAnalysisResultIds(analysisResultIds);
     }
 
     private RecommendationResult toRecommendationResult(PrincipleRecommendation recommendation, AnalysisTypeResult analysisType) {

@@ -50,4 +50,18 @@
         JOIN analysis_types t ON t.analysis_type_code = r.primary_analysis_type_code
         WHERE r.analysis_result_id = #{analysisResultId}
     </select>
+
+    <!-- analysis_results에는 user_id가 없어(analysis_run_id만) analysis_runs를 조인한다 -->
+    <select id="findIdsByUserId" resultType="long">
+        SELECT r.analysis_result_id
+        FROM analysis_results r
+        JOIN analysis_runs ar ON ar.analysis_run_id = r.analysis_run_id
+        WHERE ar.user_id = #{userId}
+    </select>
+
+    <delete id="deleteByUserId">
+        DELETE r FROM analysis_results r
+        JOIN analysis_runs ar ON ar.analysis_run_id = r.analysis_run_id
+        WHERE ar.user_id = #{userId}
+    </delete>
 </mapper>

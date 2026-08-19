@@ -9,6 +9,7 @@ import com.investory.auth.domain.model.User;
 import com.investory.auth.domain.ports.BrokerConnectionCleanupPort;
 import com.investory.auth.domain.ports.JournalCleanupPort;
 import com.investory.auth.domain.ports.PrincipleCleanupPort;
+import com.investory.auth.domain.ports.TendencyCleanupPort;
 import com.investory.auth.domain.ports.TokenProvider;
 import com.investory.auth.domain.ports.dto.TokenPair;
 import com.investory.auth.domain.repositories.UserRepository;
@@ -37,11 +38,12 @@ public class AuthService {
     private final BrokerConnectionCleanupPort brokerConnectionCleanupPort;
     private final JournalCleanupPort journalCleanupPort;
     private final PrincipleCleanupPort principleCleanupPort;
+    private final TendencyCleanupPort tendencyCleanupPort;
 
     // provider별 OAuthClient 빈들을 Map으로 미리 캐싱해둔다 (나중에 NAVER/GOOGLE 클라이언트를 추가해도 이 코드는 안 바뀜)
     public AuthService(List<OAuthClient> oAuthClients, UserRepository userRepository, TokenProvider tokenProvider,
                         BrokerConnectionCleanupPort brokerConnectionCleanupPort, JournalCleanupPort journalCleanupPort,
-                        PrincipleCleanupPort principleCleanupPort) {
+                        PrincipleCleanupPort principleCleanupPort, TendencyCleanupPort tendencyCleanupPort) {
         this.oAuthClients = oAuthClients.stream()
                 .collect(Collectors.toMap(OAuthClient::getProvider, Function.identity()));
         this.userRepository = userRepository;
@@ -49,6 +51,7 @@ public class AuthService {
         this.brokerConnectionCleanupPort = brokerConnectionCleanupPort;
         this.journalCleanupPort = journalCleanupPort;
         this.principleCleanupPort = principleCleanupPort;
+        this.tendencyCleanupPort = tendencyCleanupPort;
     }
 
     // OAuth Login Logic
@@ -117,8 +120,10 @@ public class AuthService {
     // 계정 탈퇴: 다른 도메인의 사용자 소유 데이터를 먼저 정리한 뒤 users 행을 WITHDRAWN으로 전이한다.
     // 이미 탈퇴한 회원이면 멱등적으로 아무 것도 하지 않는다. broker 정리(증권사 연동 해지)를 가장 먼저
     // 호출한다 — 그 결과로 ledger(거래/보유)와 journal의 매매 근거까지 함께 정리되므로, journal 정리는
-    // 그 뒤에 investment_journals(자유 텍스트 일지)만 지우면 된다. notification 정리는 아직 없다
-    // (feat/notification-domain 병합 후 추가 예정 — CLAUDE.md §8-1 참고).
+    // 그 뒤에 investment_journals(자유 텍스트 일지)만 지우면 된다. tendency 정리는 자기 analysis_results를
+    // 지우기 전에 principle_recommendations도 함께 정리하므로(PrincipleRecommendationCleanupPort),
+    // principle의 principle_sets 정리와는 순서 상관없이 독립적이다. notification 정리는 아직 없다
+    // (feat/notification-domain 병합 후 추가 예정).
     @Transactional
     public void withdraw(Long userId) {
         User user = userRepository.findByUserId(userId)
@@ -130,6 +135,7 @@ public class AuthService {
         brokerConnectionCleanupPort.disconnectAllConnections(userId);
         journalCleanupPort.deleteAllJournals(userId);
         principleCleanupPort.deleteAllPrincipleSets(userId);
+        tendencyCleanupPort.deleteAllAnalyses(userId);
 
         User withdrawn = User.of(user.getUserId(), user.getOauthProvider(), user.getOauthSubId(), user.getEmail(),
                 user.getNickname(), UserStatusType.WITHDRAWN, user.getCreatedAt(), LocalDateTime.now(), LocalDateTime.now());

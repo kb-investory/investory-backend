@@ -39,4 +39,9 @@ public class FakeAnalysisRunRepository implements AnalysisRunRepository {
                 .filter(r -> r.getAnalysisRunId().equals(analysisRunId) && r.getUserId().equals(userId))
                 .findFirst();
     }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        runs.removeIf(r -> r.getUserId().equals(userId));
+    }
 }

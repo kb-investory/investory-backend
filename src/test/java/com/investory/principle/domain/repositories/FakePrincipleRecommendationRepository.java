@@ -58,4 +58,9 @@ public class FakePrincipleRecommendationRepository implements PrincipleRecommend
             }
         }
     }
+
+    @Override
+    public void deleteByAnalysisResultIds(List<Long> analysisResultIds) {
+        recommendations.removeIf(r -> analysisResultIds.contains(r.getAnalysisResultId()));
+    }
 }
