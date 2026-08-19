@@ -17,7 +17,11 @@ import org.springframework.stereotype.Component;
 // 별도로 추가하기로 함) — 지금은 @EnableAsync가 등록하는 기본 SimpleAsyncTaskExecutor로 동작한다.
 // 알림 생성은 LLM 호출 없이 단순 DB insert 하나뿐이라 당장은 무리 없지만, 부하가 늘면 전용 풀
 // 추가를 검토할 것.
-@Component
+//
+// 빈 이름을 명시한다 — principle도 같은 이벤트를 구독하는 동명(TendencyAnalyzedEventListener) 클래스를
+// 갖고 있어(xxxEventListener 명명 규칙상 자연스러운 충돌), 둘 다 default bean name을 쓰면
+// ConflictingBeanDefinitionException으로 컨텍스트 초기화가 실패한다.
+@Component("notificationTendencyAnalyzedEventListener")
 public class TendencyAnalyzedEventListener {
 
     private static final Logger log = LoggerFactory.getLogger(TendencyAnalyzedEventListener.class);

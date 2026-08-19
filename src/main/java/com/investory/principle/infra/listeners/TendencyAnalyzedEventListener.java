@@ -19,7 +19,11 @@ import java.util.stream.Collectors;
 // 리스너의 LLM 호출(추천 생성)이 끝날 때까지 응답을 못 내보낸다 — 분석 자체는 이미 커밋됐는데도.
 // 추천은 분석 응답 바디에 안 실리고 GET /principle/recommendations로 별도 조회되므로,
 // 비동기로 떼어내도 잃는 기능이 없다.
-@Component
+//
+// 빈 이름을 명시한다 — notification도 같은 이벤트를 구독하는 동명(TendencyAnalyzedEventListener) 클래스를
+// 갖고 있어(xxxEventListener 명명 규칙상 자연스러운 충돌), 둘 다 default bean name을 쓰면
+// ConflictingBeanDefinitionException으로 컨텍스트 초기화가 실패한다.
+@Component("principleTendencyAnalyzedEventListener")
 public class TendencyAnalyzedEventListener {
 
     private static final Logger log = LoggerFactory.getLogger(TendencyAnalyzedEventListener.class);
