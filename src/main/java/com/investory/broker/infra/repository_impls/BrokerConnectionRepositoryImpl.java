@@ -2,6 +2,7 @@ package com.investory.broker.infra.repository_impls;
 
 import com.investory.broker.domain.constant.ConnectionStatus;
 import com.investory.broker.domain.model.BrokerConnection;
+import com.investory.broker.domain.repositories.ActiveConnectionSyncTarget;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.infra.entities.BrokerConnectionRow;
 import com.investory.broker.infra.exception.BrokerInfraException;
@@ -77,6 +78,17 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
             return brokerConnectionMapper.findMockProfileCodeByConnectionId(connectionId).stream().findFirst();
         } catch (DataAccessException e) {
             throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "증권사 연결의 인증 정보를 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public List<ActiveConnectionSyncTarget> findAllActiveForSync() {
+        try {
+            return brokerConnectionMapper.findAllActiveForSync().stream()
+                    .map(row -> new ActiveConnectionSyncTarget(row.getUserId(), row.getConnectionId(), row.getMockProfileCode(), row.getBrokerCode()))
+                    .collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(ErrorType.INTERNAL_ERROR, "배치 동기화 대상 연결 목록을 조회하는 중 오류가 발생했습니다.", e);
         }
     }
 

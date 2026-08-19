@@ -1,5 +1,6 @@
 package com.investory.ledger.domain.services;
 
+import com.investory.ledger.domain.events.TradesIngestedEvent;
 import com.investory.ledger.domain.model.Trade;
 import com.investory.ledger.domain.ports.MarketDataPort;
 import com.investory.ledger.domain.ports.dto.SecurityInfo;
@@ -7,6 +8,7 @@ import com.investory.ledger.domain.repositories.TradeRepository;
 import com.investory.ledger.domain.services.dto.command.IngestRawTradesCommand;
 import com.investory.ledger.domain.services.dto.command.RawTradeRecord;
 import com.investory.ledger.domain.services.dto.result.IngestResult;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +31,14 @@ public class TradeIngestionService {
     private final TradeRepository tradeRepository;
     private final MarketDataPort marketDataPort;
     private final TradeMatchingService tradeMatchingService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TradeIngestionService(TradeRepository tradeRepository, MarketDataPort marketDataPort,
-                                  TradeMatchingService tradeMatchingService) {
+                                  TradeMatchingService tradeMatchingService, ApplicationEventPublisher eventPublisher) {
         this.tradeRepository = tradeRepository;
         this.marketDataPort = marketDataPort;
         this.tradeMatchingService = tradeMatchingService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -83,6 +87,12 @@ public class TradeIngestionService {
         // 새로 적재된 종목에 대해서만 FIFO 매칭을 재계산한다 (전부 중복/스킵이면 재계산 안 함)
         for (Long securityId : touchedSecurityIds) {
             tradeMatchingService.rematch(command.accountId(), securityId);
+        }
+
+        // notification이 구독한다(TradesIngestedEventListener). 전부 중복/스킵이면 새로 적재된
+        // 거래가 없으므로 발행하지 않는다.
+        if (!tradesToSave.isEmpty()) {
+            eventPublisher.publishEvent(new TradesIngestedEvent(command.userId(), command.accountId(), tradesToSave.size()));
         }
 
         return new IngestResult(tradesToSave.size(), skippedReasons.size(), skippedReasons);

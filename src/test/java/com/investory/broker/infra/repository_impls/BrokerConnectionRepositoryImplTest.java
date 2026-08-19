@@ -24,6 +24,16 @@ class BrokerConnectionRepositoryImplTest {
         assertSame(cause, exception.getCause());
     }
 
+    @Test
+    void 배치_동기화_대상_조회_DB_예외도_BrokerInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        BrokerConnectionRepositoryImpl repository = new BrokerConnectionRepositoryImpl(new FailingBrokerConnectionMapper(cause));
+
+        BrokerInfraException exception = assertThrows(BrokerInfraException.class, repository::findAllActiveForSync);
+
+        assertSame(cause, exception.getCause());
+    }
+
     private static class FailingBrokerConnectionMapper implements BrokerConnectionMapper {
         private final RuntimeException toThrow;
 
@@ -68,6 +78,11 @@ class BrokerConnectionRepositoryImplTest {
 
         @Override
         public void updateStatus(Long connectionId, String status) {
+            throw toThrow;
+        }
+
+        @Override
+        public List<BrokerConnectionRow> findAllActiveForSync() {
             throw toThrow;
         }
     }
