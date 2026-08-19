@@ -39,4 +39,20 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    // PrincipleService.refreshRecommendationsForRun() 안에서 항목별 추천 생성 LLM 호출을 병렬로
+    // 돌리는 전용 풀. principleRecommendationExecutor(리스너를 응답 경로에서 떼어내는 바깥쪽 풀)와
+    // 반드시 분리한다 — 같은 풀을 재사용하면 리스너가 그 풀의 스레드 하나를 잡은 채 안에서 또 그
+    // 풀에 작업을 제출하고 join()으로 기다리게 되어, 풀이 가득 찼을 때 자기 자신을 기다리며 멈추는
+    // 자기잠금(self-deadlock)이 날 수 있다.
+    @Bean
+    public Executor recommendationGenerationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("principle-reco-gen-");
+        executor.initialize();
+        return executor;
+    }
 }

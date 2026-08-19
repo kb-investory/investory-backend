@@ -14,7 +14,9 @@ import org.springframework.scheduling.annotation.Async;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.Executor;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,9 +30,10 @@ class TendencyAnalyzedEventListenerTest {
         principleRecommendationRepository = new FakePrincipleRecommendationRepository();
         FakeRecommendationGenerationPort recommendationGenerationPort = new FakeRecommendationGenerationPort();
         recommendationGenerationPort.setNextResult(List.of(new GeneratedRecommendation("text", "reason", null)));
+        Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         PrincipleService principleService = new PrincipleService(
                 new FakePrincipleSetRepository(), principleRecommendationRepository, new FakeTendencyAnalysisPort(),
-                recommendationGenerationPort);
+                recommendationGenerationPort, directExecutor);
         listener = new TendencyAnalyzedEventListener(principleService);
     }
 
@@ -51,6 +54,17 @@ class TendencyAnalyzedEventListenerTest {
 
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).size() > 0);
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(20L).size() > 0);
+    }
+
+    // 항목마다 따로 저장하면 늦게 끝난 항목의 추천만 뒤늦게 나타나는 시간차가 생긴다 — 그래서
+    // saveAll이 실행(run) 1건당 정확히 한 번만 호출돼야 같은 실행의 추천들이 한꺼번에 나타난다.
+    @Test
+    void 실행_1건에_속한_추천은_saveAll_한번으로_한꺼번에_저장된다() {
+        listener.handle(new TendencyAnalyzedEvent(100L, 1L, List.of(
+                new TendencyAnalyzedEvent.AnalysisResult(10L, "PORTFOLIO_RISK_ALLOCATION", "CONCENTRATED", "집중투자형"),
+                new TendencyAnalyzedEvent.AnalysisResult(20L, "LOSS_RESPONSE", "ADDITIONAL_BUY", "추가매수형"))));
+
+        assertEquals(1, principleRecommendationRepository.saveAllCallCount());
     }
 
     // 이 테스트는 listener.handle()을 직접 호출해서 @Async가 실제로 비동기 실행을 만드는지는
