@@ -40,8 +40,10 @@ public class TendencyAnalyzedEventListener {
         List<RefreshRecommendationsCommand> commands = event.results().stream()
                 .map(result -> new RefreshRecommendationsCommand(result.analysisResultId(), result.analysisTypeCode(), result.analysisTypeName()))
                 .collect(Collectors.toList());
+        // refreshRecommendationsForRun 내부에서 REQUESTED/SUCCESS/FAILED 상태를 스스로 기록하므로
+        // 여기서는 이벤트 매핑 자체가 깨지는 것 같은 그 이전 단계의 예외만 최후 방어선으로 로깅한다.
         try {
-            principleService.refreshRecommendationsForRun(commands);
+            principleService.refreshRecommendationsForRun(event.userId(), event.analysisRunId(), commands);
         } catch (RuntimeException e) {
             log.error("추천 갱신 실패. analysisRunId={}", event.analysisRunId(), e);
         }

@@ -1,6 +1,7 @@
 package com.investory.principle.domain.services;
 
 import com.investory.principle.domain.constant.PrincipleOriginType;
+import com.investory.principle.domain.constant.RecommendationGenerationStatus;
 import com.investory.principle.domain.constant.RecommendationStatus;
 import com.investory.principle.domain.exception.PrincipleErrorCode;
 import com.investory.principle.domain.exception.PrincipleException;
@@ -13,6 +14,7 @@ import com.investory.principle.domain.ports.dto.GeneratedRecommendation;
 import com.investory.principle.domain.ports.dto.TendencyAnalysisInfo;
 import com.investory.principle.domain.repositories.FakePrincipleRecommendationRepository;
 import com.investory.principle.domain.repositories.FakePrincipleSetRepository;
+import com.investory.principle.domain.repositories.FakeRecommendationGenerationRepository;
 import com.investory.principle.domain.services.dto.command.PrincipleItemCommand;
 import com.investory.principle.domain.services.dto.command.RefreshRecommendationsCommand;
 import com.investory.principle.domain.services.dto.command.SavePrincipleSetCommand;
@@ -37,9 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PrincipleServiceTest {
 
     private static final Long USER_ID = 100L;
+    private static final Long ANALYSIS_RUN_ID = 1L;
 
     private FakePrincipleSetRepository principleSetRepository;
     private FakePrincipleRecommendationRepository principleRecommendationRepository;
+    private FakeRecommendationGenerationRepository recommendationGenerationRepository;
     private FakeTendencyAnalysisPort tendencyAnalysisPort;
     private FakeRecommendationGenerationPort recommendationGenerationPort;
     private PrincipleService principleService;
@@ -48,14 +52,15 @@ class PrincipleServiceTest {
     void setUp() {
         principleSetRepository = new FakePrincipleSetRepository();
         principleRecommendationRepository = new FakePrincipleRecommendationRepository();
+        recommendationGenerationRepository = new FakeRecommendationGenerationRepository();
         tendencyAnalysisPort = new FakeTendencyAnalysisPort();
         recommendationGenerationPort = new FakeRecommendationGenerationPort();
         recommendationGenerationPort.setNextResult(List.of(
                 new GeneratedRecommendation("한 종목의 투자 비중은 30%를 넘지 않는다.", "집중 위험 완화", null)));
         Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         principleService = new PrincipleService(
-                principleSetRepository, principleRecommendationRepository, tendencyAnalysisPort, recommendationGenerationPort,
-                directExecutor);
+                principleSetRepository, principleRecommendationRepository, recommendationGenerationRepository,
+                tendencyAnalysisPort, recommendationGenerationPort, directExecutor);
     }
 
     @Test
@@ -178,7 +183,7 @@ class PrincipleServiceTest {
 
     @Test
     void 완료된_분석이_없으면_추천목록은_비어있다() {
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID));
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, null));
         assertTrue(result.recommendations().isEmpty());
     }
 
@@ -187,7 +192,7 @@ class PrincipleServiceTest {
         // GET은 더 이상 추천을 생성하지 않는다 — refreshRecommendations가 호출되기 전이면 항상 빈 목록이어야 한다.
         tendencyAnalysisPort.addLatestCompletedAnalysisResult(new TendencyAnalysisInfo(10L, 1L, "CONCENTRATED", "집중투자형"));
 
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID));
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, null));
 
         assertTrue(result.recommendations().isEmpty());
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).isEmpty());
@@ -195,7 +200,7 @@ class PrincipleServiceTest {
 
     @Test
     void refreshRecommendationsForRun은_분석유형에_맞는_추천을_새로_생성한다() {
-        principleService.refreshRecommendationsForRun(List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
 
         List<PrincipleRecommendation> saved = principleRecommendationRepository.findByAnalysisResultId(10L);
         assertTrue(saved.size() > 0);
@@ -205,9 +210,9 @@ class PrincipleServiceTest {
     @Test
     void refreshRecommendationsForRun으로_생성된_추천을_조회에서_확인할_수_있다() {
         tendencyAnalysisPort.addLatestCompletedAnalysisResult(new TendencyAnalysisInfo(10L, 1L, "CONCENTRATED", "집중투자형"));
-        principleService.refreshRecommendationsForRun(List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
 
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID));
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, null));
 
         assertTrue(result.recommendations().size() > 0);
         assertEquals("집중투자형", result.recommendations().get(0).analysisType().name());
@@ -217,7 +222,7 @@ class PrincipleServiceTest {
     void 이미_추천이_있는_항목은_건너뛰고_없는_항목만_새로_생성한다() {
         principleRecommendationRepository.add(suggestedRecommendation(10L));
 
-        principleService.refreshRecommendationsForRun(List.of(
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(
                 new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형"),
                 new RefreshRecommendationsCommand(20L, "ADDITIONAL_BUY", "추가매수형")));
 
@@ -227,10 +232,10 @@ class PrincipleServiceTest {
 
     @Test
     void refreshRecommendationsForRun은_같은_분석결과에_대해_멱등적이다() {
-        principleService.refreshRecommendationsForRun(List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
         int firstCount = principleRecommendationRepository.findByAnalysisResultId(10L).size();
 
-        principleService.refreshRecommendationsForRun(List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
 
         assertEquals(firstCount, principleRecommendationRepository.findByAnalysisResultId(10L).size());
     }
@@ -252,7 +257,7 @@ class PrincipleServiceTest {
     void 추천_생성이_실패하면_캔_텍스트로_대체하지_않고_추천_0건으로_남긴다() {
         recommendationGenerationPort.setShouldFail(true);
 
-        principleService.refreshRecommendationsForRun(List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
 
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).isEmpty());
     }
@@ -260,11 +265,11 @@ class PrincipleServiceTest {
     @Test
     void 추천_생성_실패_후_다시_트리거되면_재시도된다() {
         recommendationGenerationPort.setShouldFail(true);
-        principleService.refreshRecommendationsForRun(List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).isEmpty());
 
         recommendationGenerationPort.setShouldFail(false);
-        principleService.refreshRecommendationsForRun(List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
 
         assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).size() > 0);
     }
@@ -274,7 +279,7 @@ class PrincipleServiceTest {
         tendencyAnalysisPort.addLatestCompletedAnalysisResult(new TendencyAnalysisInfo(10L, 1L, "CONCENTRATED", "집중투자형"));
         principleRecommendationRepository.add(suggestedRecommendation(10L));
 
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID));
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, null));
 
         assertEquals(1, result.recommendations().size());
     }
@@ -285,7 +290,7 @@ class PrincipleServiceTest {
         principleRecommendationRepository.add(
                 PrincipleRecommendation.of(1L, 10L, "text", "reason", null, RecommendationStatus.ADOPTED, Instant.now(), Instant.now()));
 
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID));
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, null));
 
         assertTrue(result.recommendations().isEmpty());
     }
@@ -300,11 +305,68 @@ class PrincipleServiceTest {
                 PrincipleRecommendation.of(2L, 20L, "손실 확정 후 24시간 이내 재매수하지 않는다.", "추가매수 경향 완화", null,
                         RecommendationStatus.SUGGESTED, Instant.now(), Instant.now()));
 
-        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID));
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, null));
 
         assertEquals(2, result.recommendations().size());
         assertTrue(result.recommendations().stream().anyMatch(r -> r.analysisType().name().equals("집중투자형")));
         assertTrue(result.recommendations().stream().anyMatch(r -> r.analysisType().name().equals("추가매수형")));
+    }
+
+    @Test
+    void analysisRunId를_지정하지_않으면_generationStatus는_null이다() {
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, null));
+        assertNull(result.generationStatus());
+    }
+
+    @Test
+    void 상태_행이_아직_없으면_generationStatus는_REQUESTED로_기본_처리된다() {
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, ANALYSIS_RUN_ID));
+        assertEquals(RecommendationGenerationStatus.REQUESTED, result.generationStatus());
+    }
+
+    @Test
+    void refreshRecommendationsForRun이_끝나면_generationStatus는_SUCCESS다() {
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(
+                new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, ANALYSIS_RUN_ID));
+
+        assertEquals(RecommendationGenerationStatus.SUCCESS, result.generationStatus());
+    }
+
+    // 항목 하나의 LLM 호출 실패(추천 0건)는 실행 전체로는 여전히 정상 완료다 — SUCCESS와 FAILED는
+    // 서로 다른 층위의 실패를 가리킨다.
+    @Test
+    void 항목별_LLM_호출_실패는_추천_0건일_뿐_실행_자체는_SUCCESS다() {
+        recommendationGenerationPort.setShouldFail(true);
+
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(
+                new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, ANALYSIS_RUN_ID));
+        assertEquals(RecommendationGenerationStatus.SUCCESS, result.generationStatus());
+        assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).isEmpty());
+    }
+
+    @Test
+    void 실행_전체가_인프라_오류로_실패하면_generationStatus는_FAILED다() {
+        principleRecommendationRepository.setShouldFailSaveAll(true);
+
+        principleService.refreshRecommendationsForRun(USER_ID, ANALYSIS_RUN_ID, List.of(
+                new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, ANALYSIS_RUN_ID));
+        assertEquals(RecommendationGenerationStatus.FAILED, result.generationStatus());
+    }
+
+    @Test
+    void 다른_사용자의_analysisRunId를_조회하면_REQUESTED로_기본_처리되어_존재_여부가_노출되지_않는다() {
+        principleService.refreshRecommendationsForRun(999L, ANALYSIS_RUN_ID, List.of(
+                new RefreshRecommendationsCommand(10L, "CONCENTRATED", "집중투자형")));
+
+        RecommendationListResult result = principleService.getRecommendations(new GetRecommendationsQuery(USER_ID, ANALYSIS_RUN_ID));
+
+        assertEquals(RecommendationGenerationStatus.REQUESTED, result.generationStatus());
     }
 
     private PrincipleRecommendation suggestedRecommendation(Long analysisResultId) {

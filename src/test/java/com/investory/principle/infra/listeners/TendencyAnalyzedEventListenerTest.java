@@ -6,6 +6,7 @@ import com.investory.principle.domain.ports.FakeTendencyAnalysisPort;
 import com.investory.principle.domain.ports.dto.GeneratedRecommendation;
 import com.investory.principle.domain.repositories.FakePrincipleRecommendationRepository;
 import com.investory.principle.domain.repositories.FakePrincipleSetRepository;
+import com.investory.principle.domain.repositories.FakeRecommendationGenerationRepository;
 import com.investory.principle.domain.services.PrincipleService;
 import com.investory.tendency.domain.events.TendencyAnalyzedEvent;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,8 +33,8 @@ class TendencyAnalyzedEventListenerTest {
         recommendationGenerationPort.setNextResult(List.of(new GeneratedRecommendation("text", "reason", null)));
         Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         PrincipleService principleService = new PrincipleService(
-                new FakePrincipleSetRepository(), principleRecommendationRepository, new FakeTendencyAnalysisPort(),
-                recommendationGenerationPort, directExecutor);
+                new FakePrincipleSetRepository(), principleRecommendationRepository, new FakeRecommendationGenerationRepository(),
+                new FakeTendencyAnalysisPort(), recommendationGenerationPort, directExecutor);
         listener = new TendencyAnalyzedEventListener(principleService);
     }
 

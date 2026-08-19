@@ -12,9 +12,16 @@ public class FakePrincipleRecommendationRepository implements PrincipleRecommend
     private final List<PrincipleRecommendation> recommendations = new ArrayList<>();
     private long nextId = 1L;
     private int saveAllCallCount = 0;
+    private boolean shouldFailSaveAll = false;
 
     public void add(PrincipleRecommendation... recommendations) {
         this.recommendations.addAll(List.of(recommendations));
+    }
+
+    // refreshRecommendationsForRun() 실행 전체가 인프라 오류로 죽는 드문 경우(FAILED 상태 전이)를
+    // 재현하기 위한 테스트 전용 훅.
+    public void setShouldFailSaveAll(boolean shouldFailSaveAll) {
+        this.shouldFailSaveAll = shouldFailSaveAll;
     }
 
     @Override
@@ -33,6 +40,9 @@ public class FakePrincipleRecommendationRepository implements PrincipleRecommend
 
     @Override
     public List<PrincipleRecommendation> saveAll(List<PrincipleRecommendation> newRecommendations) {
+        if (shouldFailSaveAll) {
+            throw new RuntimeException("추천 저장 중 인프라 오류 (테스트 전용)");
+        }
         saveAllCallCount++;
         List<PrincipleRecommendation> saved = new ArrayList<>();
         for (PrincipleRecommendation r : newRecommendations) {

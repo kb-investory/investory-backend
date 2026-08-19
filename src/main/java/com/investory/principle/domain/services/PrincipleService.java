@@ -1,18 +1,21 @@
 package com.investory.principle.domain.services;
 
 import com.investory.principle.domain.constant.PrincipleOriginType;
+import com.investory.principle.domain.constant.RecommendationGenerationStatus;
 import com.investory.principle.domain.constant.RecommendationStatus;
 import com.investory.principle.domain.exception.PrincipleErrorCode;
 import com.investory.principle.domain.exception.PrincipleException;
 import com.investory.principle.domain.model.PrincipleRecommendation;
 import com.investory.principle.domain.model.PrincipleSet;
 import com.investory.principle.domain.model.PrincipleSetItem;
+import com.investory.principle.domain.model.RecommendationGeneration;
 import com.investory.principle.domain.ports.RecommendationGenerationPort;
 import com.investory.principle.domain.ports.TendencyAnalysisPort;
 import com.investory.principle.domain.ports.dto.GeneratedRecommendation;
 import com.investory.principle.domain.ports.dto.TendencyAnalysisInfo;
 import com.investory.principle.domain.repositories.PrincipleRecommendationRepository;
 import com.investory.principle.domain.repositories.PrincipleSetRepository;
+import com.investory.principle.domain.repositories.RecommendationGenerationRepository;
 import com.investory.principle.domain.services.dto.command.PrincipleItemCommand;
 import com.investory.principle.domain.services.dto.command.RefreshRecommendationsCommand;
 import com.investory.principle.domain.services.dto.command.SavePrincipleSetCommand;
@@ -49,17 +52,20 @@ public class PrincipleService {
 
     private final PrincipleSetRepository principleSetRepository;
     private final PrincipleRecommendationRepository principleRecommendationRepository;
+    private final RecommendationGenerationRepository recommendationGenerationRepository;
     private final TendencyAnalysisPort tendencyAnalysisPort;
     private final RecommendationGenerationPort recommendationGenerationPort;
     private final Executor recommendationGenerationExecutor;
 
     public PrincipleService(PrincipleSetRepository principleSetRepository,
                              PrincipleRecommendationRepository principleRecommendationRepository,
+                             RecommendationGenerationRepository recommendationGenerationRepository,
                              TendencyAnalysisPort tendencyAnalysisPort,
                              RecommendationGenerationPort recommendationGenerationPort,
                              @Qualifier("recommendationGenerationExecutor") Executor recommendationGenerationExecutor) {
         this.principleSetRepository = principleSetRepository;
         this.principleRecommendationRepository = principleRecommendationRepository;
+        this.recommendationGenerationRepository = recommendationGenerationRepository;
         this.tendencyAnalysisPort = tendencyAnalysisPort;
         this.recommendationGenerationPort = recommendationGenerationPort;
         this.recommendationGenerationExecutor = recommendationGenerationExecutor;
@@ -186,13 +192,26 @@ public class PrincipleService {
     // 순수 조회다 — 추천 생성은 더 이상 이 조회 시점에 일어나지 않는다. tendency가 성향 분석을
     // 완료(요청)하는 시점에 refreshRecommendations()가 미리 생성해둔 것을 읽기만 한다.
     // 실행(run) 1건에 항목(analysis type)별 결과가 여러 개이므로, 모든 항목의 추천을 모아서 반환한다.
+    //
+    // analysisRunId가 주어지면 그 실행의 추천 생성 진행 상태(generationStatus)도 함께 반환한다 —
+    // 프론트가 분석 직후 이 값만 보고 폴링을 계속할지 멈출지 정확히 판단할 수 있게 한다(빈 배열이
+    // "아직 생성 중"인지 "정상적으로 0건"인지 구분이 안 되는 문제를 해결). 상태 행이 아직 없으면
+    // (분석 응답 직후의 아주 짧은 레이스 컨디션이거나, 남의 analysisRunId인 경우 모두) 에러 대신
+    // REQUESTED로 기본 처리한다 — 전자는 곧 생겨날 상태고, 후자는 존재 여부를 굳이 노출하지 않는다.
     public RecommendationListResult getRecommendations(GetRecommendationsQuery query) {
         List<TendencyAnalysisInfo> analysisResults = tendencyAnalysisPort.findLatestCompletedAnalysisResults(query.userId());
 
         List<RecommendationResult> results = analysisResults.stream()
                 .flatMap(info -> toRecommendationResults(info).stream())
                 .collect(Collectors.toList());
-        return new RecommendationListResult(results);
+
+        RecommendationGenerationStatus generationStatus = query.analysisRunId() == null ? null
+                : recommendationGenerationRepository.findByAnalysisRunId(query.analysisRunId())
+                        .filter(generation -> generation.getUserId().equals(query.userId()))
+                        .map(RecommendationGeneration::getStatus)
+                        .orElse(RecommendationGenerationStatus.REQUESTED);
+
+        return new RecommendationListResult(query.analysisRunId(), generationStatus, results);
     }
 
     private List<RecommendationResult> toRecommendationResults(TendencyAnalysisInfo info) {
@@ -211,25 +230,39 @@ public class PrincipleService {
     // 이미 추천이 생성된 analysisResultId는 멱등적으로 건너뛴다. 항목 하나의 LLM 호출이 실패해도
     // (RecommendationGenerationException) 그 항목만 추천 0건으로 남기고 나머지는 그대로 진행한다 —
     // 원인과 무관한 캔 텍스트를 진짜 추천인 것처럼 저장하지 않는다. 다음에 다시 트리거되면 재시도된다.
+    //
+    // recommendationGenerationRepository로 이 실행(run) 전체의 진행 상태를 추적한다: LLM 호출을
+    // 시작하기 전에 먼저 REQUESTED를 기록해 프론트가 폴링을 시작할 때 상태 행이 아예 없는 레이스
+    // 컨디션을 최소화하고, 항목별 job(CompletableFuture)이 전부 join되면(개별 실패는 이미 위에서
+    // 흡수됐으므로 여기 도달하면 전부 "끝난" 것) SUCCESS로 바꿔 프론트가 폴링을 멈출 수 있게 한다.
+    // saveAll() 자체가 실패하는 것처럼 실행 전체가 죽는 드문 경우에만 FAILED로 남는다.
     @Transactional
-    public void refreshRecommendationsForRun(List<RefreshRecommendationsCommand> commands) {
-        List<RefreshRecommendationsCommand> pending = commands.stream()
-                .filter(command -> principleRecommendationRepository.findByAnalysisResultId(command.analysisResultId()).isEmpty())
-                .collect(Collectors.toList());
-        if (pending.isEmpty()) {
-            return;
+    public void refreshRecommendationsForRun(Long userId, Long analysisRunId, List<RefreshRecommendationsCommand> commands) {
+        RecommendationGeneration generation = RecommendationGeneration.requested(analysisRunId, userId);
+        recommendationGenerationRepository.save(generation);
+        try {
+            List<RefreshRecommendationsCommand> pending = commands.stream()
+                    .filter(command -> principleRecommendationRepository.findByAnalysisResultId(command.analysisResultId()).isEmpty())
+                    .collect(Collectors.toList());
+
+            if (!pending.isEmpty()) {
+                List<CompletableFuture<List<PrincipleRecommendation>>> futures = pending.stream()
+                        .map(command -> CompletableFuture.supplyAsync(() -> generateCandidates(command), recommendationGenerationExecutor))
+                        .collect(Collectors.toList());
+
+                List<PrincipleRecommendation> allCandidates = futures.stream()
+                        .map(CompletableFuture::join)
+                        .flatMap(List::stream)
+                        .collect(Collectors.toList());
+
+                principleRecommendationRepository.saveAll(allCandidates);
+            }
+
+            recommendationGenerationRepository.save(generation.succeed());
+        } catch (RuntimeException e) {
+            log.error("추천 생성 실행 실패. analysisRunId={}", analysisRunId, e);
+            recommendationGenerationRepository.save(generation.fail(e.getMessage()));
         }
-
-        List<CompletableFuture<List<PrincipleRecommendation>>> futures = pending.stream()
-                .map(command -> CompletableFuture.supplyAsync(() -> generateCandidates(command), recommendationGenerationExecutor))
-                .collect(Collectors.toList());
-
-        List<PrincipleRecommendation> allCandidates = futures.stream()
-                .map(CompletableFuture::join)
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
-
-        principleRecommendationRepository.saveAll(allCandidates);
     }
 
     private List<PrincipleRecommendation> generateCandidates(RefreshRecommendationsCommand command) {
