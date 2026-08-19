@@ -25,6 +25,15 @@ public class NotificationSettingsService {
         return NotificationSettingsResult.from(settings);
     }
 
+    // auth.domain.ports.NotificationInitPort 구현체에서만 호출 — 회원가입(및 탈퇴 후 재활성화) 시
+    // notification_settings 기본값(전부 수신) 행을 만든다. 이미 행이 있으면 건드리지 않는다(멱등).
+    public void initDefaultSettings(Long userId) {
+        if (notificationSettingsRepository.findByUserId(userId).isPresent()) {
+            return;
+        }
+        notificationSettingsRepository.upsert(NotificationSettings.defaults(userId));
+    }
+
     // 전체 교체 API라 3개 필드 모두 필수다. 행이 없으면 새로 만든다(upsert).
     public NotificationSettingsResult updateSettings(UpdateNotificationSettingsCommand command) {
         if (command.tradeIngestedEnabled() == null || command.tendencyAnalyzedEnabled() == null
