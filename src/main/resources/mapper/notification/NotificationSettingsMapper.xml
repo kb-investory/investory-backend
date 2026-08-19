@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.investory.notification.infra.mappers.NotificationSettingsMapper">
+
+    <resultMap id="notificationSettingsRowResultMap" type="com.investory.notification.infra.entities.NotificationSettingsRow">
+        <id column="user_id" property="userId"/>
+        <result column="trade_ingested_enabled" property="tradeIngestedEnabled"/>
+        <result column="tendency_analyzed_enabled" property="tendencyAnalyzedEnabled"/>
+        <result column="simulation_completed_enabled" property="simulationCompletedEnabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findByUserId" resultMap="notificationSettingsRowResultMap">
+        SELECT user_id, trade_ingested_enabled, tendency_analyzed_enabled, simulation_completed_enabled, created_at, updated_at
+        FROM notification_settings
+        WHERE user_id = #{userId}
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO notification_settings
+            (user_id, trade_ingested_enabled, tendency_analyzed_enabled, simulation_completed_enabled, created_at, updated_at)
+        VALUES
+            (#{userId}, #{tradeIngestedEnabled}, #{tendencyAnalyzedEnabled}, #{simulationCompletedEnabled}, #{createdAt}, #{updatedAt})
+        ON DUPLICATE KEY UPDATE
+            trade_ingested_enabled = VALUES(trade_ingested_enabled),
+            tendency_analyzed_enabled = VALUES(tendency_analyzed_enabled),
+            simulation_completed_enabled = VALUES(simulation_completed_enabled),
+            updated_at = VALUES(updated_at)
+    </insert>
+
+    <delete id="deleteByUserId">
+        DELETE FROM notification_settings
+        WHERE user_id = #{userId}
+    </delete>
+
+</mapper>

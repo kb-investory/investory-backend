@@ -8,6 +8,8 @@ import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.domain.model.User;
 import com.investory.auth.domain.ports.BrokerConnectionCleanupPort;
 import com.investory.auth.domain.ports.JournalCleanupPort;
+import com.investory.auth.domain.ports.NotificationCleanupPort;
+import com.investory.auth.domain.ports.NotificationInitPort;
 import com.investory.auth.domain.ports.PrincipleCleanupPort;
 import com.investory.auth.domain.ports.TendencyCleanupPort;
 import com.investory.auth.domain.ports.TokenProvider;
@@ -39,11 +41,14 @@ public class AuthService {
     private final JournalCleanupPort journalCleanupPort;
     private final PrincipleCleanupPort principleCleanupPort;
     private final TendencyCleanupPort tendencyCleanupPort;
+    private final NotificationInitPort notificationInitPort;
+    private final NotificationCleanupPort notificationCleanupPort;
 
     // provider별 OAuthClient 빈들을 Map으로 미리 캐싱해둔다 (나중에 NAVER/GOOGLE 클라이언트를 추가해도 이 코드는 안 바뀜)
     public AuthService(List<OAuthClient> oAuthClients, UserRepository userRepository, TokenProvider tokenProvider,
                         BrokerConnectionCleanupPort brokerConnectionCleanupPort, JournalCleanupPort journalCleanupPort,
-                        PrincipleCleanupPort principleCleanupPort, TendencyCleanupPort tendencyCleanupPort) {
+                        PrincipleCleanupPort principleCleanupPort, TendencyCleanupPort tendencyCleanupPort,
+                        NotificationInitPort notificationInitPort, NotificationCleanupPort notificationCleanupPort) {
         this.oAuthClients = oAuthClients.stream()
                 .collect(Collectors.toMap(OAuthClient::getProvider, Function.identity()));
         this.userRepository = userRepository;
@@ -52,6 +57,8 @@ public class AuthService {
         this.journalCleanupPort = journalCleanupPort;
         this.principleCleanupPort = principleCleanupPort;
         this.tendencyCleanupPort = tendencyCleanupPort;
+        this.notificationInitPort = notificationInitPort;
+        this.notificationCleanupPort = notificationCleanupPort;
     }
 
     // OAuth Login Logic
@@ -82,6 +89,12 @@ public class AuthService {
                     user.getNickname(), UserStatusType.ACTIVE, user.getCreatedAt(), LocalDateTime.now(), null);
             userRepository.save(user);
             newUser = true;
+        }
+
+        // 신규 가입/재활성화 시 notification_settings 기본값 행을 만든다 — 재활성화의 경우 withdraw()가
+        // 이미 이 행을 지웠으므로(NotificationCleanupPort), 없는 상태에서 다시 만드는 것과 동일하다.
+        if (newUser) {
+            notificationInitPort.initSettings(user.getUserId());
         }
 
         // 해당 정보로 Token Pair 발급
@@ -122,8 +135,8 @@ public class AuthService {
     // 호출한다 — 그 결과로 ledger(거래/보유)와 journal의 매매 근거까지 함께 정리되므로, journal 정리는
     // 그 뒤에 investment_journals(자유 텍스트 일지)만 지우면 된다. tendency 정리는 자기 analysis_results를
     // 지우기 전에 principle_recommendations도 함께 정리하므로(PrincipleRecommendationCleanupPort),
-    // principle의 principle_sets 정리와는 순서 상관없이 독립적이다. notification 정리는 아직 없다
-    // (feat/notification-domain 병합 후 추가 예정).
+    // principle의 principle_sets 정리와는 순서 상관없이 독립적이다. notification 정리(알림·알림 설정)도
+    // 다른 도메인 정리와 순서 상관없이 독립적이다.
     @Transactional
     public void withdraw(Long userId) {
         User user = userRepository.findByUserId(userId)
@@ -136,6 +149,7 @@ public class AuthService {
         journalCleanupPort.deleteAllJournals(userId);
         principleCleanupPort.deleteAllPrincipleSets(userId);
         tendencyCleanupPort.deleteAllAnalyses(userId);
+        notificationCleanupPort.deleteAllNotifications(userId);
 
         User withdrawn = User.of(user.getUserId(), user.getOauthProvider(), user.getOauthSubId(), user.getEmail(),
                 user.getNickname(), UserStatusType.WITHDRAWN, user.getCreatedAt(), LocalDateTime.now(), LocalDateTime.now());

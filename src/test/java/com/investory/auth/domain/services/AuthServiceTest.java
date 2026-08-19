@@ -8,6 +8,8 @@ import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.domain.model.User;
 import com.investory.auth.domain.ports.FakeBrokerConnectionCleanupPort;
 import com.investory.auth.domain.ports.FakeJournalCleanupPort;
+import com.investory.auth.domain.ports.FakeNotificationCleanupPort;
+import com.investory.auth.domain.ports.FakeNotificationInitPort;
 import com.investory.auth.domain.ports.FakePrincipleCleanupPort;
 import com.investory.auth.domain.ports.FakeTendencyCleanupPort;
 import com.investory.auth.domain.ports.FakeTokenProvider;
@@ -22,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,6 +37,8 @@ class AuthServiceTest {
     private FakeJournalCleanupPort journalCleanupPort;
     private FakePrincipleCleanupPort principleCleanupPort;
     private FakeTendencyCleanupPort tendencyCleanupPort;
+    private FakeNotificationInitPort notificationInitPort;
+    private FakeNotificationCleanupPort notificationCleanupPort;
     private FakeOAuthClient kakaoClient;
     private AuthService authService;
 
@@ -44,9 +49,12 @@ class AuthServiceTest {
         journalCleanupPort = new FakeJournalCleanupPort();
         principleCleanupPort = new FakePrincipleCleanupPort();
         tendencyCleanupPort = new FakeTendencyCleanupPort();
+        notificationInitPort = new FakeNotificationInitPort();
+        notificationCleanupPort = new FakeNotificationCleanupPort();
         kakaoClient = new FakeOAuthClient(OAuthProviderType.KAKAO);
         authService = new AuthService(List.of(kakaoClient), userRepository, new FakeTokenProvider(),
-                brokerConnectionCleanupPort, journalCleanupPort, principleCleanupPort, tendencyCleanupPort);
+                brokerConnectionCleanupPort, journalCleanupPort, principleCleanupPort, tendencyCleanupPort,
+                notificationInitPort, notificationCleanupPort);
 
         userRepository.add(activeUser());
     }
@@ -59,6 +67,7 @@ class AuthServiceTest {
         assertEquals(List.of(USER_ID), journalCleanupPort.calledForUserIds());
         assertEquals(List.of(USER_ID), principleCleanupPort.calledForUserIds());
         assertEquals(List.of(USER_ID), tendencyCleanupPort.calledForUserIds());
+        assertEquals(List.of(USER_ID), notificationCleanupPort.calledForUserIds());
 
         User withdrawn = userRepository.findByUserId(USER_ID).orElseThrow();
         assertEquals(UserStatusType.WITHDRAWN, withdrawn.getUserStatus());
@@ -74,6 +83,7 @@ class AuthServiceTest {
         assertEquals(1, journalCleanupPort.calledForUserIds().size());
         assertEquals(1, principleCleanupPort.calledForUserIds().size());
         assertEquals(1, tendencyCleanupPort.calledForUserIds().size());
+        assertEquals(1, notificationCleanupPort.calledForUserIds().size());
     }
 
     @Test
@@ -98,6 +108,28 @@ class AuthServiceTest {
         User reactivated = userRepository.findByUserId(withdrawnUserId).orElseThrow();
         assertEquals(UserStatusType.ACTIVE, reactivated.getUserStatus());
         assertEquals(null, reactivated.getWithdrawnAt());
+        assertEquals(List.of(withdrawnUserId), notificationInitPort.calledForUserIds());
+    }
+
+    @Test
+    void 신규_회원이_처음_로그인하면_알림_설정_초기화가_호출된다() {
+        kakaoClient.willReturnUserInfo(OAuthUserInfo.builder().oauthSubId("sub-new").email("new@example.com").nickname("신규닉네임").build());
+
+        LoginResult result = authService.login(new OAuthLoginCommand(OAuthProviderType.KAKAO, "code", null));
+
+        assertTrue(result.newUser());
+        assertEquals(List.of(result.userId()), notificationInitPort.calledForUserIds());
+    }
+
+    @Test
+    void 기존_회원이_다시_로그인해도_알림_설정_초기화가_호출되지_않는다() {
+        kakaoClient.willReturnUserInfo(OAuthUserInfo.builder().oauthSubId("sub-1").email("user@example.com").nickname("닉네임").build());
+
+        LoginResult result = authService.login(new OAuthLoginCommand(OAuthProviderType.KAKAO, "code", null));
+
+        assertEquals(USER_ID, result.userId());
+        assertFalse(result.newUser());
+        assertTrue(notificationInitPort.calledForUserIds().isEmpty());
     }
 
     @Test
