@@ -11,6 +11,7 @@ public class FakePrincipleRecommendationRepository implements PrincipleRecommend
 
     private final List<PrincipleRecommendation> recommendations = new ArrayList<>();
     private long nextId = 1L;
+    private int saveAllCallCount = 0;
 
     public void add(PrincipleRecommendation... recommendations) {
         this.recommendations.addAll(List.of(recommendations));
@@ -32,6 +33,7 @@ public class FakePrincipleRecommendationRepository implements PrincipleRecommend
 
     @Override
     public List<PrincipleRecommendation> saveAll(List<PrincipleRecommendation> newRecommendations) {
+        saveAllCallCount++;
         List<PrincipleRecommendation> saved = new ArrayList<>();
         for (PrincipleRecommendation r : newRecommendations) {
             PrincipleRecommendation withId = PrincipleRecommendation.of(nextId++, r.getAnalysisResultId(), r.getRecommendationText(),
@@ -40,6 +42,10 @@ public class FakePrincipleRecommendationRepository implements PrincipleRecommend
             saved.add(withId);
         }
         return saved;
+    }
+
+    public int saveAllCallCount() {
+        return saveAllCallCount;
     }
 
     @Override

@@ -9,6 +9,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 // tendency.domain.events를 참조하는 유일한 지점 — 받는 즉시 principle 자신의 Command로 변환해
 // domain/services에 넘긴다(§5 변환 규칙). PrincipleService는 TendencyAnalyzedEvent의 존재를 모른다.
 //
@@ -27,21 +30,20 @@ public class TendencyAnalyzedEventListener {
         this.principleService = principleService;
     }
 
-    // 실행(run) 1건에 항목별 결과가 여러 개 들어있으므로, 항목마다 각각 추천을 갱신한다 —
-    // 성향(analysis type)마다 추천이 생겨야 하므로 특정 항목만 골라내지 않는다.
-    // 항목 하나에서 예상 못한 예외가 나도(추천 생성 자체의 LLM 실패는 refreshRecommendations가 이미
-    // 내부에서 처리) 나머지 항목 갱신은 계속 진행하도록 여기서 잡아 로그만 남긴다 — 비동기라 여기서
-    // 안 잡으면 호출자에게 전파되지도 않고 그냥 남은 항목들 처리가 중단된다.
+    // 실행(run) 1건에 속한 항목별 결과 전체를 한 번에 넘긴다 — refreshRecommendationsForRun이 항목별
+    // 생성을 병렬로 돌리고 한 번에 저장하므로, 같은 실행의 추천들이 항상 같은 시점에 한꺼번에
+    // 나타난다(항목마다 따로 호출하면 늦게 끝난 항목의 추천만 뒤늦게 나타나는 시간차가 생겼었다).
+    // 비동기 리스너라 예외가 호출자에게 전파되지 않으므로 여기서 잡아 로그만 남긴다.
     @Async("principleRecommendationExecutor")
     @EventListener
     public void handle(TendencyAnalyzedEvent event) {
-        for (TendencyAnalyzedEvent.AnalysisResult result : event.results()) {
-            try {
-                principleService.refreshRecommendations(
-                        new RefreshRecommendationsCommand(result.analysisResultId(), result.analysisTypeCode(), result.analysisTypeName()));
-            } catch (RuntimeException e) {
-                log.error("추천 갱신 실패. analysisResultId={}", result.analysisResultId(), e);
-            }
+        List<RefreshRecommendationsCommand> commands = event.results().stream()
+                .map(result -> new RefreshRecommendationsCommand(result.analysisResultId(), result.analysisTypeCode(), result.analysisTypeName()))
+                .collect(Collectors.toList());
+        try {
+            principleService.refreshRecommendationsForRun(commands);
+        } catch (RuntimeException e) {
+            log.error("추천 갱신 실패. analysisRunId={}", event.analysisRunId(), e);
         }
     }
 }
