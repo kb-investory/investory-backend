@@ -236,6 +236,19 @@ class PrincipleServiceTest {
     }
 
     @Test
+    void 계정_탈퇴시_지정한_분석결과ID의_추천만_지운다() {
+        principleRecommendationRepository.add(suggestedRecommendation(10L));
+        principleRecommendationRepository.add(
+                com.investory.principle.domain.model.PrincipleRecommendation.of(2L, 20L, "다른 추천", "다른 이유", null,
+                        RecommendationStatus.SUGGESTED, Instant.now(), Instant.now()));
+
+        principleService.deleteRecommendationsForAnalysisResults(List.of(10L));
+
+        assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).isEmpty());
+        assertTrue(principleRecommendationRepository.findByAnalysisResultId(20L).size() > 0);
+    }
+
+    @Test
     void 추천_생성이_실패하면_캔_텍스트로_대체하지_않고_추천_0건으로_남긴다() {
         recommendationGenerationPort.setShouldFail(true);
 

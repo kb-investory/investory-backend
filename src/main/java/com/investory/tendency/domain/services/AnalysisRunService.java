@@ -10,6 +10,7 @@ import com.investory.tendency.domain.model.AnalysisResult;
 import com.investory.tendency.domain.model.AnalysisResultDetail;
 import com.investory.tendency.domain.model.AnalysisRun;
 import com.investory.tendency.domain.ports.MarketDataPort;
+import com.investory.tendency.domain.ports.PrincipleRecommendationCleanupPort;
 import com.investory.tendency.domain.ports.TradeLedgerPort;
 import com.investory.tendency.domain.ports.dto.DailyPriceInfo;
 import com.investory.tendency.domain.ports.dto.TradeInfo;
@@ -33,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -74,6 +76,7 @@ public class AnalysisRunService {
     private final TradeLedgerPort tradeLedgerPort;
     private final MarketDataPort marketDataPort;
     private final ApplicationEventPublisher eventPublisher;
+    private final PrincipleRecommendationCleanupPort principleRecommendationCleanupPort;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AnalysisRunService(AnalysisRunRepository analysisRunRepository,
@@ -84,13 +87,15 @@ public class AnalysisRunService {
                                PrincipleAdherenceAnalysisService principleAdherenceAnalysisService,
                                TradeLedgerPort tradeLedgerPort,
                                MarketDataPort marketDataPort,
-                               ApplicationEventPublisher eventPublisher) {
+                               ApplicationEventPublisher eventPublisher,
+                               PrincipleRecommendationCleanupPort principleRecommendationCleanupPort) {
         this.analysisRunRepository = analysisRunRepository;
         this.analysisResultRepository = analysisResultRepository;
         this.portfolioRiskAnalysisService = portfolioRiskAnalysisService;
         this.rationaleTendencyService = rationaleTendencyService;
         this.holdingPeriodAnalysisService = holdingPeriodAnalysisService;
         this.principleAdherenceAnalysisService = principleAdherenceAnalysisService;
+        this.principleRecommendationCleanupPort = principleRecommendationCleanupPort;
         this.tradeLedgerPort = tradeLedgerPort;
         this.marketDataPort = marketDataPort;
         this.eventPublisher = eventPublisher;
@@ -158,6 +163,18 @@ public class AnalysisRunService {
                 .collect(Collectors.toList());
 
         return new AnalysisRunDetailResult(toSummary(run), items);
+    }
+
+    // auth.domain.ports.TendencyCleanupPort 구현체(TendencyCleanupPortImpl)에서만 호출된다 — 계정
+    // 탈퇴 시 사용자의 성향분석 기록을 전부 지운다. analysis_results를 지우기 전에 그 id 목록을
+    // principle에 먼저 알려 principle_recommendations도 함께 정리되게 한다 — 순서를 바꾸면(분석
+    // 결과를 먼저 지우면) 그 id 목록 자체를 잃어버려 principle 쪽 정리가 불가능해진다.
+    @Transactional
+    public void deleteAllAnalyses(Long userId) {
+        List<Long> analysisResultIds = analysisResultRepository.findIdsByUserId(userId);
+        principleRecommendationCleanupPort.deleteRecommendationsForAnalysisResults(analysisResultIds);
+        analysisResultRepository.deleteByUserId(userId);
+        analysisRunRepository.deleteByUserId(userId);
     }
 
     // --- 항목별 계산 ---

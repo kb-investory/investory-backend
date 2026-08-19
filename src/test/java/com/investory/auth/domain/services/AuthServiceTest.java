@@ -9,6 +9,7 @@ import com.investory.auth.domain.model.User;
 import com.investory.auth.domain.ports.FakeBrokerConnectionCleanupPort;
 import com.investory.auth.domain.ports.FakeJournalCleanupPort;
 import com.investory.auth.domain.ports.FakePrincipleCleanupPort;
+import com.investory.auth.domain.ports.FakeTendencyCleanupPort;
 import com.investory.auth.domain.ports.FakeTokenProvider;
 import com.investory.auth.domain.repositories.FakeUserRepository;
 import com.investory.auth.domain.services.dto.command.OAuthLoginCommand;
@@ -32,6 +33,7 @@ class AuthServiceTest {
     private FakeBrokerConnectionCleanupPort brokerConnectionCleanupPort;
     private FakeJournalCleanupPort journalCleanupPort;
     private FakePrincipleCleanupPort principleCleanupPort;
+    private FakeTendencyCleanupPort tendencyCleanupPort;
     private FakeOAuthClient kakaoClient;
     private AuthService authService;
 
@@ -41,9 +43,10 @@ class AuthServiceTest {
         brokerConnectionCleanupPort = new FakeBrokerConnectionCleanupPort();
         journalCleanupPort = new FakeJournalCleanupPort();
         principleCleanupPort = new FakePrincipleCleanupPort();
+        tendencyCleanupPort = new FakeTendencyCleanupPort();
         kakaoClient = new FakeOAuthClient(OAuthProviderType.KAKAO);
         authService = new AuthService(List.of(kakaoClient), userRepository, new FakeTokenProvider(),
-                brokerConnectionCleanupPort, journalCleanupPort, principleCleanupPort);
+                brokerConnectionCleanupPort, journalCleanupPort, principleCleanupPort, tendencyCleanupPort);
 
         userRepository.add(activeUser());
     }
@@ -55,6 +58,7 @@ class AuthServiceTest {
         assertEquals(List.of(USER_ID), brokerConnectionCleanupPort.calledForUserIds());
         assertEquals(List.of(USER_ID), journalCleanupPort.calledForUserIds());
         assertEquals(List.of(USER_ID), principleCleanupPort.calledForUserIds());
+        assertEquals(List.of(USER_ID), tendencyCleanupPort.calledForUserIds());
 
         User withdrawn = userRepository.findByUserId(USER_ID).orElseThrow();
         assertEquals(UserStatusType.WITHDRAWN, withdrawn.getUserStatus());
@@ -69,6 +73,7 @@ class AuthServiceTest {
         assertEquals(1, brokerConnectionCleanupPort.calledForUserIds().size());
         assertEquals(1, journalCleanupPort.calledForUserIds().size());
         assertEquals(1, principleCleanupPort.calledForUserIds().size());
+        assertEquals(1, tendencyCleanupPort.calledForUserIds().size());
     }
 
     @Test

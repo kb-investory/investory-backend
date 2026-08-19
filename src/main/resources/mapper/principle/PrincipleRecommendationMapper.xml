@@ -45,4 +45,12 @@
         WHERE principle_recommendation_id = #{principleRecommendationId}
     </update>
 
+    <delete id="deleteByAnalysisResultIds">
+        DELETE FROM principle_recommendations
+        WHERE analysis_result_id IN
+        <foreach collection="analysisResultIds" item="analysisResultId" open="(" separator="," close=")">
+            #{analysisResultId}
+        </foreach>
+    </delete>
+
 </mapper>

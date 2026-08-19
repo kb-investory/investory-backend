@@ -14,4 +14,8 @@ public interface AnalysisResultMapper {
     List<AnalysisResultDetailRow> findDetailByAnalysisRunId(@Param("analysisRunId") Long analysisRunId);
 
     AnalysisResultDetailRow findDetailById(@Param("analysisResultId") Long analysisResultId);
+
+    List<Long> findIdsByUserId(@Param("userId") Long userId);
+
+    void deleteByUserId(@Param("userId") Long userId);
 }

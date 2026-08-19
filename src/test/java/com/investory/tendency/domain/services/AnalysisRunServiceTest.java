@@ -3,6 +3,7 @@ package com.investory.tendency.domain.services;
 import com.investory.tendency.domain.events.TendencyAnalyzedEvent;
 import com.investory.tendency.domain.ports.FakeHoldingSummaryPort;
 import com.investory.tendency.domain.ports.FakeMarketDataPort;
+import com.investory.tendency.domain.ports.FakePrincipleRecommendationCleanupPort;
 import com.investory.tendency.domain.ports.FakePrinciplePort;
 import com.investory.tendency.domain.ports.FakeRationaleLabelStatsPort;
 import com.investory.tendency.domain.ports.FakeTradeLedgerPort;
@@ -35,6 +36,7 @@ class AnalysisRunServiceTest {
     private FakeAnalysisRunRepository analysisRunRepository;
     private FakeAnalysisResultRepository analysisResultRepository;
     private CapturingEventPublisher eventPublisher;
+    private FakePrincipleRecommendationCleanupPort principleRecommendationCleanupPort;
     private AnalysisRunService analysisRunService;
 
     @BeforeEach
@@ -42,6 +44,7 @@ class AnalysisRunServiceTest {
         analysisRunRepository = new FakeAnalysisRunRepository();
         analysisResultRepository = new FakeAnalysisResultRepository();
         eventPublisher = new CapturingEventPublisher();
+        principleRecommendationCleanupPort = new FakePrincipleRecommendationCleanupPort();
 
         PortfolioRiskAnalysisService portfolioRiskAnalysisService =
                 new PortfolioRiskAnalysisService(new FakeHoldingSummaryPort(), new FakeMarketDataPort());
@@ -54,7 +57,8 @@ class AnalysisRunServiceTest {
 
         analysisRunService = new AnalysisRunService(analysisRunRepository, analysisResultRepository,
                 portfolioRiskAnalysisService, rationaleTendencyService, holdingPeriodAnalysisService,
-                principleAdherenceAnalysisService, new FakeTradeLedgerPort(), new FakeMarketDataPort(), eventPublisher);
+                principleAdherenceAnalysisService, new FakeTradeLedgerPort(), new FakeMarketDataPort(), eventPublisher,
+                principleRecommendationCleanupPort);
     }
 
     @Test
@@ -76,6 +80,21 @@ class AnalysisRunServiceTest {
         TendencyAnalyzedEvent event = eventPublisher.events.get(0);
         Long savedResultId = analysisResultRepository.findDetailByAnalysisRunId(event.analysisRunId()).get(0).analysisResultId();
         assertEquals(savedResultId, event.results().get(0).analysisResultId());
+    }
+
+    @Test
+    void 계정_탈퇴시_사용자의_성향분석_기록을_전부_지우고_그_전에_principle에_결과ID_목록을_알려준다() {
+        com.investory.tendency.domain.model.AnalysisRun run = analysisRunRepository.save(
+                com.investory.tendency.domain.model.AnalysisRun.create(USER_ID, java.time.LocalDate.now().minusDays(89),
+                        java.time.LocalDate.now(), 0, 0, "1.0"));
+        analysisResultRepository.add(USER_ID, com.investory.tendency.domain.model.AnalysisResult.create(
+                run.getAnalysisRunId(), "PORTFOLIO_RISK_ALLOCATION", "RISK_CONCENTRATED", "{}"));
+
+        analysisRunService.deleteAllAnalyses(USER_ID);
+
+        assertTrue(analysisRunRepository.findByUserId(USER_ID).isEmpty());
+        assertTrue(analysisResultRepository.findIdsByUserId(USER_ID).isEmpty());
+        assertEquals(1, principleRecommendationCleanupPort.deleteCalls().size());
     }
 
     private static class CapturingEventPublisher implements ApplicationEventPublisher {

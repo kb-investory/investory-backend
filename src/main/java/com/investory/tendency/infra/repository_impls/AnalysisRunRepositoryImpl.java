@@ -52,4 +52,13 @@ public class AnalysisRunRepositoryImpl implements AnalysisRunRepository {
             throw new TendencyInfraException("성향 분석 실행 결과를 조회하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        try {
+            analysisRunMapper.deleteByUserId(userId);
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("성향 분석 실행 이력을 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

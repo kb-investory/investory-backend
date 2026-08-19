@@ -14,4 +14,5 @@ public interface PrincipleRecommendationMapper {
     void insert(PrincipleRecommendationRow row);
     void updateStatus(@Param("principleRecommendationId") Long principleRecommendationId,
                        @Param("recommendationStatus") RecommendationStatus recommendationStatus);
+    void deleteByAnalysisResultIds(@Param("analysisResultIds") List<Long> analysisResultIds);
 }
