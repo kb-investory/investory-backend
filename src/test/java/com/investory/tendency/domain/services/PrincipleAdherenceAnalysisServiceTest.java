@@ -6,7 +6,11 @@ import com.investory.tendency.domain.constant.PrincipleRuleType;
 import com.investory.tendency.domain.ports.FakeMarketDataPort;
 import com.investory.tendency.domain.ports.FakePrinciplePort;
 import com.investory.tendency.domain.ports.FakeTradeLedgerPort;
+import com.investory.tendency.domain.ports.PrincipleComplianceGradingPort;
+import com.investory.tendency.domain.ports.PrincipleRuleClassificationPort;
+import com.investory.tendency.domain.ports.dto.PrincipleRuleClassification;
 import com.investory.tendency.domain.ports.dto.PrincipleRuleInfo;
+import com.investory.tendency.domain.ports.dto.PrincipleTradingSummary;
 import com.investory.tendency.domain.ports.dto.TradeInfo;
 import com.investory.tendency.domain.services.dto.query.AnalyzePrincipleAdherenceQuery;
 import com.investory.tendency.domain.services.dto.result.AbstractItemResult;
@@ -22,6 +26,13 @@ import java.math.MathContext;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -44,10 +55,12 @@ class PrincipleAdherenceAnalysisServiceTest {
         principlePort = new FakePrinciplePort();
         tradeLedgerPort = new FakeTradeLedgerPort();
         marketDataPort = new FakeMarketDataPort();
+        Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         service = new PrincipleAdherenceAnalysisService(
                 principlePort, tradeLedgerPort, marketDataPort,
                 new FakePrincipleRuleClassifier(),      // 실제 llm.enabled=false일 때 뜨는 그 빈
-                new FakePrincipleComplianceGrader());   // 위와 동일
+                new FakePrincipleComplianceGrader(),    // 위와 동일
+                directExecutor);
     }
 
     @Test
@@ -106,5 +119,60 @@ class PrincipleAdherenceAnalysisServiceTest {
 
         assertEquals(1, result.excludedItems().size());
         assertEquals(PrincipleAdherenceType.INDETERMINATE, result.type());
+    }
+
+    // 실제 스레드풀로 병렬 실행이 "정말로 동시에" 일어나는지(순차라면 실패할 정도의 시간 단축)와,
+    // 여러 스레드가 각자 결과를 만들어도 유실·중복 없이 항목 수만큼 정확히 모이는지(경합 없음)를 함께 검증한다.
+    @Test
+    void 원칙_항목별_LLM_호출은_실제로_병렬_실행되고_결과가_유실되지_않는다() {
+        int itemCount = 6;
+        long perCallDelayMs = 200;
+        Set<String> seenThreadNames = new CopyOnWriteArraySet<>();
+
+        Executor realExecutor = Executors.newFixedThreadPool(itemCount);
+        PrincipleRuleClassificationPort slowClassifier = principleText -> {
+            seenThreadNames.add(Thread.currentThread().getName());
+            sleep(perCallDelayMs);
+            return new PrincipleRuleClassification(PrincipleRuleType.ABSTRACT, null);
+        };
+        PrincipleComplianceGradingPort slowGrader = (principleText, summary) -> {
+            seenThreadNames.add(Thread.currentThread().getName());
+            sleep(perCallDelayMs);
+            return PrincipleComplianceGrade.FOLLOWED;
+        };
+        PrincipleAdherenceAnalysisService parallelService = new PrincipleAdherenceAnalysisService(
+                principlePort, tradeLedgerPort, marketDataPort, slowClassifier, slowGrader, realExecutor);
+
+        IntStream.rangeClosed(1, itemCount)
+                .forEach(i -> principlePort.add(new PrincipleRuleInfo((long) i, "장기적 관점을 유지한다 " + i, null)));
+
+        Instant start = Instant.now();
+        PrincipleAdherenceAnalysisResult result = parallelService.analyze(new AnalyzePrincipleAdherenceQuery(USER_ID));
+        long elapsedMs = java.time.Duration.between(start, Instant.now()).toMillis();
+
+        // 항목이 전부 ABSTRACT라 분류 단계 + 채점 단계 두 번의 병렬 라운드를 거친다.
+        // 순차였다면 2 * itemCount * perCallDelayMs = 2400ms인데, 병렬이면 라운드당 perCallDelayMs 근처로 끝난다.
+        assertTrue(elapsedMs < itemCount * perCallDelayMs,
+                "병렬 실행이라면 " + (itemCount * perCallDelayMs) + "ms보다 훨씬 짧아야 하는데 " + elapsedMs + "ms 걸림");
+        assertTrue(seenThreadNames.size() > 1, "여러 스레드에서 실행됐어야 하는데 " + seenThreadNames + "만 관찰됨");
+
+        // 경합 없이 6개 항목 결과가 정확히 다 모였는지 확인
+        assertEquals(itemCount, result.abstractItems().size());
+        Set<Long> resultItemIds = result.abstractItems().stream()
+                .map(AbstractItemResult::principleItemId)
+                .collect(Collectors.toSet());
+        assertEquals(itemCount, resultItemIds.size()); // 중복 없음
+        assertEquals(
+                IntStream.rangeClosed(1, itemCount).mapToObj(i -> (long) i).collect(Collectors.toSet()),
+                resultItemIds); // 유실 없음
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 }
