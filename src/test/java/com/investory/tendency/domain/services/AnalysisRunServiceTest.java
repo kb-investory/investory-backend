@@ -19,6 +19,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,9 +47,10 @@ class AnalysisRunServiceTest {
                 new PortfolioRiskAnalysisService(new FakeHoldingSummaryPort(), new FakeMarketDataPort());
         RationaleTendencyService rationaleTendencyService = new RationaleTendencyService(new FakeRationaleLabelStatsPort());
         HoldingPeriodAnalysisService holdingPeriodAnalysisService = new HoldingPeriodAnalysisService(new FakeTradeMatchQueryPort());
+        Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         PrincipleAdherenceAnalysisService principleAdherenceAnalysisService = new PrincipleAdherenceAnalysisService(
                 new FakePrinciplePort(), new FakeTradeLedgerPort(), new FakeMarketDataPort(),
-                new FakePrincipleRuleClassifier(), new FakePrincipleComplianceGrader());
+                new FakePrincipleRuleClassifier(), new FakePrincipleComplianceGrader(), directExecutor);
 
         analysisRunService = new AnalysisRunService(analysisRunRepository, analysisResultRepository,
                 portfolioRiskAnalysisService, rationaleTendencyService, holdingPeriodAnalysisService,

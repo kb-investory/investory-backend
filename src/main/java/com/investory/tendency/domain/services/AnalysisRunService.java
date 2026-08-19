@@ -35,6 +35,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -95,6 +97,7 @@ public class AnalysisRunService {
     }
 
     public AnalysisRunDetailResult runAnalysis(RunAnalysisCommand command) {
+        Instant runStart = Instant.now();
         Long userId = command.userId();
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate windowStart = today.minusDays(ANALYSIS_WINDOW_DAYS - 1L);
@@ -121,7 +124,13 @@ public class AnalysisRunService {
 
         publishAnalyzedEvent(userId, saved.getAnalysisRunId());
 
-        return getDetail(new GetAnalysisRunDetailQuery(userId, saved.getAnalysisRunId()));
+        AnalysisRunDetailResult detail = getDetail(new GetAnalysisRunDetailQuery(userId, saved.getAnalysisRunId()));
+
+        // 프론트가 실제로 기다리는 POST /tendency/analyses 응답 시간 전체 — 6개 항목 계산을 다 합친 총 소요시간.
+        log.info("성향분석 실행 완료. userId={}, analysisRunId={}, tradeCount={}, totalDurationMs={}",
+                userId, saved.getAnalysisRunId(), allTrades.size(), Duration.between(runStart, Instant.now()).toMillis());
+
+        return detail;
     }
 
     // 저장된 결과를 다시 조회해(표시 이름까지 포함된 AnalysisResultDetail) 이벤트로 발행한다.

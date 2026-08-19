@@ -25,10 +25,12 @@ import com.investory.tendency.infra.exception.PrincipleAdherenceLlmException;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -36,6 +38,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 // 원칙 이행 성향(6번) 분석. 3·4번과 달리 특정 종목이 아니라 유저의 활성 원칙 세트 전체를 대상으로 한다.
@@ -58,21 +63,25 @@ public class PrincipleAdherenceAnalysisService {
     private final MarketDataPort marketDataPort;
     private final PrincipleRuleClassificationPort ruleClassificationPort;
     private final PrincipleComplianceGradingPort complianceGradingPort;
+    private final Executor tendencyLlmExecutor;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PrincipleAdherenceAnalysisService(PrinciplePort principlePort,
                                               TradeLedgerPort tradeLedgerPort,
                                               MarketDataPort marketDataPort,
                                               PrincipleRuleClassificationPort ruleClassificationPort,
-                                              PrincipleComplianceGradingPort complianceGradingPort) {
+                                              PrincipleComplianceGradingPort complianceGradingPort,
+                                              @Qualifier("tendencyLlmExecutor") Executor tendencyLlmExecutor) {
         this.principlePort = principlePort;
         this.tradeLedgerPort = tradeLedgerPort;
         this.marketDataPort = marketDataPort;
         this.ruleClassificationPort = ruleClassificationPort;
         this.complianceGradingPort = complianceGradingPort;
+        this.tendencyLlmExecutor = tendencyLlmExecutor;
     }
 
     public PrincipleAdherenceAnalysisResult analyze(AnalyzePrincipleAdherenceQuery query) {
+        Instant analyzeStart = Instant.now();
         List<PrincipleRuleInfo> principles = principlePort.findActivePrincipleRules(query.userId());
         if (principles.isEmpty()) {
             return PrincipleAdherenceAnalysisResult.indeterminate();
@@ -81,9 +90,7 @@ public class PrincipleAdherenceAnalysisService {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate windowStart = today.minusDays(ANALYSIS_WINDOW_DAYS - 1L);
 
-        List<ItemClassification> classified = principles.stream()
-                .map(this::classifyItem)
-                .collect(Collectors.toList());
+        List<ItemClassification> classified = classifyAll(principles, query.userId());
 
         List<ItemClassification> numeric = classified.stream()
                 .filter(c -> c.type() == PrincipleRuleType.STOP_LOSS || c.type() == PrincipleRuleType.TAKE_PROFIT)
@@ -102,26 +109,50 @@ public class PrincipleAdherenceAnalysisService {
                 : tradeLedgerPort.findAllTrades(query.userId());
 
         List<NumericItemResult> numericResults = evaluateNumericItems(numeric, allTrades, windowStart, today);
-        AbstractEvaluation abstractEval = evaluateAbstractItems(abstractItems, allTrades, windowStart, today);
+        AbstractEvaluation abstractEval = evaluateAbstractItems(abstractItems, allTrades, windowStart, today, query.userId());
 
         List<ExcludedItemResult> allExcluded = new ArrayList<>(excluded);
         allExcluded.addAll(abstractEval.newlyExcluded());
 
-        return composite(numericResults, abstractEval.results(), allExcluded);
+        PrincipleAdherenceAnalysisResult result = composite(numericResults, abstractEval.results(), allExcluded);
+
+        log.info("원칙 이행 성향 분석 완료. userId={}, principleCount={}, totalDurationMs={}",
+                query.userId(), principles.size(), Duration.between(analyzeStart, Instant.now()).toMillis());
+        return result;
     }
 
     // --- 분류 단계 ---
+
+    // 원칙 항목마다 순서대로 LLM을 호출하면 항목 수만큼 지연이 그대로 누적되므로, tendencyLlmExecutor로
+    // 병렬 실행하고 전부 끝날 때까지 join()으로 기다린다. classifyItem 자체가 이미
+    // PrincipleAdherenceLlmException을 내부에서 잡아 EXCLUDED로 대체하므로, 항목 하나의 실패가
+    // join()으로 전파되어 다른 항목까지 막지 않는다.
+    private List<ItemClassification> classifyAll(List<PrincipleRuleInfo> principles, Long userId) {
+        Instant phaseStart = Instant.now();
+        List<CompletableFuture<ItemClassification>> futures = principles.stream()
+                .map(item -> CompletableFuture.supplyAsync(() -> classifyItem(item), tendencyLlmExecutor))
+                .collect(Collectors.toList());
+        List<ItemClassification> classified = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
+
+        log.info("원칙 분류 단계 완료. userId={}, itemCount={}, durationMs={}",
+                userId, principles.size(), Duration.between(phaseStart, Instant.now()).toMillis());
+        return classified;
+    }
 
     private ItemClassification classifyItem(PrincipleRuleInfo item) {
         RuleJsonShape parsed = tryParseKnownRuleType(item.ruleJson());
         if (parsed != null) {
             return new ItemClassification(item, parsed.type(), parsed.value(), null);
         }
+        Instant callStart = Instant.now();
         try {
             PrincipleRuleClassification result = ruleClassificationPort.classify(item.principleText());
+            log.info("원칙 분류 LLM 호출 완료. principleItemId={}, durationMs={}",
+                    item.principleItemId(), Duration.between(callStart, Instant.now()).toMillis());
             return new ItemClassification(item, result.type(), result.thresholdPercent(), null);
         } catch (PrincipleAdherenceLlmException e) {
-            log.warn("원칙 규칙 분류 실패 — 이번 실행에서 제외합니다. principleItemId={}", item.principleItemId(), e);
+            log.warn("원칙 규칙 분류 실패 — 이번 실행에서 제외합니다. principleItemId={}, durationMs={}",
+                    item.principleItemId(), Duration.between(callStart, Instant.now()).toMillis(), e);
             return new ItemClassification(item, PrincipleRuleType.EXCLUDED, null, PrincipleExclusionReason.CLASSIFICATION_FAILED);
         }
     }
@@ -208,7 +239,7 @@ public class PrincipleAdherenceAnalysisService {
     // --- 추상형 평가 ---
 
     private AbstractEvaluation evaluateAbstractItems(List<ItemClassification> abstractItems, List<TradeInfo> allTrades,
-                                                       LocalDate windowStart, LocalDate today) {
+                                                       LocalDate windowStart, LocalDate today, Long userId) {
         if (abstractItems.isEmpty()) {
             return new AbstractEvaluation(List.of(), List.of());
         }
@@ -224,19 +255,41 @@ public class PrincipleAdherenceAnalysisService {
                 : BigDecimal.valueOf(totalTradeCount).divide(weeks, MathContext.DECIMAL64);
         PrincipleTradingSummary summary = new PrincipleTradingSummary(totalTradeCount, distinctSecurities, avgPerWeek);
 
-        List<AbstractItemResult> results = new ArrayList<>();
-        List<ExcludedItemResult> newlyExcluded = new ArrayList<>();
-        for (ItemClassification item : abstractItems) {
-            try {
-                PrincipleComplianceGrade grade = complianceGradingPort.grade(item.source().principleText(), summary);
-                results.add(new AbstractItemResult(item.source().principleItemId(), item.source().principleText(), grade));
-            } catch (PrincipleAdherenceLlmException e) {
-                log.warn("원칙 준수 채점 실패 — 이번 실행에서 제외합니다. principleItemId={}", item.source().principleItemId(), e);
-                newlyExcluded.add(new ExcludedItemResult(item.source().principleItemId(), item.source().principleText(),
-                        PrincipleExclusionReason.GRADING_FAILED));
-            }
-        }
+        // 분류 단계와 같은 이유로 병렬 실행한다 — gradeItem도 PrincipleAdherenceLlmException을 내부에서
+        // 잡아 GradeOutcome.excluded()로 대체하므로 항목 하나의 실패가 다른 항목에 번지지 않는다.
+        Instant phaseStart = Instant.now();
+        List<CompletableFuture<GradeOutcome>> futures = abstractItems.stream()
+                .map(item -> CompletableFuture.supplyAsync(() -> gradeItem(item, summary), tendencyLlmExecutor))
+                .collect(Collectors.toList());
+        List<GradeOutcome> outcomes = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
+
+        log.info("원칙 준수 채점 단계 완료. userId={}, itemCount={}, durationMs={}",
+                userId, abstractItems.size(), Duration.between(phaseStart, Instant.now()).toMillis());
+
+        List<AbstractItemResult> results = outcomes.stream()
+                .map(GradeOutcome::result)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        List<ExcludedItemResult> newlyExcluded = outcomes.stream()
+                .map(GradeOutcome::excluded)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
         return new AbstractEvaluation(results, newlyExcluded);
+    }
+
+    private GradeOutcome gradeItem(ItemClassification item, PrincipleTradingSummary summary) {
+        Instant callStart = Instant.now();
+        try {
+            PrincipleComplianceGrade grade = complianceGradingPort.grade(item.source().principleText(), summary);
+            log.info("원칙 준수 채점 LLM 호출 완료. principleItemId={}, durationMs={}",
+                    item.source().principleItemId(), Duration.between(callStart, Instant.now()).toMillis());
+            return GradeOutcome.success(new AbstractItemResult(item.source().principleItemId(), item.source().principleText(), grade));
+        } catch (PrincipleAdherenceLlmException e) {
+            log.warn("원칙 준수 채점 실패 — 이번 실행에서 제외합니다. principleItemId={}, durationMs={}",
+                    item.source().principleItemId(), Duration.between(callStart, Instant.now()).toMillis(), e);
+            return GradeOutcome.excluded(new ExcludedItemResult(item.source().principleItemId(), item.source().principleText(),
+                    PrincipleExclusionReason.GRADING_FAILED));
+        }
     }
 
     private boolean isInWindow(Instant tradedAt, LocalDate windowStart, LocalDate today) {
@@ -290,6 +343,17 @@ public class PrincipleAdherenceAnalysisService {
     }
 
     private record AbstractEvaluation(List<AbstractItemResult> results, List<ExcludedItemResult> newlyExcluded) {
+    }
+
+    // gradeItem()의 병렬 실행 결과 — 성공/실패 중 정확히 하나만 채워진다.
+    private record GradeOutcome(AbstractItemResult result, ExcludedItemResult excluded) {
+        static GradeOutcome success(AbstractItemResult result) {
+            return new GradeOutcome(result, null);
+        }
+
+        static GradeOutcome excluded(ExcludedItemResult excluded) {
+            return new GradeOutcome(null, excluded);
+        }
     }
 
     // 기존 ruleJson 저장 형태({"type":"...","value":N,"unit":"..."})를 그대로 읽기 위한 파싱용 DTO.
