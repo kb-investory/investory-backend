@@ -50,4 +50,9 @@ public class FakePrincipleSetRepository implements PrincipleSetRepository {
                 principleSet.getStatus(), principleSet.getItems(), principleSet.getCreatedAt(), principleSet.getUpdatedAt()));
         return id;
     }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        sets.removeIf(s -> s.getUserId().equals(userId));
+    }
 }

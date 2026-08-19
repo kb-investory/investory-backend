@@ -27,4 +27,7 @@ public interface InvestmentAccountRepository {
     Optional<InvestmentAccount> findByIdAndUserId(Long accountId, Long userId);
 
     void updateAccountName(Long accountId, String accountName);
+
+    // 증권사 연동 해지 시 — 호출 전에 이 커넥션의 계좌별 ledger 데이터가 이미 지워졌다고 가정한다.
+    void deleteByConnectionId(Long connectionId);
 }

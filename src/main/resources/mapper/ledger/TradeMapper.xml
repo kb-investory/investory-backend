@@ -81,4 +81,15 @@
             (#{accountId}, #{securityId}, #{tradeSide}, #{quantity}, #{unitPrice}, #{transactionCostAmount}, #{externalTradeId}, #{tradedAt})
     </insert>
 
+    <select id="findTradeIdsByAccountId" resultType="long">
+        SELECT trade_id
+        FROM trades
+        WHERE account_id = #{accountId}
+    </select>
+
+    <delete id="deleteByAccountId">
+        DELETE FROM trades
+        WHERE account_id = #{accountId}
+    </delete>
+
 </mapper>

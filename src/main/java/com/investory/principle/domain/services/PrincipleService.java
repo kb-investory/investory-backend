@@ -222,6 +222,15 @@ public class PrincipleService {
         principleRecommendationRepository.saveAll(candidates);
     }
 
+    // auth.domain.ports.PrincipleCleanupPort 구현체(PrincipleCleanupPortImpl)에서만 호출된다 — 계정
+    // 탈퇴 시 사용자의 투자원칙(모든 버전)을 전부 지운다. 원본 추천(principle_recommendations)은
+    // analysisResultId로만 연결돼 있어 여기서 건드리지 않는다 — tendency의 분석 결과가 살아있는 한
+    // 남아 있어도 무해하다.
+    @Transactional
+    public void deleteAllPrincipleSets(Long userId) {
+        principleSetRepository.deleteByUserId(userId);
+    }
+
     private RecommendationResult toRecommendationResult(PrincipleRecommendation recommendation, AnalysisTypeResult analysisType) {
         return new RecommendationResult(recommendation.getPrincipleRecommendationId(), recommendation.getRecommendationText(),
                 recommendation.getRecommendationReason(), analysisType, recommendation.getStatus());

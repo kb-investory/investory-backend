@@ -1,5 +1,6 @@
 package com.investory.broker.infra.repository_impls;
 
+import com.investory.broker.domain.constant.ConnectionStatus;
 import com.investory.broker.domain.model.BrokerConnection;
 import com.investory.broker.domain.repositories.BrokerConnectionRepository;
 import com.investory.broker.infra.entities.BrokerConnectionRow;
@@ -97,6 +98,15 @@ public class BrokerConnectionRepositoryImpl implements BrokerConnectionRepositor
     public void updateLastSyncedAt(Long connectionId, Instant lastSyncedAt) {
         try {
             brokerConnectionMapper.updateLastSyncedAt(connectionId, lastSyncedAt);
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(e);
+        }
+    }
+
+    @Override
+    public void updateStatus(Long connectionId, ConnectionStatus status) {
+        try {
+            brokerConnectionMapper.updateStatus(connectionId, status.name());
         } catch (DataAccessException e) {
             throw new BrokerInfraException(e);
         }

@@ -68,4 +68,9 @@
             currency_code = VALUES(currency_code)
     </insert>
 
+    <delete id="deleteByConnectionId">
+        DELETE FROM investment_accounts
+        WHERE connection_id = #{connectionId}
+    </delete>
+
 </mapper>

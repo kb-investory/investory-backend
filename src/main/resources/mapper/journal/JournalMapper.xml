@@ -103,4 +103,9 @@
         WHERE journal_id = #{journalId}
     </update>
 
+    <delete id="deleteByUserId">
+        DELETE FROM investment_journals
+        WHERE user_id = #{userId}
+    </delete>
+
 </mapper>

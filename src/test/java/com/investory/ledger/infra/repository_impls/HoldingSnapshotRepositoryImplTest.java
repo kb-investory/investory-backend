@@ -55,5 +55,10 @@ class HoldingSnapshotRepositoryImplTest {
         public void upsert(HoldingSnapshotRow row) {
             throw toThrow;
         }
+
+        @Override
+        public void deleteByAccountId(Long accountId) {
+            throw toThrow;
+        }
     }
 }

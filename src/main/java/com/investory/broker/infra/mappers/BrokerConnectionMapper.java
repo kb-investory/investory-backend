@@ -22,4 +22,6 @@ public interface BrokerConnectionMapper {
     void insert(BrokerConnectionRow row);
 
     void updateLastSyncedAt(@Param("connectionId") Long connectionId, @Param("lastSyncedAt") Instant lastSyncedAt);
+
+    void updateStatus(@Param("connectionId") Long connectionId, @Param("status") String status);
 }

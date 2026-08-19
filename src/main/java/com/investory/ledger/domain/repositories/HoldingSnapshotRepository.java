@@ -12,4 +12,7 @@ public interface HoldingSnapshotRepository {
 
     // (accountId, securityId, snapshotDate) 기준 upsert
     void upsert(Holding holding);
+
+    // 증권사 연동 해지 시 이 계좌의 보유 스냅샷을 전부 지운다.
+    void deleteByAccountId(Long accountId);
 }

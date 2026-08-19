@@ -121,5 +121,15 @@ class TradeRepositoryImplTest {
         public void insert(TradeRow row) {
             throw toThrow;
         }
+
+        @Override
+        public List<Long> findTradeIdsByAccountId(Long accountId) {
+            throw toThrow;
+        }
+
+        @Override
+        public void deleteByAccountId(Long accountId) {
+            throw toThrow;
+        }
     }
 }

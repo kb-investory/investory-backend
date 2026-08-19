@@ -29,4 +29,9 @@ public class FakeHoldingSnapshotRepository implements HoldingSnapshotRepository 
                 && existing.getSnapshotDate().equals(holding.getSnapshotDate()));
         holdings.add(holding);
     }
+
+    @Override
+    public void deleteByAccountId(Long accountId) {
+        holdings.removeIf(holding -> holding.getAccountId().equals(accountId));
+    }
 }

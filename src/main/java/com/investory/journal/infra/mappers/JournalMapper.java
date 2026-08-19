@@ -22,4 +22,6 @@ public interface JournalMapper {
     void insert(JournalRow row);
 
     void update(JournalRow row);
+
+    void deleteByUserId(@Param("userId") Long userId);
 }

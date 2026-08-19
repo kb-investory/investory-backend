@@ -10,6 +10,13 @@
           AND t.account_id = #{accountId}
     </delete>
 
+    <!-- 증권사 연동 해지용 — 종목 구분 없이 이 계좌의 매칭을 전부 지운다 -->
+    <delete id="deleteByAccountId">
+        DELETE tm FROM trade_matches tm
+        JOIN trades t ON t.trade_id = tm.buy_trade_id
+        WHERE t.account_id = #{accountId}
+    </delete>
+
     <insert id="insertAll">
         INSERT INTO trade_matches
             (security_id, buy_trade_id, sell_trade_id, matched_quantity, buy_price, sell_price,

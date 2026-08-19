@@ -13,4 +13,6 @@ public interface HoldingSnapshotMapper {
                                                        @Param("securityId") Long securityId);
 
     void upsert(HoldingSnapshotRow row);
+
+    void deleteByAccountId(@Param("accountId") Long accountId);
 }

@@ -39,4 +39,13 @@ public class HoldingSnapshotRepositoryImpl implements HoldingSnapshotRepository 
             throw new LedgerInfraException("보유현황을 저장하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public void deleteByAccountId(Long accountId) {
+        try {
+            holdingSnapshotMapper.deleteByAccountId(accountId);
+        } catch (DataAccessException e) {
+            throw new LedgerInfraException("보유현황을 삭제하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

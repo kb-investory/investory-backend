@@ -189,4 +189,22 @@ public class AuthController {
         var result = authService.getMe(new GetUserQuery(userId));
         return ResponseEntity.ok(UserResponse.from(result));
     }
+
+    // 계정 탈퇴 Controller. 로그아웃과 동일하게 refreshToken 쿠키를 즉시 만료시킨다(accessToken은
+    // 클라이언트가 별도로 폐기해야 함).
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> withdraw() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof Long)) {
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
+        }
+        Long userId = (Long) authentication.getPrincipal();
+        authService.withdraw(userId);
+
+        SecurityContextHolder.clearContext();
+        ResponseCookie expiredCookie = refreshTokenCookieProvider.expire();
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, expiredCookie.toString())
+                .build();
+    }
 }

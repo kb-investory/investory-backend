@@ -84,4 +84,20 @@ public class FakeBrokerConnectionRepository implements BrokerConnectionRepositor
     public void updateLastSyncedAt(Long connectionId, Instant lastSyncedAt) {
         // 테스트에서 이 값을 직접 검증할 필요가 없어 no-op으로 둔다.
     }
+
+    @Override
+    public void updateStatus(Long connectionId, ConnectionStatus status) {
+        for (int i = 0; i < connections.size(); i++) {
+            Owned owned = connections.get(i);
+            BrokerConnection connection = owned.connection();
+            if (connection.getConnectionId().equals(connectionId)) {
+                BrokerConnection updated = BrokerConnection.of(
+                        connection.getConnectionId(), connection.getBrokerId(), connection.getBrokerCode(),
+                        connection.getBrokerName(), status, connection.getConnectedAt(), connection.getLastSyncedAt(),
+                        connection.getAccountCount());
+                connections.set(i, new Owned(owned.userId(), updated));
+                return;
+            }
+        }
+    }
 }

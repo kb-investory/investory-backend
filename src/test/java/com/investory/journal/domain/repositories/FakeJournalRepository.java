@@ -68,4 +68,9 @@ public class FakeJournalRepository implements JournalRepository {
         journals.removeIf(existing -> existing.getJournalId().equals(journal.getJournalId()));
         journals.add(journal);
     }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        journals.removeIf(journal -> journal.getUserId().equals(userId));
+    }
 }

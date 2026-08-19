@@ -12,4 +12,5 @@ public interface PrincipleSetMapper {
     int findMaxVersionNo(@Param("userId") Long userId);
     void archiveActive(@Param("userId") Long userId);
     void insert(PrincipleSetRow row);
+    void deleteByUserId(@Param("userId") Long userId);
 }

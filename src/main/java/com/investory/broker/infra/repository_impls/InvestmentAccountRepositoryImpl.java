@@ -100,4 +100,13 @@ public class InvestmentAccountRepositoryImpl implements InvestmentAccountReposit
             throw new BrokerInfraException(e);
         }
     }
+
+    @Override
+    public void deleteByConnectionId(Long connectionId) {
+        try {
+            investmentAccountMapper.deleteByConnectionId(connectionId);
+        } catch (DataAccessException e) {
+            throw new BrokerInfraException(e);
+        }
+    }
 }

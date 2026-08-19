@@ -91,4 +91,9 @@ public class FakeInvestmentAccountRepository implements InvestmentAccountReposit
             }
         }
     }
+
+    @Override
+    public void deleteByConnectionId(Long connectionId) {
+        accounts.removeIf(owned -> owned.account().getConnectionId().equals(connectionId));
+    }
 }

@@ -1,5 +1,6 @@
 package com.investory.broker.domain.repositories;
 
+import com.investory.broker.domain.constant.ConnectionStatus;
 import com.investory.broker.domain.model.BrokerConnection;
 
 import java.time.Instant;
@@ -23,4 +24,6 @@ public interface BrokerConnectionRepository {
     Long insert(Long userId, Long brokerId, String mockProfileCode, Instant connectedAt);
 
     void updateLastSyncedAt(Long connectionId, Instant lastSyncedAt);
+
+    void updateStatus(Long connectionId, ConnectionStatus status);
 }
