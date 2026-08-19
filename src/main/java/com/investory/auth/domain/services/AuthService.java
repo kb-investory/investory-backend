@@ -70,9 +70,15 @@ public class AuthService {
             user = userRepository.save(User.create(command.oauthProvider(), oAuthUserInfo));
         }
 
-        // 해당 사용자가 탈퇴 상태라면 예외 처리
+        // 탈퇴한 회원이 같은 OAuth 계정으로 다시 로그인하면 재활성화한다 — withdraw()가 이 계정의
+        // 다른 도메인 데이터(증권사 연동/일지/원칙)를 이미 전부 지웠으므로, 이 시점의 사용자 경험은
+        // 사실상 신규 가입과 같다. 그래서 newUser도 true로 취급해 온보딩 플로우를 그대로 태운다.
+        // users 행 자체(및 이력으로 남겨둔 broker_connections 등)는 지우지 않는다.
         if (user.isWithdrawn()) {
-            throw new AuthException(AuthErrorCode.WITHDRAWN_USER);
+            user = User.of(user.getUserId(), user.getOauthProvider(), user.getOauthSubId(), user.getEmail(),
+                    user.getNickname(), UserStatusType.ACTIVE, user.getCreatedAt(), LocalDateTime.now(), null);
+            userRepository.save(user);
+            newUser = true;
         }
 
         // 해당 정보로 Token Pair 발급
