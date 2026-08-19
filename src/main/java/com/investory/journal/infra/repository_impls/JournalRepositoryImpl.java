@@ -37,6 +37,15 @@ public class JournalRepositoryImpl implements JournalRepository {
     }
 
     @Override
+    public int countByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
+        try {
+            return journalMapper.countByUserAndDateRange(userId, startDate, endDate);
+        } catch (DataAccessException e) {
+            throw new JournalInfraException("투자일지 건수를 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
     public Optional<Journal> findByUserAndDate(Long userId, LocalDate date) {
         try {
             return journalMapper.findByUserAndDate(userId, date).stream()

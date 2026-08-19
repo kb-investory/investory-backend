@@ -26,6 +26,14 @@ public class FakeJournalRepository implements JournalRepository {
     }
 
     @Override
+    public int countByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
+        return (int) journals.stream()
+                .filter(journal -> !journal.getJournalDate().isBefore(startDate)
+                        && !journal.getJournalDate().isAfter(endDate))
+                .count();
+    }
+
+    @Override
     public Optional<Journal> findByUserAndDate(Long userId, LocalDate date) {
         return journals.stream()
                 .filter(journal -> journal.getJournalDate().isEqual(date))

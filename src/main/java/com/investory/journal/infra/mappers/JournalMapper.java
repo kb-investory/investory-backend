@@ -13,6 +13,10 @@ public interface JournalMapper {
                                              @Param("startDate") LocalDate startDate,
                                              @Param("endDate") LocalDate endDate);
 
+    int countByUserAndDateRange(@Param("userId") Long userId,
+                                 @Param("startDate") LocalDate startDate,
+                                 @Param("endDate") LocalDate endDate);
+
     List<JournalRow> findByUserAndDate(@Param("userId") Long userId, @Param("date") LocalDate date);
 
     List<JournalRow> findById(@Param("journalId") Long journalId);

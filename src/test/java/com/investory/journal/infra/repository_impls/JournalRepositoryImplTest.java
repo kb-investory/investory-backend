@@ -33,6 +33,17 @@ class JournalRepositoryImplTest {
     }
 
     @Test
+    void countByUserAndDateRange_DB_예외는_JournalInfraException으로_변환된다() {
+        DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
+        JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
+
+        JournalInfraException exception = assertThrows(JournalInfraException.class,
+                () -> repository.countByUserAndDateRange(1L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
+
+        assertSame(cause, exception.getCause());
+    }
+
+    @Test
     void findByUserAndDate_DB_예외는_JournalInfraException으로_변환된다() {
         DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
         JournalRepositoryImpl repository = new JournalRepositoryImpl(new FailingJournalMapper(cause));
@@ -121,6 +132,11 @@ class JournalRepositoryImplTest {
 
         @Override
         public List<JournalRow> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
+            throw toThrow;
+        }
+
+        @Override
+        public int countByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
             throw toThrow;
         }
 

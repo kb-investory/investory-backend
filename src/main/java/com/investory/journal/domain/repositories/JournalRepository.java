@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface JournalRepository {
     List<Journal> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate);
+    int countByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate);
     Optional<Journal> findByUserAndDate(Long userId, LocalDate date);
     Optional<Journal> findById(Long journalId);
     List<Journal> findByIds(List<Long> journalIds);
