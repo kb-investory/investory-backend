@@ -24,11 +24,14 @@
         ORDER BY ia.account_id
     </select>
 
+    <!-- DISCONNECTED 연결에 딸린 계좌는 제외한다 — 정상적으로는 연동 해지 시 investment_accounts 행
+         자체가 삭제되지만(연동 해지 참고), 방어적으로 여기서도 한 번 더 거른다. -->
     <select id="findByUserId" resultMap="investmentAccountRowResultMap">
         SELECT <include refid="accountColumns"/>
         FROM investment_accounts ia
         JOIN broker_connections bc ON bc.connection_id = ia.connection_id
         WHERE bc.user_id = #{userId}
+          AND bc.connection_status != 'DISCONNECTED'
         ORDER BY ia.account_id
     </select>
 
