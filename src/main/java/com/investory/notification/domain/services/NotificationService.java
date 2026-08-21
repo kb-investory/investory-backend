@@ -9,6 +9,7 @@ import com.investory.notification.domain.repositories.NotificationRepository;
 import com.investory.notification.domain.repositories.NotificationSettingsRepository;
 import com.investory.notification.domain.services.dto.command.CreateNotificationCommand;
 import com.investory.notification.domain.services.dto.command.MarkNotificationReadCommand;
+import com.investory.notification.domain.services.dto.query.GetNotificationDetailQuery;
 import com.investory.notification.domain.services.dto.query.GetNotificationsQuery;
 import com.investory.notification.domain.services.dto.result.MarkNotificationReadResult;
 import com.investory.notification.domain.services.dto.result.NotificationListResult;
@@ -47,6 +48,11 @@ public class NotificationService {
         long unreadCount = notificationRepository.countByUser(query.userId(), false);
 
         return new NotificationListResult(content, query.page(), query.size(), totalElements, unreadCount);
+    }
+
+    public NotificationResult getNotification(GetNotificationDetailQuery query) {
+        Notification notification = findOwnedNotification(query.notificationId(), query.userId());
+        return NotificationResult.from(notification);
     }
 
     public MarkNotificationReadResult markAsRead(MarkNotificationReadCommand command) {
