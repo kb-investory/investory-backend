@@ -9,9 +9,11 @@ import com.investory.notification.domain.repositories.FakeNotificationRepository
 import com.investory.notification.domain.repositories.FakeNotificationSettingsRepository;
 import com.investory.notification.domain.services.dto.command.CreateNotificationCommand;
 import com.investory.notification.domain.services.dto.command.MarkNotificationReadCommand;
+import com.investory.notification.domain.services.dto.query.GetNotificationDetailQuery;
 import com.investory.notification.domain.services.dto.query.GetNotificationsQuery;
 import com.investory.notification.domain.services.dto.result.MarkNotificationReadResult;
 import com.investory.notification.domain.services.dto.result.NotificationListResult;
+import com.investory.notification.domain.services.dto.result.NotificationResult;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -45,6 +47,28 @@ class NotificationServiceTest {
         NotificationException exception = assertThrows(NotificationException.class,
                 () -> service.getNotifications(new GetNotificationsQuery(USER_ID, null, -1, 20)));
         assertEquals(NotificationErrorCode.INVALID_PAGE_PARAMS, exception.getErrorCode());
+    }
+
+    @Test
+    void 본인_소유_알림을_단건_조회할_수_있다() {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, USER_ID, NotificationType.TRADE_INGESTED, "제목", "내용", 10L, false, Instant.now(), null));
+        NotificationService service = new NotificationService(repository, new FakeNotificationSettingsRepository());
+
+        NotificationResult result = service.getNotification(new GetNotificationDetailQuery(USER_ID, 1L));
+
+        assertEquals("제목", result.title());
+    }
+
+    @Test
+    void 남의_알림을_단건_조회하면_NOTIFICATION_NOT_FOUND_예외를_던진다() {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, 999L, NotificationType.TRADE_INGESTED, "제목", "내용", 10L, false, Instant.now(), null));
+        NotificationService service = new NotificationService(repository, new FakeNotificationSettingsRepository());
+
+        NotificationException exception = assertThrows(NotificationException.class,
+                () -> service.getNotification(new GetNotificationDetailQuery(USER_ID, 1L)));
+        assertEquals(NotificationErrorCode.NOTIFICATION_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
