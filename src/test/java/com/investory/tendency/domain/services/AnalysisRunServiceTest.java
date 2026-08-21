@@ -9,6 +9,7 @@ import com.investory.tendency.domain.ports.FakePrinciplePort;
 import com.investory.tendency.domain.ports.FakeRationaleLabelStatsPort;
 import com.investory.tendency.domain.ports.FakeTradeLedgerPort;
 import com.investory.tendency.domain.ports.FakeTradeMatchQueryPort;
+import com.investory.tendency.domain.ports.dto.TradeInfo;
 import com.investory.tendency.domain.repositories.FakeAnalysisResultRepository;
 import com.investory.tendency.domain.repositories.FakeAnalysisRunRepository;
 import com.investory.tendency.domain.services.dto.command.RunAnalysisCommand;
@@ -19,6 +20,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -39,6 +44,8 @@ class AnalysisRunServiceTest {
     private CapturingEventPublisher eventPublisher;
     private FakePrincipleRecommendationCleanupPort principleRecommendationCleanupPort;
     private FakeJournalRationalePort journalRationalePort;
+    private FakeTradeLedgerPort tradeLedgerPort;
+    private FakeMarketDataPort marketDataPort;
     private AnalysisRunService analysisRunService;
 
     @BeforeEach
@@ -48,6 +55,8 @@ class AnalysisRunServiceTest {
         eventPublisher = new CapturingEventPublisher();
         principleRecommendationCleanupPort = new FakePrincipleRecommendationCleanupPort();
         journalRationalePort = new FakeJournalRationalePort();
+        tradeLedgerPort = new FakeTradeLedgerPort();
+        marketDataPort = new FakeMarketDataPort();
 
         PortfolioRiskAnalysisService portfolioRiskAnalysisService =
                 new PortfolioRiskAnalysisService(new FakeHoldingSummaryPort(), new FakeMarketDataPort());
@@ -60,7 +69,7 @@ class AnalysisRunServiceTest {
 
         analysisRunService = new AnalysisRunService(analysisRunRepository, analysisResultRepository,
                 portfolioRiskAnalysisService, rationaleTendencyService, holdingPeriodAnalysisService,
-                principleAdherenceAnalysisService, new FakeTradeLedgerPort(), new FakeMarketDataPort(),
+                principleAdherenceAnalysisService, tradeLedgerPort, marketDataPort,
                 journalRationalePort, eventPublisher, principleRecommendationCleanupPort);
     }
 
@@ -107,6 +116,52 @@ class AnalysisRunServiceTest {
         assertTrue(analysisRunRepository.findByUserId(USER_ID).isEmpty());
         assertTrue(analysisResultRepository.findIdsByUserId(USER_ID).isEmpty());
         assertEquals(1, principleRecommendationCleanupPort.deleteCalls().size());
+    }
+
+    // #172 회귀 테스트 — 종목 하나가 (종목,일자) 조합 수를 독점해도 손실 대응 라벨이 그 종목에
+    // 끌려가지 않고, 종목 단위 다수결을 따라야 한다.
+    // 종목101: 매수 후 계속 보유만 하며 9일 연속 손실 상태(HOLD 9표) — 예전 방식이면 이 날짜 수가
+    //          그대로 전체 합산에 더해져 압도적 다수를 차지했다.
+    // 종목102·103: 매수 다음날 바로 손절매도(각 1일, STOP_LOSS 1표씩).
+    // 예전(합산) 방식: totalDays=11, holdDays=9 → 9/11≈82% → HOLD로 오판정.
+    // 수정 후(종목별 선판정 후 다수결) 방식: 종목 3개 중 STOP_LOSS가 2표(2/3≈67%) → STOP_LOSS.
+    @Test
+    void 손실_대응_성향은_날짜_합산이_아니라_종목_단위_다수결로_판정한다() {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        tradeLedgerPort.add(buyTrade(101L, today.minusDays(10), 10, 100));
+        for (long d = 9; d >= 1; d--) {
+            marketDataPort.addPrice(101L, today.minusDays(d), 90.0);
+        }
+
+        tradeLedgerPort.add(buyTrade(102L, today.minusDays(5), 10, 100));
+        tradeLedgerPort.add(sellTrade(102L, today.minusDays(4), 10, 90));
+
+        tradeLedgerPort.add(buyTrade(103L, today.minusDays(5), 10, 100));
+        tradeLedgerPort.add(sellTrade(103L, today.minusDays(4), 10, 90));
+
+        analysisRunService.runAnalysis(new RunAnalysisCommand(USER_ID));
+
+        TendencyAnalyzedEvent event = eventPublisher.events.get(0);
+        String lossTypeCode = event.results().stream()
+                .filter(r -> r.analysisDimensionCode().equals("LOSS_RESPONSE"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("LOSS_RESPONSE 결과가 없음"))
+                .analysisTypeCode();
+
+        assertEquals("LOSS_STOP_LOSS", lossTypeCode);
+    }
+
+    private TradeInfo buyTrade(Long securityId, LocalDate date, int quantity, double price) {
+        return new TradeInfo(securityId, "BUY", BigDecimal.valueOf(quantity), BigDecimal.valueOf(price), toInstant(date));
+    }
+
+    private TradeInfo sellTrade(Long securityId, LocalDate date, int quantity, double price) {
+        return new TradeInfo(securityId, "SELL", BigDecimal.valueOf(quantity), BigDecimal.valueOf(price), toInstant(date));
+    }
+
+    private Instant toInstant(LocalDate date) {
+        return date.atStartOfDay(ZoneOffset.UTC).toInstant();
     }
 
     private static class CapturingEventPublisher implements ApplicationEventPublisher {
