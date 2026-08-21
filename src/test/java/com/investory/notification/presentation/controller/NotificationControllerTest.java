@@ -59,6 +59,42 @@ class NotificationControllerTest {
     }
 
     @Test
+    void 단건_조회하면_알림_상세를_반환한다() throws Exception {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, TEMP_USER_ID, NotificationType.TRADE_INGESTED, "제목", "내용", 10L, false, Instant.now(), null));
+        MockMvc mockMvc = mockMvc(repository);
+
+        MvcResult result = mockMvc.perform(get("/notifications/{notificationId}", 1L))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = readJson(result);
+        assertEquals("제목", json.get("title").asText());
+    }
+
+    @Test
+    void 존재하지_않는_알림을_단건_조회하면_404와_NOTI_001을_반환한다() throws Exception {
+        MockMvc mockMvc = mockMvc(new FakeNotificationRepository());
+
+        MvcResult result = mockMvc.perform(get("/notifications/{notificationId}", 999L))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        JsonNode json = readJson(result);
+        assertEquals("NOTI_001", json.get("errorCode").asText());
+    }
+
+    @Test
+    void 남의_알림을_단건_조회하면_404를_반환한다() throws Exception {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, 999L, NotificationType.TRADE_INGESTED, "제목", "내용", 10L, false, Instant.now(), null));
+        MockMvc mockMvc = mockMvc(repository);
+
+        mockMvc.perform(get("/notifications/{notificationId}", 1L))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void 읽음처리하면_isRead가_true로_바뀐_응답을_반환한다() throws Exception {
         FakeNotificationRepository repository = new FakeNotificationRepository();
         repository.add(Notification.of(1L, TEMP_USER_ID, NotificationType.TRADE_INGESTED, "제목", "내용", 10L, false, Instant.now(), null));
