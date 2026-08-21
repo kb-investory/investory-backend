@@ -11,9 +11,11 @@ import com.investory.notification.domain.services.dto.command.CreateNotification
 import com.investory.notification.domain.services.dto.command.MarkNotificationReadCommand;
 import com.investory.notification.domain.services.dto.query.GetNotificationDetailQuery;
 import com.investory.notification.domain.services.dto.query.GetNotificationsQuery;
+import com.investory.notification.domain.services.dto.result.MarkAllNotificationsReadResult;
 import com.investory.notification.domain.services.dto.result.MarkNotificationReadResult;
 import com.investory.notification.domain.services.dto.result.NotificationListResult;
 import com.investory.notification.domain.services.dto.result.NotificationResult;
+import com.investory.notification.domain.services.dto.result.UnreadCountResult;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -62,6 +64,18 @@ public class NotificationService {
             notificationRepository.update(updated);
         }
         return new MarkNotificationReadResult(updated.getNotificationId(), updated.isRead(), updated.getReadAt());
+    }
+
+    // 안읽은 알림만 대상으로 일괄 읽음처리한다("모두 읽음" 버튼). 이미 읽은 알림의 readAt은 그대로 둔다.
+    public MarkAllNotificationsReadResult markAllAsRead(Long userId) {
+        Instant now = Instant.now();
+        int updatedCount = notificationRepository.markAllAsRead(userId, now);
+        return new MarkAllNotificationsReadResult(updatedCount, now);
+    }
+
+    // 헤더/탭 뱃지용 — 목록을 이미 불러온 화면은 목록 응답의 unreadCount로 대체하고 별도 호출할 필요 없다.
+    public UnreadCountResult getUnreadCount(Long userId) {
+        return new UnreadCountResult(notificationRepository.countByUser(userId, false));
     }
 
     // asset/tendency/simulation의 이벤트 리스너(infra/listeners)에서만 호출된다. "알림을 보낼지"는

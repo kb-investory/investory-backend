@@ -8,6 +8,7 @@ import com.investory.notification.infra.mappers.NotificationMapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -70,6 +71,15 @@ public class NotificationRepositoryImpl implements NotificationRepository {
             notificationMapper.update(row);
         } catch (DataAccessException e) {
             throw new NotificationInfraException("알림을 수정하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public int markAllAsRead(Long userId, Instant readAt) {
+        try {
+            return notificationMapper.markAllAsRead(userId, readAt);
+        } catch (DataAccessException e) {
+            throw new NotificationInfraException("알림을 일괄 읽음처리하는 중 오류가 발생했습니다.", e);
         }
     }
 

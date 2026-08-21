@@ -11,9 +11,11 @@ import com.investory.notification.domain.services.dto.command.CreateNotification
 import com.investory.notification.domain.services.dto.command.MarkNotificationReadCommand;
 import com.investory.notification.domain.services.dto.query.GetNotificationDetailQuery;
 import com.investory.notification.domain.services.dto.query.GetNotificationsQuery;
+import com.investory.notification.domain.services.dto.result.MarkAllNotificationsReadResult;
 import com.investory.notification.domain.services.dto.result.MarkNotificationReadResult;
 import com.investory.notification.domain.services.dto.result.NotificationListResult;
 import com.investory.notification.domain.services.dto.result.NotificationResult;
+import com.investory.notification.domain.services.dto.result.UnreadCountResult;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -103,6 +105,47 @@ class NotificationServiceTest {
         NotificationException exception = assertThrows(NotificationException.class,
                 () -> service.markAsRead(new MarkNotificationReadCommand(USER_ID, 1L)));
         assertEquals(NotificationErrorCode.NOTIFICATION_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 전체_읽음처리하면_안읽은_알림만_갱신되고_이미_읽은_알림의_readAt은_유지된다() {
+        Instant firstReadAt = Instant.now().minusSeconds(60);
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, USER_ID, NotificationType.TRADE_INGESTED, "제목1", "내용1", 10L, false, Instant.now(), null));
+        repository.add(Notification.of(2L, USER_ID, NotificationType.TENDENCY_ANALYZED, "제목2", "내용2", 20L, false, Instant.now(), null));
+        repository.add(Notification.of(3L, USER_ID, NotificationType.SIMULATION_COMPLETED, "제목3", "내용3", 30L, true, Instant.now(), firstReadAt));
+        NotificationService service = new NotificationService(repository, new FakeNotificationSettingsRepository());
+
+        MarkAllNotificationsReadResult result = service.markAllAsRead(USER_ID);
+
+        assertEquals(2, result.updatedCount());
+        assertEquals(0, repository.countByUser(USER_ID, false));
+        assertEquals(firstReadAt, repository.findById(3L).orElseThrow().getReadAt());
+    }
+
+    @Test
+    void 다른_사용자의_알림은_전체_읽음처리_대상에서_제외된다() {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, USER_ID, NotificationType.TRADE_INGESTED, "제목1", "내용1", 10L, false, Instant.now(), null));
+        repository.add(Notification.of(2L, 999L, NotificationType.TENDENCY_ANALYZED, "제목2", "내용2", 20L, false, Instant.now(), null));
+        NotificationService service = new NotificationService(repository, new FakeNotificationSettingsRepository());
+
+        MarkAllNotificationsReadResult result = service.markAllAsRead(USER_ID);
+
+        assertEquals(1, result.updatedCount());
+        assertFalse(repository.findById(2L).orElseThrow().isRead());
+    }
+
+    @Test
+    void 안읽은_알림_개수를_조회한다() {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, USER_ID, NotificationType.TRADE_INGESTED, "제목1", "내용1", 10L, false, Instant.now(), null));
+        repository.add(Notification.of(2L, USER_ID, NotificationType.TENDENCY_ANALYZED, "제목2", "내용2", 20L, true, Instant.now(), Instant.now()));
+        NotificationService service = new NotificationService(repository, new FakeNotificationSettingsRepository());
+
+        UnreadCountResult result = service.getUnreadCount(USER_ID);
+
+        assertEquals(1, result.unreadCount());
     }
 
     @Test

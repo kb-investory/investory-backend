@@ -130,6 +130,36 @@ class NotificationControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void 전체_읽음처리하면_updatedCount와_readAt을_반환한다() throws Exception {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, TEMP_USER_ID, NotificationType.TRADE_INGESTED, "제목1", "내용1", 10L, false, Instant.now(), null));
+        repository.add(Notification.of(2L, TEMP_USER_ID, NotificationType.TENDENCY_ANALYZED, "제목2", "내용2", 20L, false, Instant.now(), null));
+        MockMvc mockMvc = mockMvc(repository);
+
+        MvcResult result = mockMvc.perform(patch("/notifications/read-all"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = readJson(result);
+        assertEquals(2, json.get("updatedCount").asInt());
+        assertFalse(json.get("readAt").isNull());
+    }
+
+    @Test
+    void 안읽은_알림_개수를_조회한다() throws Exception {
+        FakeNotificationRepository repository = new FakeNotificationRepository();
+        repository.add(Notification.of(1L, TEMP_USER_ID, NotificationType.TRADE_INGESTED, "제목", "내용", 10L, false, Instant.now(), null));
+        MockMvc mockMvc = mockMvc(repository);
+
+        MvcResult result = mockMvc.perform(get("/notifications/unread-count"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = readJson(result);
+        assertEquals(1, json.get("unreadCount").asInt());
+    }
+
     private MockMvc mockMvc(FakeNotificationRepository repository) {
         NotificationService service = new NotificationService(repository, new FakeNotificationSettingsRepository());
         return MockMvcBuilders.standaloneSetup(new NotificationController(service))

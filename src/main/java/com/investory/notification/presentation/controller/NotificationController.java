@@ -4,12 +4,16 @@ import com.investory.notification.domain.services.NotificationService;
 import com.investory.notification.domain.services.dto.command.MarkNotificationReadCommand;
 import com.investory.notification.domain.services.dto.query.GetNotificationDetailQuery;
 import com.investory.notification.domain.services.dto.query.GetNotificationsQuery;
+import com.investory.notification.domain.services.dto.result.MarkAllNotificationsReadResult;
 import com.investory.notification.domain.services.dto.result.MarkNotificationReadResult;
 import com.investory.notification.domain.services.dto.result.NotificationListResult;
 import com.investory.notification.domain.services.dto.result.NotificationResult;
+import com.investory.notification.domain.services.dto.result.UnreadCountResult;
 import com.investory.notification.presentation.dto.response.NotificationListResponse;
+import com.investory.notification.presentation.dto.response.NotificationReadAllResponse;
 import com.investory.notification.presentation.dto.response.NotificationReadResponse;
 import com.investory.notification.presentation.dto.response.NotificationResponse;
+import com.investory.notification.presentation.dto.response.UnreadCountResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -50,5 +54,17 @@ public class NotificationController {
         MarkNotificationReadResult result = notificationService.markAsRead(
                 new MarkNotificationReadCommand(userId, notificationId));
         return NotificationReadResponse.from(result);
+    }
+
+    @PatchMapping("/read-all")
+    public NotificationReadAllResponse markAllAsRead(@AuthenticationPrincipal Long userId) {
+        MarkAllNotificationsReadResult result = notificationService.markAllAsRead(userId);
+        return NotificationReadAllResponse.from(result);
+    }
+
+    @GetMapping("/unread-count")
+    public UnreadCountResponse getUnreadCount(@AuthenticationPrincipal Long userId) {
+        UnreadCountResult result = notificationService.getUnreadCount(userId);
+        return UnreadCountResponse.from(result);
     }
 }
