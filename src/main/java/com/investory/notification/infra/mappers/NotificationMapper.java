@@ -4,6 +4,7 @@ import com.investory.notification.infra.entities.NotificationRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 @Mapper
@@ -18,6 +19,8 @@ public interface NotificationMapper {
     void insert(NotificationRow row);
 
     void update(NotificationRow row);
+
+    int markAllAsRead(@Param("userId") Long userId, @Param("readAt") Instant readAt);
 
     void deleteByUserId(@Param("userId") Long userId);
 }

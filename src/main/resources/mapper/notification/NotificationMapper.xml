@@ -54,6 +54,14 @@
         WHERE notification_id = #{notificationId}
     </update>
 
+    <update id="markAllAsRead">
+        UPDATE notifications
+        SET is_read = true,
+            read_at = #{readAt}
+        WHERE user_id = #{userId}
+          AND is_read = false
+    </update>
+
     <delete id="deleteByUserId">
         DELETE FROM notifications
         WHERE user_id = #{userId}

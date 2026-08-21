@@ -2,6 +2,7 @@ package com.investory.notification.domain.repositories;
 
 import com.investory.notification.domain.model.Notification;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -64,6 +65,19 @@ public class FakeNotificationRepository implements NotificationRepository {
     public void update(Notification notification) {
         notifications.removeIf(existing -> existing.getNotificationId().equals(notification.getNotificationId()));
         notifications.add(notification);
+    }
+
+    @Override
+    public int markAllAsRead(Long userId, Instant readAt) {
+        int count = 0;
+        for (int i = 0; i < notifications.size(); i++) {
+            Notification notification = notifications.get(i);
+            if (notification.getUserId().equals(userId) && !notification.isRead()) {
+                notifications.set(i, notification.markAsRead(readAt));
+                count++;
+            }
+        }
+        return count;
     }
 
     @Override
