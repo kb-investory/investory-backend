@@ -21,13 +21,16 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final String allowedOriginsRaw;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
+            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
             @Value("${app.allowed-origins}") String allowedOriginsRaw
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.allowedOriginsRaw = allowedOriginsRaw;
     }
 
@@ -103,6 +106,10 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+                // 미등록 시 Spring Security 기본값(Http403ForbiddenEntryPoint)으로 떨어져, 토큰 없음/
+                // 만료/위조가 전부 본문 없는 403으로 응답되고 GlobalExceptionHandler의 공통 ErrorResponse
+                // 포맷을 못 탄다 — JwtAuthenticationEntryPoint로 401 + 기존 ErrorResponse 포맷을 보장한다.
+                .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(toAntMatchers(PERMIT_ALL_PATHS))
                         .permitAll()

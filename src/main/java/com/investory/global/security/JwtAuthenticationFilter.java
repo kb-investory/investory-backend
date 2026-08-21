@@ -31,6 +31,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String ACCESS_TOKEN_COOKIE = "accessToken";
 
+    // JwtAuthenticationEntryPoint가 이 값을 읽어 토큰 없음/만료/위조를 구분한 401 응답을 만든다.
+    public static final String AUTH_ERROR_CODE_ATTRIBUTE = "com.investory.global.security.AUTH_ERROR_CODE";
+
     private final TokenProvider tokenProvider;
 
     @Override
@@ -47,6 +50,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             } catch (AuthException e) {
                 SecurityContextHolder.clearContext();
+                // 여기서 응답을 직접 만들지 않는다 — 인증 없이 필터체인을 계속 진행시키면
+                // 보호된 경로에서 AuthorizationFilter가 인증 실패로 판단해 JwtAuthenticationEntryPoint를
+                // 호출하는데, 그때 이 값을 읽어 토큰 없음(기본값)과 구분되는 정확한 401 응답을 만든다.
+                request.setAttribute(AUTH_ERROR_CODE_ATTRIBUTE, e.getErrorCode());
             }
         }
 
