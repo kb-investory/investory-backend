@@ -62,7 +62,7 @@ public class AnalysisRunService {
     private static final BigDecimal LOSS_GAIN_THRESHOLD = BigDecimal.valueOf(60, 2);
 
     private static final String DIM_PORTFOLIO_RISK = "PORTFOLIO_RISK_ALLOCATION";
-    private static final String DIM_BUY_DECISION_BASIS = "BUY_DECISION_BASIS";
+    private static final String DIM_BUY_DECISION_BASIS = "PURCHASE_RATIONALE";
     private static final String DIM_LOSS_RESPONSE = "LOSS_RESPONSE";
     private static final String DIM_PROFIT_RESPONSE = "PROFIT_RESPONSE";
     private static final String DIM_HOLDING_PERIOD = "HOLDING_PERIOD";
