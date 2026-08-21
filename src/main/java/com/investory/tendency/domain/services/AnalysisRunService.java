@@ -43,6 +43,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -51,7 +52,9 @@ import java.util.stream.Collectors;
 // 1·2·5·6번은 이미 포트폴리오 전체 기준으로 계산하는 기존 서비스를 그대로 재사용한다.
 // 3·4번(손실/수익 대응)은 기존 서비스가 종목 단위(securityId)로만 계산하는데, analysis_results는
 // 실행당 항목별 결과가 1행이어야 해서(UNIQUE(analysis_run_id, analysis_dimension_code)) 여기서
-// 사용자가 거래한 모든 종목의 일수를 합산해 하나의 라벨로 판정한다 (6번이 이미 종목을 합산하는 것과 동일한 방식).
+// 종목별로 먼저 라벨을 매긴 뒤, 그 라벨들을 종목 단위로 다시 다수결을 내 하나의 라벨로 합산한다.
+// (종목,일자) 조합 수를 그대로 하나의 카운터에 합산하던 이전 방식은 매매가 잦거나 오래 물려있던
+// 종목 하나가 표를 독점해버리는 문제가 있었다(#172).
 @Service
 public class AnalysisRunService {
 
@@ -226,16 +229,17 @@ public class AnalysisRunService {
         Map<Long, List<TradeInfo>> tradesBySecurity = allTrades.stream()
                 .collect(Collectors.groupingBy(TradeInfo::securityId));
 
-        int totalDays = 0;
-        int netSellDays = 0;
-        int netBuyDays = 0;
-        int holdDays = 0;
-
+        // 1단계: 종목별로 (손실/수익) 상태였던 날을 세어, 그 종목 자신의 라벨을 먼저 매긴다.
+        List<SecurityDayCounts> perSecurityCounts = new ArrayList<>();
         for (Map.Entry<Long, List<TradeInfo>> entry : tradesBySecurity.entrySet()) {
             Map<LocalDate, BigDecimal> closePriceByDay = marketDataPort.findDailyPrices(entry.getKey(), windowStart, today).stream()
                     .collect(Collectors.toMap(DailyPriceInfo::priceDate, DailyPriceInfo::closePrice));
             List<DailyPnlWalker.DailyOutcome> outcomes = DailyPnlWalker.walk(entry.getValue(), closePriceByDay, windowStart, today);
 
+            int totalDays = 0;
+            int netSellDays = 0;
+            int netBuyDays = 0;
+            int holdDays = 0;
             for (DailyPnlWalker.DailyOutcome outcome : outcomes) {
                 boolean matches = isLoss ? outcome.pnl().signum() < 0 : outcome.pnl().signum() > 0;
                 if (!matches) {
@@ -251,27 +255,53 @@ public class AnalysisRunService {
                     holdDays++;
                 }
             }
+            if (totalDays > 0) {
+                perSecurityCounts.add(new SecurityDayCounts(totalDays, netSellDays, netBuyDays, holdDays));
+            }
         }
 
-        if (isLoss) {
-            List<ThresholdMajorityLabeler.Bucket<LossResponseType>> buckets = List.of(
-                    new ThresholdMajorityLabeler.Bucket<>(LossResponseType.STOP_LOSS, netSellDays),
-                    new ThresholdMajorityLabeler.Bucket<>(LossResponseType.AVERAGING_DOWN, netBuyDays),
-                    new ThresholdMajorityLabeler.Bucket<>(LossResponseType.HOLD, holdDays)
-            );
-            LossResponseType type = ThresholdMajorityLabeler.classify(buckets, totalDays, LOSS_GAIN_THRESHOLD, LossResponseType.MIXED);
-            addResult(results, DIM_LOSS_RESPONSE, "LOSS_" + type.name(),
-                    new PortfolioDayCountEvidence(totalDays, netSellDays, netBuyDays, holdDays, type.name()));
-        } else {
-            List<ThresholdMajorityLabeler.Bucket<GainResponseType>> buckets = List.of(
-                    new ThresholdMajorityLabeler.Bucket<>(GainResponseType.TAKE_PROFIT, netSellDays),
-                    new ThresholdMajorityLabeler.Bucket<>(GainResponseType.AVERAGING_UP, netBuyDays),
-                    new ThresholdMajorityLabeler.Bucket<>(GainResponseType.HOLD, holdDays)
-            );
-            GainResponseType type = ThresholdMajorityLabeler.classify(buckets, totalDays, LOSS_GAIN_THRESHOLD, GainResponseType.MIXED);
-            addResult(results, DIM_PROFIT_RESPONSE, "PROFIT_" + type.name(),
-                    new PortfolioDayCountEvidence(totalDays, netSellDays, netBuyDays, holdDays, type.name()));
+        if (perSecurityCounts.isEmpty()) {
+            log.info("{} 성향 산출 불가 — 분석창 내 해당 상태(손실/수익)였던 종목 없음", isLoss ? "손실 대응" : "수익 대응");
+            return;
         }
+
+        // 2단계: 종목별 라벨을 다시 종목 단위로 다수결을 내 하나의 최종 라벨로 합산한다.
+        if (isLoss) {
+            addLossOrGainResult(perSecurityCounts, results, DIM_LOSS_RESPONSE, "LOSS_",
+                    LossResponseType.STOP_LOSS, LossResponseType.AVERAGING_DOWN, LossResponseType.HOLD, LossResponseType.MIXED);
+        } else {
+            addLossOrGainResult(perSecurityCounts, results, DIM_PROFIT_RESPONSE, "PROFIT_",
+                    GainResponseType.TAKE_PROFIT, GainResponseType.AVERAGING_UP, GainResponseType.HOLD, GainResponseType.MIXED);
+        }
+    }
+
+    // sellLabel/buyLabel/holdLabel/mixedLabel 순서로 3번(손실 대응)·4번(수익 대응)의 라벨 타입만 바꿔가며 재사용한다.
+    private <T extends Enum<T>> void addLossOrGainResult(List<SecurityDayCounts> perSecurityCounts, List<AnalysisResult> results,
+                                                           String dimensionCode, String typePrefix,
+                                                           T sellLabel, T buyLabel, T holdLabel, T mixedLabel) {
+        List<T> perSecurityLabels = perSecurityCounts.stream()
+                .map(c -> ThresholdMajorityLabeler.classify(List.of(
+                                new ThresholdMajorityLabeler.Bucket<>(sellLabel, c.netSellDays()),
+                                new ThresholdMajorityLabeler.Bucket<>(buyLabel, c.netBuyDays()),
+                                new ThresholdMajorityLabeler.Bucket<>(holdLabel, c.holdDays())),
+                        c.totalDays(), LOSS_GAIN_THRESHOLD, mixedLabel))
+                .collect(Collectors.toList());
+
+        List<ThresholdMajorityLabeler.Bucket<T>> voteBuckets = List.of(
+                new ThresholdMajorityLabeler.Bucket<>(sellLabel, Collections.frequency(perSecurityLabels, sellLabel)),
+                new ThresholdMajorityLabeler.Bucket<>(buyLabel, Collections.frequency(perSecurityLabels, buyLabel)),
+                new ThresholdMajorityLabeler.Bucket<>(holdLabel, Collections.frequency(perSecurityLabels, holdLabel)),
+                new ThresholdMajorityLabeler.Bucket<>(mixedLabel, Collections.frequency(perSecurityLabels, mixedLabel))
+        );
+        T type = ThresholdMajorityLabeler.classify(voteBuckets, perSecurityLabels.size(), LOSS_GAIN_THRESHOLD, mixedLabel);
+
+        addResult(results, dimensionCode, typePrefix + type.name(),
+                new SecurityVoteEvidence(perSecurityCounts.size(),
+                        Collections.frequency(perSecurityLabels, sellLabel),
+                        Collections.frequency(perSecurityLabels, buyLabel),
+                        Collections.frequency(perSecurityLabels, holdLabel),
+                        Collections.frequency(perSecurityLabels, mixedLabel),
+                        type.name()));
     }
 
     // --- 변환 헬퍼 ---
@@ -299,7 +329,13 @@ public class AnalysisRunService {
                 detail.typeCode(), detail.typeName(), detail.typeDescription(), detail.evidenceJson());
     }
 
-    // 3·4번(포트폴리오 합산) 전용 evidence — 종목별이 아니라 전체 합산 일수만 담는다.
-    private record PortfolioDayCountEvidence(int totalDays, int netSellDays, int netBuyDays, int holdDays, String type) {
+    // 종목별 1단계 판정에 쓰는 (손실/수익) 상태 일수 집계 — 종목 하나의 결과다.
+    private record SecurityDayCounts(int totalDays, int netSellDays, int netBuyDays, int holdDays) {
+    }
+
+    // 3·4번 공용 evidence — securityCount는 이 창(window)에서 해당 상태(손실/수익)였던 날이
+    // 하루라도 있었던 종목 수. 나머지 카운트는 그 종목들 각각의 1단계 라벨을 다시 종목 단위로 센 것.
+    private record SecurityVoteEvidence(int securityCount, int netSellSecurityCount, int netBuySecurityCount,
+                                         int holdSecurityCount, int mixedSecurityCount, String type) {
     }
 }
