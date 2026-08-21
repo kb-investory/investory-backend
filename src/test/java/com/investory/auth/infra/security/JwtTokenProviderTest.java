@@ -57,10 +57,19 @@ class JwtTokenProviderTest {
         assertEquals(AuthErrorCode.INVALID_TOKEN, exception.getErrorCode());
     }
 
+    // signature 세그먼트의 "마지막" 문자를 변조하면 base64url 인코딩 특성상 결정론적으로 실패할 수
+    // 있다 — RSA-2048 signature는 256바이트라 256 mod 3 = 1, 마지막 문자는 원본 바이트의 상위 2비트만
+    // 의미 있고 나머지 4비트는 항상 0인 패딩이라 디코더가 무시한다. 이전엔 이 마지막 문자를 'a'/'b'로
+    // 바꿨는데, 두 문자(인덱스 26/27, 상위 2비트 모두 01)가 우연히 같은 유효 비트를 가리켜서 실제로는
+    // 아무것도 안 바뀌는 경우가 생겼다(#176). signature 세그먼트의 첫 번째 문자는 항상 완전한 6비트가
+    // 의미 있는 데이터라 이런 패딩 비트 우연 일치가 구조적으로 발생하지 않는다.
     @Test
     void 위조된_토큰을_검증하면_INVALID_TOKEN_예외가_발생한다() {
         String token = provider.createAccessToken(USER_ID);
-        String tampered = token.substring(0, token.length() - 1) + (token.endsWith("a") ? "b" : "a");
+        int signatureStart = token.lastIndexOf('.') + 1;
+        char original = token.charAt(signatureStart);
+        char replacement = original == 'a' ? 'b' : 'a';
+        String tampered = token.substring(0, signatureStart) + replacement + token.substring(signatureStart + 1);
 
         AuthException exception = assertThrows(AuthException.class, () -> provider.validateToken(tampered));
 
