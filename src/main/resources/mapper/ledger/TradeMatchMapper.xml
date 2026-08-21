@@ -28,16 +28,21 @@
         </foreach>
     </insert>
 
-    <!-- trade_matches에는 account_id가 없어(security_id만 비정규화) buy_trade_id로 trades를 조인해서 계좌 조건을 건다. -->
+    <!-- trade_matches에는 account_id가 없어(security_id만 비정규화) buy_trade_id로 trades를 조인해서 계좌 조건을 건다.
+         "최근 N일"은 이 매칭 행이 언제 계산/저장됐는지(created_at)가 아니라 실제 매도가 언제
+         일어났는지(sell_trade_id가 가리키는 trades.traded_at)로 판단해야 한다 — rematch()가 재동기화
+         때마다 매칭을 전부 삭제 후 재생성하면서 created_at을 매번 NOW()로 새로 찍기 때문에, created_at
+         기준으로 필터링하면 실제로는 훨씬 오래된 거래가 재동기화될 때마다 "최근 N일"로 잘못 다시 잡힌다. -->
     <select id="findHoldingDaysByAccountIdsSince" resultType="int">
         SELECT tm.holding_days
         FROM trade_matches tm
         JOIN trades t ON t.trade_id = tm.buy_trade_id
+        JOIN trades sell_t ON sell_t.trade_id = tm.sell_trade_id
         WHERE t.account_id IN
         <foreach collection="accountIds" item="accountId" open="(" separator="," close=")">
             #{accountId}
         </foreach>
-        AND tm.created_at &gt;= #{since}
+        AND sell_t.traded_at &gt;= #{since}
     </select>
 
 </mapper>
