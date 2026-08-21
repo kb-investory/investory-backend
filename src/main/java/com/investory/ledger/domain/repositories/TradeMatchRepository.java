@@ -15,7 +15,9 @@ public interface TradeMatchRepository {
 
     void saveAll(List<TradeMatch> matches);
 
-    // 지정한 계좌들의 매칭 중 created_at이 since 이후인 것들의 holding_days만 조회한다.
-    // holding_days는 매칭 시점에 이미 계산되어 저장된 값을 그대로 반환한다 — 여기서 다시 계산하지 않는다.
+    // 지정한 계좌들의 매칭 중 매도가 since 이후에 일어난 것들의 holding_days만 조회한다
+    // (매칭 행이 저장된 시각이 아니라 매도 거래의 실제 발생 시각 기준 — 재동기화로 매칭이 재계산돼도
+    // 값이 바뀌지 않는다). holding_days는 매칭 시점에 이미 계산되어 저장된 값을 그대로 반환한다 —
+    // 여기서 다시 계산하지 않는다.
     List<Integer> findHoldingDaysByAccountIdsSince(List<Long> accountIds, Instant since);
 }
