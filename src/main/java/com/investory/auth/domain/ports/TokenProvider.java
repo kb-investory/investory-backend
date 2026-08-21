@@ -2,6 +2,8 @@ package com.investory.auth.domain.ports;
 
 import com.investory.auth.domain.ports.dto.TokenPair;
 
+import java.security.interfaces.RSAPublicKey;
+
 public interface TokenProvider {
 
     // Token Pair(Access Token 과 Refresh Token)를 발급하는 Method
@@ -20,4 +22,8 @@ public interface TokenProvider {
 
     // Access Token 으로 UserId 를 조회하는 Method
     Long getUserId(String token);
+
+    // JwksController가 JWKS(공개키 배포) 응답을 만들 때 사용 — 다른 서비스(investory-simulation-api 등)가
+    // 이 서버가 발급한 토큰을 검증할 때 필요한 서명 공개키.
+    RSAPublicKey getPublicKey();
 }

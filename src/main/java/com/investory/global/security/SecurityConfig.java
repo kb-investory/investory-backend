@@ -32,6 +32,8 @@ public class SecurityConfig {
     }
 
     // OAuth 로그인/토큰 재발급/로그아웃은 토큰이 없는 상태에서 호출되므로 인증 없이 허용.
+    // JWKS(/.well-known/jwks.json)는 investory-simulation-api 등 다른 서비스가 이 서버가 발급한
+    // JWT를 검증할 때 쓰는 공개키라 인증과 무관하게 공개돼야 한다.
     // market 도메인(증권/시세 조회)은 유저 무관 공개 데이터라 permitAll.
     // swagger 쪽은 정적 리소스/문서 엔드포인트라 permitAll.
     private static final String[] PERMIT_ALL_PATHS = {
@@ -44,6 +46,7 @@ public class SecurityConfig {
             "/auth/token/refresh",
             "/auth/logout",
             "/auth/me",
+            "/.well-known/jwks.json",
             "/markets/securities/**",
             "/market/securities/**",
             "/swagger-ui/**",
