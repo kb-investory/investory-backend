@@ -62,35 +62,39 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       packages: read
+      id-token: write
+
     steps:
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
+      - id: auth
+        uses: google-github-actions/auth@v2
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          workload_identity_provider: projects/463680495848/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
+          service_account: deploy-bot@kbinvestory.iam.gserviceaccount.com
 
-      - name: Add remote host to known_hosts
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy via docker compose on GCP VM (IAP + OS Login)
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.DEPLOY_PORT || '22' }}" -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          gcloud compute ssh investory-api-main-server \
+            --project=kbinvestory \
+            --zone=asia-northeast3-c \
+            --tunnel-through-iap \
+            --command='
+              set -e
+              echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+              cd "${{ secrets.DEPLOY_PATH }}"
+              docker compose pull
+              docker compose up -d --remove-orphans
+              docker image prune -f
 
-      - name: Deploy via docker compose on GCP VM
-        run: |
-          ssh -p "${{ secrets.DEPLOY_PORT || '22' }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" '
-            set -e
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            cd "${{ secrets.DEPLOY_PATH }}"
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -f
-
-            echo "Waiting for /health to return 200..."
-            for i in $(seq 1 30); do
-              if curl -sf -o /dev/null "http://localhost:8080/health"; then
-                echo "Healthy after ${i} attempt(s)"
-                exit 0
-              fi
-              sleep 2
-            done
-            echo "Container did not become healthy in time" >&2
-            exit 1
-          '
+              echo "Waiting for /health to return 200..."
+              for i in $(seq 1 30); do
+                if curl -sf -o /dev/null "http://localhost:8080/health"; then
+                  echo "Healthy after ${i} attempt(s)"
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "Container did not become healthy in time" >&2
+              exit 1
+            '
