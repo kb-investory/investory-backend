@@ -39,6 +39,7 @@ public class SecurityConfig {
     // JWT를 검증할 때 쓰는 공개키라 인증과 무관하게 공개돼야 한다.
     // market 도메인(증권/시세 조회)은 유저 무관 공개 데이터라 permitAll.
     // swagger 쪽은 정적 리소스/문서 엔드포인트라 permitAll.
+    // /health는 GCP LB 헬스체크가 인증 없이 찌르므로 permitAll.
     private static final String[] PERMIT_ALL_PATHS = {
             "/auth/oauth/kakao/authorization",
             "/auth/oauth/kakao/callback",
@@ -50,6 +51,7 @@ public class SecurityConfig {
             "/auth/logout",
             "/auth/me",
             "/.well-known/jwks.json",
+            "/health",
             "/markets/securities/**",
             "/market/securities/**",
             "/swagger-ui/**",
