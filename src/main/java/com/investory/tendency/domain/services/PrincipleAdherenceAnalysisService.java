@@ -170,7 +170,9 @@ public class PrincipleAdherenceAnalysisService {
         } catch (Exception e) {
             return null;
         }
-        if (raw.getValue() == null) {
+        // ruleJson이 SQL NULL이 아니라 JSON literal "null" 텍스트인 경우 — Jackson이 예외 없이
+        // raw=null을 반환하므로 SQL NULL과 동일하게 취급한다(#183).
+        if (raw == null || raw.getValue() == null) {
             return null;
         }
         if ("STOP_LOSS".equals(raw.getType())) {
