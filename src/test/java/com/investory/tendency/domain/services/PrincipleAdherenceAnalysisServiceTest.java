@@ -103,6 +103,19 @@ class PrincipleAdherenceAnalysisServiceTest {
         assertTrue(result.complianceRate().subtract(expectedRate).abs().compareTo(BigDecimal.ONE) < 0);
     }
 
+    // #183 회귀 테스트 — rule_json 컬럼에 SQL NULL이 아니라 JSON literal "null" 텍스트가 들어있어도
+    // (시드 데이터 등으로 그렇게 들어갈 수 있다) NPE 없이 SQL NULL과 동일하게 LLM 분류로 폴백해야 한다.
+    // objectMapper.readValue("null", ...)가 예외 없이 null을 반환해 raw.getValue()에서 NPE가 났었다.
+    @Test
+    void ruleJson이_JSON_literal_null_텍스트여도_NPE_없이_LLM_분류로_폴백한다() {
+        principlePort.add(new PrincipleRuleInfo(1L, "손실이 10% 넘으면 무조건 손절한다", "null"));
+
+        PrincipleAdherenceAnalysisResult result = service.analyze(new AnalyzePrincipleAdherenceQuery(USER_ID));
+
+        assertEquals(1, result.numericItems().size());
+        assertEquals(PrincipleRuleType.STOP_LOSS, result.numericItems().get(0).type());
+    }
+
     @Test
     void 원칙이_없으면_판정불가형이다() {
         PrincipleAdherenceAnalysisResult result = service.analyze(new AnalyzePrincipleAdherenceQuery(USER_ID));
