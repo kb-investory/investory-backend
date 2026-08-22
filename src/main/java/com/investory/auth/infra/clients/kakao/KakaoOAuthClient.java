@@ -4,6 +4,7 @@ import com.investory.auth.domain.constant.OAuthProviderType;
 import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.infra.clients.OAuthClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class KakaoOAuthClient implements OAuthClient {
     private final RestTemplate restTemplate;
 
@@ -38,6 +40,7 @@ public class KakaoOAuthClient implements OAuthClient {
     // 카카오는 state를 필수로 검증하지 않으므로 이 구현체는 파라미터를 받되 사용하지 않는다.
     @Override
     public String getAuthorizeUrl(String state) {
+        log.debug("Kakao authorize request: redirect_uri={}", redirectUri);
         return authorizeUri + "?response_type=code" + "&client_id=" + clientId + "&redirect_uri=" + redirectUri;
     }
 
@@ -58,9 +61,20 @@ public class KakaoOAuthClient implements OAuthClient {
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
+        log.debug("Kakao token exchange request: redirect_uri={}", redirectUri);
         ResponseEntity<KakaoTokenResponse> response = restTemplate.exchange(tokenUri, HttpMethod.POST, request, KakaoTokenResponse.class);
 
-        return response.getBody().getAccess_token();
+        KakaoTokenResponse body = response.getBody();
+        String accessToken = body.getAccess_token();
+
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            log.error("Kakao token exchange failed: access_token is null or empty. Response: {}", body);
+            throw new RuntimeException("Kakao OAuth token exchange returned empty access token");
+        }
+
+        log.debug("Kakao token response: access_token_length={}", accessToken.length());
+
+        return accessToken;
     }
 
     @Override

@@ -18,6 +18,7 @@ import com.investory.auth.infra.security.RefreshTokenCookieProvider;
 import com.investory.auth.presentation.dto.response.ReissueResponse;
 import com.investory.auth.presentation.dto.response.UserResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -31,6 +32,7 @@ import java.net.URI;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/auth")
+@Slf4j
 public class AuthController {
 
     private final KakaoOAuthClient kakaoOAuthClient;
@@ -104,6 +106,8 @@ public class AuthController {
             @CookieValue(name = PostLoginRedirectCookieProvider.COOKIE_NAME, required = false) String savedRedirectUri) {
 
         if (!StringUtils.hasText(savedState) || !savedState.equals(state)) {
+            log.warn("Naver OAuth state mismatch: savedStatePresent={}, stateEquals={}",
+                    StringUtils.hasText(savedState), savedState != null && savedState.equals(state));
             throw new AuthException(AuthErrorCode.OAUTH_STATE_MISMATCH);
         }
 

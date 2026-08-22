@@ -4,6 +4,7 @@ import com.investory.auth.domain.constant.OAuthProviderType;
 import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.infra.clients.OAuthClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NaverOAuthClient implements OAuthClient {
     private final RestTemplate restTemplate;
 
@@ -40,6 +42,7 @@ public class NaverOAuthClient implements OAuthClient {
     // 네이버는 state를 CSRF 방지용으로 "필수"로 취급하므로 반드시 쿼리스트링에 실어 보낸다.
     @Override
     public String getAuthorizeUrl(String state) {
+        log.debug("Naver authorize request: redirect_uri={}", redirectUri);
         return authorizeUri + "?response_type=code"
                 + "&client_id=" + clientId
                 + "&redirect_uri=" + redirectUri
@@ -65,9 +68,21 @@ public class NaverOAuthClient implements OAuthClient {
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
+        log.debug("Naver token exchange request: redirect_uri={}", redirectUri);
         ResponseEntity<NaverTokenResponse> response = restTemplate.exchange(tokenUri, HttpMethod.POST, request, NaverTokenResponse.class);
 
-        return response.getBody().getAccess_token();
+        NaverTokenResponse body = response.getBody();
+        String accessToken = body.getAccess_token();
+
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            log.error("Naver token exchange failed: access_token is null or empty. Response: {}", body);
+            throw new RuntimeException("Naver OAuth token exchange returned empty access token");
+        }
+
+        log.debug("Naver token response: access_token_length={}, token_type={}, expires_in={}",
+                accessToken.length(), body.getToken_type(), body.getExpires_in());
+
+        return accessToken;
     }
 
     // accessToken으로 네이버 사용자 정보(고유 id, 이메일, 닉네임)를 조회해 공통 도메인 모델로 변환한다.
@@ -76,8 +91,12 @@ public class NaverOAuthClient implements OAuthClient {
         HttpHeaders headers = new HttpHeaders();
 
         headers.add("Authorization", "Bearer " + accessToken);
+        headers.add("User-Agent", "investory-backend/1.0");
 
         HttpEntity<Void> request = new HttpEntity<>(headers);
+
+        log.debug("Naver getUserInfo request: access_token_length={}, userInfoUri={}",
+                accessToken != null ? accessToken.length() : 0, userInfoUri);
 
         ResponseEntity<NaverUserResponse> response = restTemplate.exchange(userInfoUri, HttpMethod.GET, request, NaverUserResponse.class);
 

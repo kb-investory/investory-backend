@@ -4,6 +4,7 @@ import com.investory.auth.domain.constant.OAuthProviderType;
 import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.infra.clients.OAuthClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GoogleOAuthClient implements OAuthClient {
     private final RestTemplate restTemplate;
 
@@ -39,6 +41,7 @@ public class GoogleOAuthClient implements OAuthClient {
     // scope는 구글에서 필수 파라미터라, 없으면 "Missing required parameter: scope" 에러가 난다.
     @Override
     public String getAuthorizeUrl(String state) {
+        log.debug("Google authorize request: redirect_uri={}", redirectUri);
         return authorizeUri + "?response_type=code"
                 + "&client_id=" + clientId
                 + "&redirect_uri=" + redirectUri
@@ -62,10 +65,21 @@ public class GoogleOAuthClient implements OAuthClient {
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
+        log.debug("Google token exchange request: redirect_uri={}", redirectUri);
         ResponseEntity<GoogleTokenResponse> response =
                 restTemplate.exchange(tokenUri, HttpMethod.POST, request, GoogleTokenResponse.class);
 
-        return response.getBody().getAccess_token();
+        GoogleTokenResponse body = response.getBody();
+        String accessToken = body.getAccess_token();
+
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            log.error("Google token exchange failed: access_token is null or empty. Response: {}", body);
+            throw new RuntimeException("Google OAuth token exchange returned empty access token");
+        }
+
+        log.debug("Google token response: access_token_length={}", accessToken.length());
+
+        return accessToken;
     }
 
     // accessToken으로 구글 사용자 정보(sub, 이메일, 이름)를 조회해 공통 도메인 모델로 변환한다.
