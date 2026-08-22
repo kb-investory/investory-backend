@@ -1,4 +1,4 @@
-FROM tomcat:9.0.120-jdk17-temurin
+FROM tomcat:9.0.120-jre17-temurin
 
 # Remove Tomcat's default sample/manager apps so only our WAR is served.
 RUN rm -rf /usr/local/tomcat/webapps/*
