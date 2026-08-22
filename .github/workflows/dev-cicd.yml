@@ -82,4 +82,15 @@ jobs:
             docker compose pull
             docker compose up -d --remove-orphans
             docker image prune -f
+
+            echo "Waiting for /health to return 200..."
+            for i in $(seq 1 30); do
+              if curl -sf -o /dev/null "http://localhost:8080/health"; then
+                echo "Healthy after ${i} attempt(s)"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "Container did not become healthy in time" >&2
+            exit 1
           '
