@@ -28,7 +28,7 @@ jobs:
           cache: gradle
 
       - name: Build WAR
-        run: ./gradlew clean build
+        run: ./gradlew build --build-cache
 
       - name: Lowercase image name
         run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
