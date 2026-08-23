@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,7 +41,8 @@ class BrokerAccountSyncSchedulerTest {
         BrokerConnectionService brokerConnectionService = new BrokerConnectionService(
                 brokerConnectionRepository, new FakeBrokerProviderRepository(), accountSyncBatchRepository, investmentAccountRepository,
                 brokerFeedPort, brokerAccountSyncService, new FakeAccountDataCleanupPort());
-        scheduler = new BrokerAccountSyncScheduler(brokerConnectionRepository, brokerConnectionService);
+        Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
+        scheduler = new BrokerAccountSyncScheduler(brokerConnectionRepository, brokerConnectionService, directExecutor);
     }
 
     @Test
