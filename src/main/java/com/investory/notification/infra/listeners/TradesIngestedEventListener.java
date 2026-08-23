@@ -19,9 +19,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 // 리턴 전, 커밋 전) 리스너가 실행돼, flush 시점에 트랜잭션이 롤백돼도 이미 나간 알림은 취소되지
 // 않았다(#193). AFTER_COMMIT으로 등록해 실제 커밋 이후에만 실행되게 한다.
 //
-// @Async: 전용 Executor는 global/config/AsyncConfig에 아직 추가하지 않았다 — 지금은 @EnableAsync가
-// 등록하는 기본 SimpleAsyncTaskExecutor로 동작한다. 알림 생성은 단순 DB insert 하나뿐이라 당장은
-// 무리 없지만, 부하가 늘면 전용 풀 추가를 검토할 것.
+// @Async("notificationExecutor"): SimpleAsyncTaskExecutor(무제한 스레드 생성)로 동작하던 걸
+// global/config/AsyncConfig의 bounded 풀로 옮겼다(#194).
 @Component
 public class TradesIngestedEventListener {
 
@@ -35,7 +34,7 @@ public class TradesIngestedEventListener {
 
     // 비동기 리스너라 예외가 호출자(동기화 흐름)에 전파되지 않으므로 여기서 잡아 로그만 남긴다 —
     // 알림 생성 실패가 거래 적재 자체를 실패시키면 안 된다.
-    @Async
+    @Async("notificationExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(TradesIngestedEvent event) {
         try {

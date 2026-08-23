@@ -35,6 +35,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -61,8 +62,9 @@ class JournalServiceTest {
         tradeLedgerPort = new FakeTradeLedgerPort();
         marketDataPort = new FakeMarketDataPort();
         rationaleLabelingPort = new FakeRationaleLabelingPort();
+        Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         journalService = new JournalService(journalRepository, journalTradeNoteRepository, tradeLedgerPort,
-                marketDataPort, rationaleLabelingPort, new FakeTransactionManager());
+                marketDataPort, rationaleLabelingPort, new FakeTransactionManager(), directExecutor);
     }
 
     @Test

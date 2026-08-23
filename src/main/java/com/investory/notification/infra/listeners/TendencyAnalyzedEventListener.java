@@ -13,10 +13,8 @@ import org.springframework.stereotype.Component;
 // tendency.domain.events를 참조하는 유일한 지점 — 받는 즉시 notification 자신의 Command로 변환해
 // domain/services에 넘긴다(CLAUDE.md §5). NotificationService는 TendencyAnalyzedEvent의 존재를 모른다.
 //
-// @Async: 전용 Executor는 global/config/AsyncConfig에 아직 추가하지 않았다(공유 인프라라 팀 확인 후
-// 별도로 추가하기로 함) — 지금은 @EnableAsync가 등록하는 기본 SimpleAsyncTaskExecutor로 동작한다.
-// 알림 생성은 LLM 호출 없이 단순 DB insert 하나뿐이라 당장은 무리 없지만, 부하가 늘면 전용 풀
-// 추가를 검토할 것.
+// @Async("notificationExecutor"): SimpleAsyncTaskExecutor(무제한 스레드 생성)로 동작하던 걸
+// global/config/AsyncConfig의 bounded 풀로 옮겼다(#194).
 //
 // 빈 이름을 명시한다 — principle도 같은 이벤트를 구독하는 동명(TendencyAnalyzedEventListener) 클래스를
 // 갖고 있어(xxxEventListener 명명 규칙상 자연스러운 충돌), 둘 다 default bean name을 쓰면
@@ -34,7 +32,7 @@ public class TendencyAnalyzedEventListener {
 
     // 비동기 리스너라 예외가 호출자(분석 실행 흐름)에 전파되지 않으므로 여기서 잡아 로그만 남긴다 —
     // 알림 생성 실패가 성향분석 자체를 실패시키면 안 된다.
-    @Async
+    @Async("notificationExecutor")
     @EventListener
     public void handle(TendencyAnalyzedEvent event) {
         try {

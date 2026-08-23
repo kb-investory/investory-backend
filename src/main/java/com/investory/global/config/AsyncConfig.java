@@ -40,6 +40,21 @@ public class AsyncConfig {
         return executor;
     }
 
+    // JournalService.labelTradeNotes() 전용. 일지 저장/수정(POST·PUT journal)이 사용자 응답을 기다리는
+    // 요청 경로인데, 근거 라벨링 LLM 호출이 거래 노트 수만큼 순차 실행돼 노트가 많은 날일수록 응답이
+    // 그만큼 느려졌다(#196). 이 풀로 노트별 classify() 호출을 병렬 실행한다. 한 일지에 달리는 노트 수는
+    // 보통 한 자릿수라 tendencyLlmExecutor와 비슷하게 작게 둔다.
+    @Bean
+    public Executor journalLabelingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("journal-labeling-");
+        executor.initialize();
+        return executor;
+    }
+
     // PrincipleService.refreshRecommendationsForRun() 안에서 항목별 추천 생성 LLM 호출을 병렬로
     // 돌리는 전용 풀. principleRecommendationExecutor(리스너를 응답 경로에서 떼어내는 바깥쪽 풀)와
     // 반드시 분리한다 — 같은 풀을 재사용하면 리스너가 그 풀의 스레드 하나를 잡은 채 안에서 또 그
@@ -52,6 +67,42 @@ public class AsyncConfig {
         executor.setMaxPoolSize(10);
         executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("principle-reco-gen-");
+        executor.initialize();
+        return executor;
+    }
+
+    // notification.infra.listeners.TradesIngestedEventListener, notification.TendencyAnalyzedEventListener
+    // 전용(#194). 둘 다 지금까지 전용 Executor가 없어 @EnableAsync 기본값인 SimpleAsyncTaskExecutor로
+    // 동작했는데, 이 Executor는 풀링/큐잉이 없이 호출마다 스레드를 무제한 생성한다 — 거래 적재나
+    // 성향분석 완료가 몰리면 스레드가 걷잡을 수 없이 늘어날 수 있다. 알림 생성은 DB insert 하나뿐이라
+    // 풀을 작게 둔다.
+    @Bean
+    public Executor notificationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(3);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("notification-");
+        executor.initialize();
+        return executor;
+    }
+
+    // BrokerAccountSyncScheduler.syncAllActiveConnections() 전용(#195). 활성 연결 전체를 단일
+    // 스레드로 순차 처리하면 배치 소요 시간이 연결 수에 비례해 선형으로 늘어나 결국 스케줄 주기(5분)를
+    // 넘긴다. 계좌별 syncForBatch() 호출을 이 풀에 병렬 제출한다. write 단계(REQUIRES_NEW 트랜잭션)만
+    // DB 커넥션을 쥐므로 풀 크기는 HikariCP 기본 풀 크기(10, DatabaseConfig에 명시값 없음)보다 다소
+    // 여유 있게 잡아도 된다 — fetch(외부 HTTP) 단계는 커넥션 없이 대기하기 때문. maxPoolSize(20)가
+    // Hikari 풀보다 큰 상태에서 write 단계가 동시에 몰리면 초과분은 HikariCP의 기본
+    // connectionTimeout(30s) 동안 커넥션을 기다리다 처리되므로 즉시 실패하지는 않는다 — 다만 이
+    // 대기 자체가 지연으로 체감될 수 있으니, 실제 배치 소요 시간을 관찰하고도 병목이면 HikariCP
+    // 풀 크기를 키우는 걸 다음으로 검토한다(DB 부하에 영향을 주는 별개 판단이라 이번엔 건드리지 않았다).
+    @Bean
+    public Executor brokerSyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(20);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("broker-sync-");
         executor.initialize();
         return executor;
     }

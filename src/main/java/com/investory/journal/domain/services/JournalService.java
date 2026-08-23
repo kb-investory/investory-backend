@@ -35,6 +35,7 @@ import com.investory.journal.domain.services.dto.result.UpdateJournalResult;
 import com.investory.journal.infra.exception.RationaleLabelingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,6 +43,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +51,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 @Service
@@ -65,19 +70,22 @@ public class JournalService {
     private final MarketDataPort marketDataPort;
     private final RationaleLabelingPort rationaleLabelingPort;
     private final TransactionTemplate transactionTemplate;
+    private final Executor journalLabelingExecutor;
 
     public JournalService(JournalRepository journalRepository,
                            JournalTradeNoteRepository journalTradeNoteRepository,
                            TradeLedgerPort tradeLedgerPort,
                            MarketDataPort marketDataPort,
                            RationaleLabelingPort rationaleLabelingPort,
-                           PlatformTransactionManager transactionManager) {
+                           PlatformTransactionManager transactionManager,
+                           @Qualifier("journalLabelingExecutor") Executor journalLabelingExecutor) {
         this.journalRepository = journalRepository;
         this.journalTradeNoteRepository = journalTradeNoteRepository;
         this.tradeLedgerPort = tradeLedgerPort;
         this.marketDataPort = marketDataPort;
         this.rationaleLabelingPort = rationaleLabelingPort;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.journalLabelingExecutor = journalLabelingExecutor;
     }
 
     // ledger.domain.ports.JournalNotePort 구현체(JournalNotePortImpl)에서만 호출된다 — 증권사 연동
@@ -279,21 +287,43 @@ public class JournalService {
         });
     }
 
-    // 근거 텍스트별로 LLM 라벨링을 시도한다. 실패해도 요청 전체를 실패시키지 않고 UNCLASSIFIED로 대체한다 —
-    // 라벨링은 부가 정보이지 journal 작성의 필수 전제조건이 아니다.
+    // 근거 텍스트별로 LLM 라벨링을 병렬로 시도한다(#196 — 순차 호출이 노트 수만큼 응답 지연을 그대로
+    // 누적시켰다). 실패해도 요청 전체를 실패시키지 않고 UNCLASSIFIED로 대체한다 — 라벨링은 부가
+    // 정보이지 journal 작성의 필수 전제조건이 아니다. journalLabelingExecutor 큐가 가득 차 작업
+    // 제출 자체가 거부되는 경우(RejectedExecutionException)도 같은 이유로 UNCLASSIFIED로 대체한다 —
+    // classify() 호출 실패와 마찬가지로 요청을 실패시킬 이유가 아니다.
     private Map<Long, RationaleLabelType> labelTradeNotes(List<TradeNoteCommand> tradeNotes) {
+        List<CompletableFuture<Map.Entry<Long, RationaleLabelType>>> futures = tradeNotes.stream()
+                .map(this::submitLabeling)
+                .collect(Collectors.toList());
+
         Map<Long, RationaleLabelType> labelsByTradeId = new HashMap<>();
-        for (TradeNoteCommand tradeNote : tradeNotes) {
-            RationaleLabelType label;
-            try {
-                label = rationaleLabelingPort.classify(tradeNote.rationaleText());
-            } catch (RationaleLabelingException e) {
-                log.warn("근거 라벨링 실패 — UNCLASSIFIED로 대체합니다. tradeId={}", tradeNote.tradeId(), e);
-                label = RationaleLabelType.UNCLASSIFIED;
-            }
-            labelsByTradeId.put(tradeNote.tradeId(), label);
+        for (CompletableFuture<Map.Entry<Long, RationaleLabelType>> future : futures) {
+            Map.Entry<Long, RationaleLabelType> entry = future.join();
+            labelsByTradeId.put(entry.getKey(), entry.getValue());
         }
         return labelsByTradeId;
+    }
+
+    private CompletableFuture<Map.Entry<Long, RationaleLabelType>> submitLabeling(TradeNoteCommand tradeNote) {
+        try {
+            return CompletableFuture.supplyAsync(() -> labelOne(tradeNote), journalLabelingExecutor);
+        } catch (RejectedExecutionException e) {
+            log.warn("근거 라벨링 작업 제출 실패(큐 포화) — UNCLASSIFIED로 대체합니다. tradeId={}", tradeNote.tradeId(), e);
+            return CompletableFuture.completedFuture(
+                    new AbstractMap.SimpleEntry<>(tradeNote.tradeId(), RationaleLabelType.UNCLASSIFIED));
+        }
+    }
+
+    private Map.Entry<Long, RationaleLabelType> labelOne(TradeNoteCommand tradeNote) {
+        RationaleLabelType label;
+        try {
+            label = rationaleLabelingPort.classify(tradeNote.rationaleText());
+        } catch (RationaleLabelingException e) {
+            log.warn("근거 라벨링 실패 — UNCLASSIFIED로 대체합니다. tradeId={}", tradeNote.tradeId(), e);
+            label = RationaleLabelType.UNCLASSIFIED;
+        }
+        return new AbstractMap.SimpleEntry<>(tradeNote.tradeId(), label);
     }
 
     // null-safety + 중복/소유권 검증을 한 번에 묶어, save/update 양쪽에서 공유한다.

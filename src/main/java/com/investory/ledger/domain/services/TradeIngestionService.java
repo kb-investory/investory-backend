@@ -25,6 +25,14 @@ import java.util.stream.Collectors;
 // 최초 연동은 계좌당 거래가 수백~수천 건 내려오는데, 예전엔 거래마다 중복확인+종목조회+insert로
 // DB를 3번씩 왕복했다 — 거래 건수만큼 순차 왕복이 쌓여 느렸다. 지금은 계좌 단위로
 // (1) 중복확인 일괄 조회 → (2) 종목코드 일괄 조회 → (3) bulk insert, 총 3번의 DB 호출로 끝낸다.
+//
+// InnoDB 데드락 재시도(#203)는 여기가 아니라 broker.domain.services.BrokerConnectionService.runSync()에
+// 있다 — 이 메서드는 broker.BrokerAccountSyncService.syncAccounts()(@Transactional(REQUIRES_NEW))의
+// 트랜잭션 안에서 호출되므로, 여기서 재시도해봤자 이미 열려 있는(그리고 데드락으로 죽었을 수 있는)
+// 그 트랜잭션을 다시 쓰게 될 뿐 새 트랜잭션이 열리지 않는다. 데드락이 나면 rematch()가 던진
+// 예외가 그대로 syncAccounts()까지 전파되게 두고, 그 호출 자체를 매번 새 트랜잭션으로 재시도하는
+// 편이 유일하게 유효한 지점이다(runSync()는 REQUIRES_NEW 메서드를 다른 빈에서 호출하므로 재시도할
+// 때마다 실제로 새 트랜잭션이 열린다).
 @Service
 public class TradeIngestionService {
 

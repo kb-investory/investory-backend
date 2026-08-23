@@ -29,6 +29,7 @@ import com.investory.broker.infra.exception.BrokerFeedAuthFailedException;
 import com.investory.core.exception.FieldError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,6 +37,7 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,6 +45,8 @@ public class BrokerConnectionService {
 
     private static final Logger log = LoggerFactory.getLogger(BrokerConnectionService.class);
     private static final int ERROR_MESSAGE_MAX_LENGTH = 500;
+    private static final int MAX_SYNC_ATTEMPTS = 3;
+    private static final long SYNC_RETRY_BACKOFF_MILLIS = 100L;
 
     private final BrokerConnectionRepository brokerConnectionRepository;
     private final BrokerProviderRepository brokerProviderRepository;
@@ -270,8 +274,8 @@ public class BrokerConnectionService {
             List<BrokerAccountSyncService.AccountSyncBundle> bundles =
                     brokerAccountSyncService.fetchAccountBundles(mockConnectionId, accounts);
 
-            BrokerAccountSyncService.AccountsSyncOutcome outcome =
-                    brokerAccountSyncService.syncAccounts(userId, connectionId, bundles);
+            BrokerAccountSyncService.AccountsSyncOutcome outcome = retryOnDeadlock(
+                    () -> brokerAccountSyncService.syncAccounts(userId, connectionId, bundles), connectionId);
 
             return new SyncOutcome(true, null, outcome.accountCount(), outcome.insertedTradeCount(),
                     outcome.skippedTradeCount(), outcome.holdingCount());
@@ -279,6 +283,38 @@ public class BrokerConnectionService {
             log.error("증권사 동기화 중 오류가 발생했습니다. connectionId={}", connectionId, e);
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             return new SyncOutcome(false, truncate(message, ERROR_MESSAGE_MAX_LENGTH), 0, 0, 0, 0);
+        }
+    }
+
+    // InnoDB 데드락 재시도(#203). syncAccounts()는 @Transactional(REQUIRES_NEW)라 이 메서드(다른 빈)가
+    // 호출할 때마다 실제로 새 물리 트랜잭션을 연다 — MySQL은 데드락이 나면 트랜잭션 전체를 롤백시키므로
+    // ("애플리케이션은 재시도할 준비가 되어 있어야 한다" — MySQL 공식 문서), 재시도는 이 트랜잭션 경계에서
+    // 해야 의미가 있다. ledger.TradeIngestionService 안에서 재시도하면 이미 열려 있는(그리고 데드락으로
+    // 죽었을 수 있는) syncAccounts()의 트랜잭션을 다시 쓰게 될 뿐이라 재시도 메커니즘 자체를 여기로 옮겼다.
+    // 재시도 메커니즘만 떼어내 독립적으로 테스트할 수 있게 제네릭 헬퍼로 분리했다(package-private).
+    <T> T retryOnDeadlock(Supplier<T> work, Long connectionId) {
+        int attempt = 1;
+        while (true) {
+            try {
+                return work.get();
+            } catch (DeadlockLoserDataAccessException e) {
+                if (attempt >= MAX_SYNC_ATTEMPTS) {
+                    throw e;
+                }
+                log.warn("계좌 동기화 중 데드락 발생 — 재시도합니다. connectionId={}, attempt={}/{}",
+                        connectionId, attempt, MAX_SYNC_ATTEMPTS, e);
+                sleep(SYNC_RETRY_BACKOFF_MILLIS * attempt);
+                attempt++;
+            }
+        }
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("계좌 동기화 재시도 대기 중 인터럽트됨", ie);
         }
     }
 
