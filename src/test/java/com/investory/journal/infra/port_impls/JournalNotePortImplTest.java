@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,9 +26,10 @@ class JournalNotePortImplTest {
     void setUp() {
         FakeJournalRepository journalRepository = new FakeJournalRepository();
         journalTradeNoteRepository = new FakeJournalTradeNoteRepository();
+        Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         JournalService journalService = new JournalService(journalRepository, journalTradeNoteRepository,
                 new FakeTradeLedgerPort(), new FakeMarketDataPort(), new FakeRationaleLabelingPort(),
-                new FakeTransactionManager());
+                new FakeTransactionManager(), directExecutor);
         journalNotePort = new JournalNotePortImpl(journalService);
     }
 

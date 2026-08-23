@@ -33,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.concurrent.Executor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -193,8 +194,9 @@ class JournalControllerTest {
 
     private JournalService journalService(FakeJournalRepository journalRepository, FakeJournalTradeNoteRepository journalTradeNoteRepository,
                                            FakeTradeLedgerPort tradeLedgerPort, FakeMarketDataPort marketDataPort) {
+        Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
         return new JournalService(journalRepository, journalTradeNoteRepository, tradeLedgerPort, marketDataPort,
-                new FakeRationaleLabelingPort(), new FakeTransactionManager());
+                new FakeRationaleLabelingPort(), new FakeTransactionManager(), directExecutor);
     }
 
     private JsonNode readJson(MvcResult result) throws Exception {

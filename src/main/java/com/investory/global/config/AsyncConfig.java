@@ -40,6 +40,21 @@ public class AsyncConfig {
         return executor;
     }
 
+    // JournalService.labelTradeNotes() 전용. 일지 저장/수정(POST·PUT journal)이 사용자 응답을 기다리는
+    // 요청 경로인데, 근거 라벨링 LLM 호출이 거래 노트 수만큼 순차 실행돼 노트가 많은 날일수록 응답이
+    // 그만큼 느려졌다(#196). 이 풀로 노트별 classify() 호출을 병렬 실행한다. 한 일지에 달리는 노트 수는
+    // 보통 한 자릿수라 tendencyLlmExecutor와 비슷하게 작게 둔다.
+    @Bean
+    public Executor journalLabelingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("journal-labeling-");
+        executor.initialize();
+        return executor;
+    }
+
     // PrincipleService.refreshRecommendationsForRun() 안에서 항목별 추천 생성 LLM 호출을 병렬로
     // 돌리는 전용 풀. principleRecommendationExecutor(리스너를 응답 경로에서 떼어내는 바깥쪽 풀)와
     // 반드시 분리한다 — 같은 풀을 재사용하면 리스너가 그 풀의 스레드 하나를 잡은 채 안에서 또 그
