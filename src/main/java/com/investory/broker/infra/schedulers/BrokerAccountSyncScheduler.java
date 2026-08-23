@@ -32,6 +32,7 @@ public class BrokerAccountSyncScheduler {
     // 없지만, 연결 수가 늘어도 이전 순회가 다음 순회와 겹치지 않는다.
     @Scheduled(fixedDelay = 5 * 60 * 1000L)
     public void syncAllActiveConnections() {
+        long start = System.currentTimeMillis();
         List<ActiveConnectionSyncTarget> targets = brokerConnectionRepository.findAllActiveForSync();
         for (ActiveConnectionSyncTarget target : targets) {
             try {
@@ -44,5 +45,7 @@ public class BrokerAccountSyncScheduler {
                 log.error("계좌 동기화 배치 중 오류가 발생했습니다. connectionId={}", target.connectionId(), e);
             }
         }
+        // 배치서버 분리 전/후 성능 비교용. SYNC_BATCH 접두어로 grep해서 elapsedMs를 뽑아 비교한다.
+        log.info("SYNC_BATCH targetCount={} elapsedMs={}", targets.size(), System.currentTimeMillis() - start);
     }
 }
