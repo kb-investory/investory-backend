@@ -7,10 +7,26 @@
         </encoder>
     </appender>
 
+    <!-- 배치서버 분리 전/후 성능 비교(SYNC_BATCH/REQ 로그)를 며칠 단위로 남기기 위한 파일 보존.
+         컨테이너 기본 작업 디렉터리(CATALINA_BASE) 기준 상대경로라 Tomcat 자체 로그와 같은
+         logs/ 디렉터리에 쌓인다 — 배포 환경에서 유지하려면 이 디렉터리를 볼륨 마운트해야 한다. -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
     <logger name="com.investory" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
     </root>
 
 </configuration>
