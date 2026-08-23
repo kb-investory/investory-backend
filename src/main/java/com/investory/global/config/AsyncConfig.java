@@ -70,4 +70,20 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    // notification.infra.listeners.TradesIngestedEventListener, notification.TendencyAnalyzedEventListener
+    // 전용(#194). 둘 다 지금까지 전용 Executor가 없어 @EnableAsync 기본값인 SimpleAsyncTaskExecutor로
+    // 동작했는데, 이 Executor는 풀링/큐잉이 없이 호출마다 스레드를 무제한 생성한다 — 거래 적재나
+    // 성향분석 완료가 몰리면 스레드가 걷잡을 수 없이 늘어날 수 있다. 알림 생성은 DB insert 하나뿐이라
+    // 풀을 작게 둔다.
+    @Bean
+    public Executor notificationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(3);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("notification-");
+        executor.initialize();
+        return executor;
+    }
 }
