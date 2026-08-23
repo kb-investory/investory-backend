@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 // 원칙 이행 성향(6번) 분석. 3·4번과 달리 특정 종목이 아니라 유저의 활성 원칙 세트 전체를 대상으로 한다.
@@ -126,17 +127,30 @@ public class PrincipleAdherenceAnalysisService {
     // 원칙 항목마다 순서대로 LLM을 호출하면 항목 수만큼 지연이 그대로 누적되므로, tendencyLlmExecutor로
     // 병렬 실행하고 전부 끝날 때까지 join()으로 기다린다. classifyItem 자체가 이미
     // PrincipleAdherenceLlmException을 내부에서 잡아 EXCLUDED로 대체하므로, 항목 하나의 실패가
-    // join()으로 전파되어 다른 항목까지 막지 않는다.
+    // join()으로 전파되어 다른 항목까지 막지 않는다. tendencyLlmExecutor 큐가 가득 차 작업 제출 자체가
+    // 거부되는 경우(RejectedExecutionException)도 같은 이유로 EXCLUDED로 대체한다 — classify() 호출
+    // 실패와 마찬가지로 요청 전체를 실패시킬 이유가 아니다.
     private List<ItemClassification> classifyAll(List<PrincipleRuleInfo> principles, Long userId) {
         Instant phaseStart = Instant.now();
         List<CompletableFuture<ItemClassification>> futures = principles.stream()
-                .map(item -> CompletableFuture.supplyAsync(() -> classifyItem(item), tendencyLlmExecutor))
+                .map(this::submitClassification)
                 .collect(Collectors.toList());
         List<ItemClassification> classified = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
 
         log.info("원칙 분류 단계 완료. userId={}, itemCount={}, durationMs={}",
                 userId, principles.size(), Duration.between(phaseStart, Instant.now()).toMillis());
         return classified;
+    }
+
+    private CompletableFuture<ItemClassification> submitClassification(PrincipleRuleInfo item) {
+        try {
+            return CompletableFuture.supplyAsync(() -> classifyItem(item), tendencyLlmExecutor);
+        } catch (RejectedExecutionException e) {
+            log.warn("원칙 분류 작업 제출 실패(큐 포화) — EXCLUDED로 대체합니다. principleItemId={}",
+                    item.principleItemId(), e);
+            return CompletableFuture.completedFuture(
+                    new ItemClassification(item, PrincipleRuleType.EXCLUDED, null, PrincipleExclusionReason.CLASSIFICATION_FAILED));
+        }
     }
 
     private ItemClassification classifyItem(PrincipleRuleInfo item) {
@@ -259,9 +273,11 @@ public class PrincipleAdherenceAnalysisService {
 
         // 분류 단계와 같은 이유로 병렬 실행한다 — gradeItem도 PrincipleAdherenceLlmException을 내부에서
         // 잡아 GradeOutcome.excluded()로 대체하므로 항목 하나의 실패가 다른 항목에 번지지 않는다.
+        // classifyAll()과 같은 이유로 작업 제출 자체가 거부되는 경우(RejectedExecutionException)도
+        // GradeOutcome.excluded()로 흡수한다.
         Instant phaseStart = Instant.now();
         List<CompletableFuture<GradeOutcome>> futures = abstractItems.stream()
-                .map(item -> CompletableFuture.supplyAsync(() -> gradeItem(item, summary), tendencyLlmExecutor))
+                .map(item -> submitGrading(item, summary))
                 .collect(Collectors.toList());
         List<GradeOutcome> outcomes = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
 
@@ -291,6 +307,18 @@ public class PrincipleAdherenceAnalysisService {
                     item.source().principleItemId(), Duration.between(callStart, Instant.now()).toMillis(), e);
             return GradeOutcome.excluded(new ExcludedItemResult(item.source().principleItemId(), item.source().principleText(),
                     PrincipleExclusionReason.GRADING_FAILED));
+        }
+    }
+
+    private CompletableFuture<GradeOutcome> submitGrading(ItemClassification item, PrincipleTradingSummary summary) {
+        try {
+            return CompletableFuture.supplyAsync(() -> gradeItem(item, summary), tendencyLlmExecutor);
+        } catch (RejectedExecutionException e) {
+            log.warn("원칙 준수 채점 작업 제출 실패(큐 포화) — GRADING_FAILED로 대체합니다. principleItemId={}",
+                    item.source().principleItemId(), e);
+            return CompletableFuture.completedFuture(GradeOutcome.excluded(
+                    new ExcludedItemResult(item.source().principleItemId(), item.source().principleText(),
+                            PrincipleExclusionReason.GRADING_FAILED)));
         }
     }
 

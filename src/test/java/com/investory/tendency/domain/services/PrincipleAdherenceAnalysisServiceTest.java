@@ -2,6 +2,7 @@ package com.investory.tendency.domain.services;
 
 import com.investory.tendency.domain.constant.PrincipleAdherenceType;
 import com.investory.tendency.domain.constant.PrincipleComplianceGrade;
+import com.investory.tendency.domain.constant.PrincipleExclusionReason;
 import com.investory.tendency.domain.constant.PrincipleRuleType;
 import com.investory.tendency.domain.ports.FakeMarketDataPort;
 import com.investory.tendency.domain.ports.FakePrinciplePort;
@@ -31,6 +32,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -178,6 +181,51 @@ class PrincipleAdherenceAnalysisServiceTest {
         assertEquals(
                 IntStream.rangeClosed(1, itemCount).mapToObj(i -> (long) i).collect(Collectors.toSet()),
                 resultItemIds); // 유실 없음
+    }
+
+    // 부하가 몰려 tendencyLlmExecutor 큐가 가득 차면 CompletableFuture.supplyAsync() 제출 자체가
+    // RejectedExecutionException을 던진다(1000 VU 부하테스트에서 실제로 재현됨 — k6 에러 151건이
+    // 전부 이 경로였다). classifyItem()의 자체 catch는 "제출된 작업이 실행 중 실패"하는 경우만
+    // 잡으므로, 제출 시점 거부는 별도로 흡수해야 한다.
+    @Test
+    void 원칙_분류_작업_제출이_거부되면_CLASSIFICATION_FAILED로_대체된다() {
+        principlePort.add(new PrincipleRuleInfo(1L, "손실이 10% 넘으면 무조건 손절한다", null));
+
+        Executor alwaysRejectingExecutor = command -> {
+            throw new RejectedExecutionException("simulated queue saturation");
+        };
+        PrincipleAdherenceAnalysisService rejectingService = new PrincipleAdherenceAnalysisService(
+                principlePort, tradeLedgerPort, marketDataPort,
+                new FakePrincipleRuleClassifier(), new FakePrincipleComplianceGrader(), alwaysRejectingExecutor);
+
+        PrincipleAdherenceAnalysisResult result = rejectingService.analyze(new AnalyzePrincipleAdherenceQuery(USER_ID));
+
+        assertEquals(1, result.excludedItems().size());
+        assertEquals(PrincipleExclusionReason.CLASSIFICATION_FAILED, result.excludedItems().get(0).reason());
+    }
+
+    // 위와 같은 이유로 채점 단계(evaluateAbstractItems -> submitGrading)의 제출 거부도 흡수해야 한다.
+    // 분류 단계는 통과시키고 채점 단계에서만 거부되도록, 첫 제출(분류) 이후부터 거부하는 실행기를 쓴다.
+    @Test
+    void 원칙_준수_채점_작업_제출이_거부되면_GRADING_FAILED로_대체된다() {
+        principlePort.add(new PrincipleRuleInfo(1L, "장기적 관점을 유지하며 잦은 매매를 하지 않는다", null));
+
+        Executor delegate = Executors.newFixedThreadPool(2);
+        AtomicInteger submissionCount = new AtomicInteger(0);
+        Executor rejectAfterClassification = command -> {
+            if (submissionCount.incrementAndGet() > 1) {
+                throw new RejectedExecutionException("simulated queue saturation");
+            }
+            delegate.execute(command);
+        };
+        PrincipleAdherenceAnalysisService rejectingService = new PrincipleAdherenceAnalysisService(
+                principlePort, tradeLedgerPort, marketDataPort,
+                new FakePrincipleRuleClassifier(), new FakePrincipleComplianceGrader(), rejectAfterClassification);
+
+        PrincipleAdherenceAnalysisResult result = rejectingService.analyze(new AnalyzePrincipleAdherenceQuery(USER_ID));
+
+        assertEquals(1, result.excludedItems().size());
+        assertEquals(PrincipleExclusionReason.GRADING_FAILED, result.excludedItems().get(0).reason());
     }
 
     private static void sleep(long millis) {
