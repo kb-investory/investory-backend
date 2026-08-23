@@ -1,5 +1,6 @@
 package com.investory.tendency.domain.model;
 
+import com.investory.tendency.domain.constant.AnalysisRunStatus;
 import lombok.Getter;
 
 import java.time.Instant;
@@ -15,10 +16,13 @@ public class AnalysisRun {
     private final int tradeCount;
     private final int journalCount;
     private final String analysisVersion;
+    private final AnalysisRunStatus runStatus;
+    private final String errorMessage;
     private final Instant createdAt;
 
     private AnalysisRun(Long analysisRunId, Long userId, LocalDate periodStart, LocalDate periodEnd,
-                         int tradeCount, int journalCount, String analysisVersion, Instant createdAt) {
+                         int tradeCount, int journalCount, String analysisVersion,
+                         AnalysisRunStatus runStatus, String errorMessage, Instant createdAt) {
         this.analysisRunId = analysisRunId;
         this.userId = userId;
         this.periodStart = periodStart;
@@ -26,18 +30,24 @@ public class AnalysisRun {
         this.tradeCount = tradeCount;
         this.journalCount = journalCount;
         this.analysisVersion = analysisVersion;
+        this.runStatus = runStatus;
+        this.errorMessage = errorMessage;
         this.createdAt = createdAt;
     }
 
-    // 신규 실행 생성 시 사용. analysisRunId는 DB가 채워준다(insert 전 null).
-    public static AnalysisRun create(Long userId, LocalDate periodStart, LocalDate periodEnd,
-                                      int tradeCount, int journalCount, String analysisVersion) {
-        return new AnalysisRun(null, userId, periodStart, periodEnd, tradeCount, journalCount, analysisVersion, null);
+    // 신규 실행 요청 시 사용. 실제 분석은 아직 시작 전이라 tradeCount/journalCount는 0, 상태는
+    // REQUESTED — 백그라운드 워커가 끝나면 markSuccess/markFailed로 갱신된다(AnalysisRunRepository).
+    // analysisRunId는 DB가 채워준다(insert 전 null).
+    public static AnalysisRun create(Long userId, LocalDate periodStart, LocalDate periodEnd, String analysisVersion) {
+        return new AnalysisRun(null, userId, periodStart, periodEnd, 0, 0, analysisVersion,
+                AnalysisRunStatus.REQUESTED, null, null);
     }
 
     // DB에서 조회한 값으로 복원할 때 사용
     public static AnalysisRun of(Long analysisRunId, Long userId, LocalDate periodStart, LocalDate periodEnd,
-                                  int tradeCount, int journalCount, String analysisVersion, Instant createdAt) {
-        return new AnalysisRun(analysisRunId, userId, periodStart, periodEnd, tradeCount, journalCount, analysisVersion, createdAt);
+                                  int tradeCount, int journalCount, String analysisVersion,
+                                  AnalysisRunStatus runStatus, String errorMessage, Instant createdAt) {
+        return new AnalysisRun(analysisRunId, userId, periodStart, periodEnd, tradeCount, journalCount,
+                analysisVersion, runStatus, errorMessage, createdAt);
     }
 }

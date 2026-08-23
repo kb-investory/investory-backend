@@ -15,4 +15,13 @@ public interface AnalysisRunMapper {
     AnalysisRunRow findByIdAndUserId(@Param("analysisRunId") Long analysisRunId, @Param("userId") Long userId);
 
     void deleteByUserId(@Param("userId") Long userId);
+
+    void markRunning(@Param("analysisRunId") Long analysisRunId);
+
+    void markSuccess(@Param("analysisRunId") Long analysisRunId,
+                      @Param("tradeCount") int tradeCount, @Param("journalCount") int journalCount);
+
+    void markFailed(@Param("analysisRunId") Long analysisRunId, @Param("errorMessage") String errorMessage);
+
+    boolean existsInProgressByUserId(@Param("userId") Long userId);
 }

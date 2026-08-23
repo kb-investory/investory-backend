@@ -1,5 +1,6 @@
 package com.investory.tendency.infra.entities;
 
+import com.investory.tendency.domain.constant.AnalysisRunStatus;
 import com.investory.tendency.domain.model.AnalysisRun;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,6 +18,8 @@ public class AnalysisRunRow {
     private int tradeCount;
     private int journalCount;
     private String analysisVersion;
+    private String runStatus;
+    private String errorMessage;
     private Instant createdAt;
 
     public static AnalysisRunRow from(AnalysisRun run) {
@@ -28,11 +31,14 @@ public class AnalysisRunRow {
         row.tradeCount = run.getTradeCount();
         row.journalCount = run.getJournalCount();
         row.analysisVersion = run.getAnalysisVersion();
+        row.runStatus = run.getRunStatus().name();
+        row.errorMessage = run.getErrorMessage();
         row.createdAt = run.getCreatedAt();
         return row;
     }
 
     public AnalysisRun toDomain() {
-        return AnalysisRun.of(analysisRunId, userId, periodStart, periodEnd, tradeCount, journalCount, analysisVersion, createdAt);
+        return AnalysisRun.of(analysisRunId, userId, periodStart, periodEnd, tradeCount, journalCount,
+                analysisVersion, AnalysisRunStatus.valueOf(runStatus), errorMessage, createdAt);
     }
 }

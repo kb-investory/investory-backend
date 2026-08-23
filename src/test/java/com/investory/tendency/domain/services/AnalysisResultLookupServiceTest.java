@@ -39,10 +39,10 @@ class AnalysisResultLookupServiceTest {
 
     @Test
     void 가장_최근_실행의_결과만_반환한다() {
-        AnalysisRun older = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), 1, 0, "1.0"));
+        AnalysisRun older = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), "1.0"));
         analysisResultRepository.saveAll(List.of(AnalysisResult.create(older.getAnalysisRunId(), "PORTFOLIO_RISK_ALLOCATION", "OLD_TYPE", "{}")));
 
-        AnalysisRun newer = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), 1, 0, "1.0"));
+        AnalysisRun newer = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), "1.0"));
         analysisResultRepository.saveAll(List.of(AnalysisResult.create(newer.getAnalysisRunId(), "PORTFOLIO_RISK_ALLOCATION", "NEW_TYPE", "{}")));
 
         List<AnalysisResultDetail> details = lookupService.findLatestResultDetails(USER_ID);
@@ -53,7 +53,7 @@ class AnalysisResultLookupServiceTest {
 
     @Test
     void 단건_조회_성공() {
-        AnalysisRun run = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), 1, 0, "1.0"));
+        AnalysisRun run = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), "1.0"));
         analysisResultRepository.saveAll(List.of(AnalysisResult.create(run.getAnalysisRunId(), "PORTFOLIO_RISK_ALLOCATION", "CONCENTRATED", "{}")));
         Long analysisResultId = analysisResultRepository.findDetailByAnalysisRunId(run.getAnalysisRunId()).get(0).analysisResultId();
 

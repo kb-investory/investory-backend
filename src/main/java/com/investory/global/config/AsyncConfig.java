@@ -96,6 +96,26 @@ public class AsyncConfig {
     // connectionTimeout(30s) 동안 커넥션을 기다리다 처리되므로 즉시 실패하지는 않는다 — 다만 이
     // 대기 자체가 지연으로 체감될 수 있으니, 실제 배치 소요 시간을 관찰하고도 병목이면 HikariCP
     // 풀 크기를 키우는 걸 다음으로 검토한다(DB 부하에 영향을 주는 별개 판단이라 이번엔 건드리지 않았다).
+    // AnalysisRunService.runAnalysis()/executeAnalysis() 전용(#207). POST /tendency/analyses가
+    // 요청 스레드에서 6개 분석 항목을 전부 동기로 처리하느라 9~13초 걸리던 걸, 요청 스레드는 REQUESTED
+    // 상태 행만 만들고 즉시 202를 반환하도록 바꾸면서 실제 분석(executeAnalysis)을 이 풀로 옮겼다.
+    // tendencyLlmExecutor와 반드시 분리한다 — executeAnalysis()가 PrincipleAdherenceAnalysisService를
+    // 거쳐 tendencyLlmExecutor에 하위 작업을 제출하고 join()으로 기다리는데, 같은 풀을 쓰면 외부
+    // 작업이 그 풀의 스레드 하나를 잡은 채 같은 풀에 하위 작업을 또 제출해 기다리는 자기잠금이 날 수
+    // 있다(recommendationGenerationExecutor와 같은 이유). 아래 풀 크기는 시작값이다 — 이 전환의
+    // 핵심은 클라이언트 동시 요청 수와 실제 처리 동시성을 분리하는 것이므로, 실제 값은 loadtest로
+    // 재측정해서 정한다(#207 후속).
+    @Bean
+    public Executor analysisRunExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("analysis-run-");
+        executor.initialize();
+        return executor;
+    }
+
     @Bean
     public Executor brokerSyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

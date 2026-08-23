@@ -9,27 +9,31 @@
         <result property="tradeCount" column="trade_count"/>
         <result property="journalCount" column="journal_count"/>
         <result property="analysisVersion" column="analysis_version"/>
+        <result property="runStatus" column="run_status"/>
+        <result property="errorMessage" column="error_message"/>
         <result property="createdAt" column="created_at"/>
     </resultMap>
 
     <insert id="insert" parameterType="com.investory.tendency.infra.entities.AnalysisRunRow"
             useGeneratedKeys="true" keyProperty="analysisRunId" keyColumn="analysis_run_id">
         INSERT INTO analysis_runs (
-            user_id, period_start, period_end, trade_count, journal_count, analysis_version
+            user_id, period_start, period_end, analysis_version, run_status
         ) VALUES (
-            #{userId}, #{periodStart}, #{periodEnd}, #{tradeCount}, #{journalCount}, #{analysisVersion}
+            #{userId}, #{periodStart}, #{periodEnd}, #{analysisVersion}, 'REQUESTED'
         )
     </insert>
 
     <select id="findByUserId" resultMap="analysisRunRowMap">
-        SELECT analysis_run_id, user_id, period_start, period_end, trade_count, journal_count, analysis_version, created_at
+        SELECT analysis_run_id, user_id, period_start, period_end, trade_count, journal_count,
+               analysis_version, run_status, error_message, created_at
         FROM analysis_runs
         WHERE user_id = #{userId}
         ORDER BY created_at DESC
     </select>
 
     <select id="findByIdAndUserId" resultMap="analysisRunRowMap">
-        SELECT analysis_run_id, user_id, period_start, period_end, trade_count, journal_count, analysis_version, created_at
+        SELECT analysis_run_id, user_id, period_start, period_end, trade_count, journal_count,
+               analysis_version, run_status, error_message, created_at
         FROM analysis_runs
         WHERE analysis_run_id = #{analysisRunId}
           AND user_id = #{userId}
@@ -39,4 +43,29 @@
         DELETE FROM analysis_runs
         WHERE user_id = #{userId}
     </delete>
+
+    <update id="markRunning">
+        UPDATE analysis_runs
+        SET run_status = 'RUNNING'
+        WHERE analysis_run_id = #{analysisRunId}
+    </update>
+
+    <update id="markSuccess">
+        UPDATE analysis_runs
+        SET run_status = 'SUCCESS', trade_count = #{tradeCount}, journal_count = #{journalCount}
+        WHERE analysis_run_id = #{analysisRunId}
+    </update>
+
+    <update id="markFailed">
+        UPDATE analysis_runs
+        SET run_status = 'FAILED', error_message = #{errorMessage}
+        WHERE analysis_run_id = #{analysisRunId}
+    </update>
+
+    <select id="existsInProgressByUserId" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM analysis_runs
+            WHERE user_id = #{userId} AND run_status IN ('REQUESTED', 'RUNNING')
+        )
+    </select>
 </mapper>
