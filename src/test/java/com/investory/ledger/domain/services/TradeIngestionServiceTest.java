@@ -14,13 +14,16 @@ import com.investory.ledger.domain.services.dto.result.IngestResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TradeIngestionServiceTest {
@@ -42,7 +45,8 @@ class TradeIngestionServiceTest {
         tradeMatchRepository = new FakeTradeMatchRepository();
         eventPublisher = new CapturingEventPublisher();
         TradeMatchingService tradeMatchingService = new TradeMatchingService(tradeRepository, tradeMatchRepository);
-        tradeIngestionService = new TradeIngestionService(tradeRepository, marketDataPort, tradeMatchingService, eventPublisher);
+        tradeIngestionService = new TradeIngestionService(
+                tradeRepository, marketDataPort, tradeMatchingService, eventPublisher, new FakeTransactionManager());
 
         marketDataPort.add(new SecurityInfo(SECURITY_ID, "005930", "삼성전자", "KOSPI", "반도체"));
     }
@@ -136,6 +140,50 @@ class TradeIngestionServiceTest {
         tradeIngestionService.ingestTrades(new IngestRawTradesCommand(USER_ID, ACCOUNT_ID, List.of(raw)));
 
         assertTrue(eventPublisher.events().isEmpty());
+    }
+
+    // 실제 doIngestTrades()/repository 페이크로 데드락 재시도를 재현하려면 "재시도 시 이전 시도의
+    // insert가 롤백돼 있어야" 정확한데, 인메모리 페이크는 진짜 트랜잭션 롤백을 흉내내지 않는다(예:
+    // FakeTradeRepository는 실패한 시도에서 넣은 거래를 되돌리지 않아, 재시도 시 중복으로 오인해
+    // 건너뛴다). 그래서 재시도 메커니즘 자체는 business 로직과 분리해 retryOnDeadlock()을 직접
+    // 검증한다(#203).
+    @Test
+    void 데드락이_MAX_ATTEMPTS_미만이면_재시도_후_성공한다() {
+        AtomicInteger callCount = new AtomicInteger();
+
+        String result = tradeIngestionService.retryOnDeadlock(() -> {
+            if (callCount.incrementAndGet() <= 2) {
+                throw new DeadlockLoserDataAccessException("simulated deadlock", null);
+            }
+            return "ok";
+        }, ACCOUNT_ID);
+
+        assertEquals("ok", result);
+        assertEquals(3, callCount.get()); // 실패 2번 + 성공 1번
+    }
+
+    @Test
+    void 데드락이_MAX_ATTEMPTS_이상_반복되면_예외를_그대로_전파한다() {
+        AtomicInteger callCount = new AtomicInteger();
+
+        assertThrows(DeadlockLoserDataAccessException.class, () -> tradeIngestionService.retryOnDeadlock(() -> {
+            callCount.incrementAndGet();
+            throw new DeadlockLoserDataAccessException("simulated deadlock", null);
+        }, ACCOUNT_ID));
+
+        assertEquals(3, callCount.get()); // MAX_ATTEMPTS만큼만 시도하고 더는 재시도하지 않음
+    }
+
+    @Test
+    void 데드락이_아닌_예외는_재시도하지_않고_바로_전파한다() {
+        AtomicInteger callCount = new AtomicInteger();
+
+        assertThrows(IllegalStateException.class, () -> tradeIngestionService.retryOnDeadlock(() -> {
+            callCount.incrementAndGet();
+            throw new IllegalStateException("데드락이 아닌 다른 오류");
+        }, ACCOUNT_ID));
+
+        assertEquals(1, callCount.get());
     }
 
     private static class CapturingEventPublisher implements ApplicationEventPublisher {
