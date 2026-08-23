@@ -23,4 +23,16 @@ public class FakeMarketDataPort implements MarketDataPort {
                 .filter(p -> !p.priceDate().isBefore(from) && !p.priceDate().isAfter(to))
                 .toList();
     }
+
+    @Override
+    public Map<Long, List<DailyPriceInfo>> findDailyPrices(List<Long> securityIds, LocalDate from, LocalDate to) {
+        Map<Long, List<DailyPriceInfo>> result = new HashMap<>();
+        for (Long securityId : securityIds) {
+            List<DailyPriceInfo> prices = findDailyPrices(securityId, from, to);
+            if (!prices.isEmpty()) {
+                result.put(securityId, prices);
+            }
+        }
+        return result;
+    }
 }

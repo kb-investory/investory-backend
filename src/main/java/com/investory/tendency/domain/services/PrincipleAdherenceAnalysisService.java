@@ -219,11 +219,14 @@ public class PrincipleAdherenceAnalysisService {
         Map<Long, List<TradeInfo>> tradesBySecurity = allTrades.stream()
                 .collect(Collectors.groupingBy(TradeInfo::securityId));
 
-        // 종목별 day-walk는 원칙 항목 개수와 무관하므로 종목당 1회만 계산해 재사용한다.
+        // 종목별 day-walk는 원칙 항목 개수와 무관하므로 종목당 1회만 계산해 재사용한다. 가격 조회도
+        // 예전엔 종목마다 순차 호출했는데(#208 — collectLossOrGain과 같은 N+1 패턴) 배치로 한 번에 가져온다.
+        Map<Long, List<DailyPriceInfo>> pricesBySecurity = marketDataPort.findDailyPrices(
+                new ArrayList<>(tradesBySecurity.keySet()), windowStart, today);
         Map<Long, List<DailyPnlWalker.DailyOutcome>> outcomesBySecurity = new HashMap<>();
         for (Map.Entry<Long, List<TradeInfo>> entry : tradesBySecurity.entrySet()) {
             Long securityId = entry.getKey();
-            Map<LocalDate, BigDecimal> closePriceByDay = marketDataPort.findDailyPrices(securityId, windowStart, today).stream()
+            Map<LocalDate, BigDecimal> closePriceByDay = pricesBySecurity.getOrDefault(securityId, List.of()).stream()
                     .collect(Collectors.toMap(DailyPriceInfo::priceDate, DailyPriceInfo::closePrice));
             outcomesBySecurity.put(securityId, DailyPnlWalker.walk(entry.getValue(), closePriceByDay, windowStart, today));
         }

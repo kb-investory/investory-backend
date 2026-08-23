@@ -156,8 +156,20 @@ public class AnalysisRunService {
             List<AnalysisResult> results = new ArrayList<>();
             collectPortfolioRisk(userId, results);
             collectBuyDecisionBasis(userId, results);
-            collectLossOrGain(allTrades, windowStart, today, true, results);
-            collectLossOrGain(allTrades, windowStart, today, false, results);
+
+            // 손실 대응(3번)·수익 대응(4번)이 종목별 거래 그룹핑과 일별 종가를 그대로 공유한다 — 여기서
+            // 한 번만 계산해 두 호출에 넘긴다. 예전엔 collectLossOrGain() 호출마다(손실 1번 + 수익 1번)
+            // 종목당 marketDataPort.findDailyPrices()를 순차 호출해, 사용자 한 명 분석에 최대 60번
+            // (거래 종목 수 × 2)의 DB 왕복이 나갔다 — analysisRunExecutor를 1000 VU를 받아낼 만큼
+            // 늘린 뒤에도(#207) 완료까지 p95 36초씩 걸리던 원인이었다(#208). 배치 조회로 한 번에 가져온다.
+            Map<Long, List<TradeInfo>> tradesBySecurity = allTrades.stream()
+                    .collect(Collectors.groupingBy(TradeInfo::securityId));
+            Map<Long, List<DailyPriceInfo>> pricesBySecurity = tradesBySecurity.isEmpty()
+                    ? Map.of()
+                    : marketDataPort.findDailyPrices(new ArrayList<>(tradesBySecurity.keySet()), windowStart, today);
+
+            collectLossOrGain(tradesBySecurity, pricesBySecurity, windowStart, today, true, results);
+            collectLossOrGain(tradesBySecurity, pricesBySecurity, windowStart, today, false, results);
             collectHoldingPeriod(userId, results);
             collectPrincipleAdherence(userId, results);
 
@@ -266,21 +278,19 @@ public class AnalysisRunService {
         addResult(results, DIM_PRINCIPLE_ADHERENCE, "PRINCIPLE_" + result.type().name(), result);
     }
 
-    // 3·4번 공용 — isLoss로 손실/수익 어느 쪽을 집계할지만 가른다.
-    private void collectLossOrGain(List<TradeInfo> allTrades, LocalDate windowStart, LocalDate today,
-                                    boolean isLoss, List<AnalysisResult> results) {
-        if (allTrades.isEmpty()) {
+    // 3·4번 공용 — isLoss로 손실/수익 어느 쪽을 집계할지만 가른다. tradesBySecurity/pricesBySecurity는
+    // executeAnalysis()에서 미리 한 번만 계산해 손실·수익 두 호출이 공유한다(#208 — N+1 회피).
+    private void collectLossOrGain(Map<Long, List<TradeInfo>> tradesBySecurity, Map<Long, List<DailyPriceInfo>> pricesBySecurity,
+                                    LocalDate windowStart, LocalDate today, boolean isLoss, List<AnalysisResult> results) {
+        if (tradesBySecurity.isEmpty()) {
             log.info("{} 성향 산출 불가 — 거래 이력 없음", isLoss ? "손실 대응" : "수익 대응");
             return;
         }
 
-        Map<Long, List<TradeInfo>> tradesBySecurity = allTrades.stream()
-                .collect(Collectors.groupingBy(TradeInfo::securityId));
-
         // 1단계: 종목별로 (손실/수익) 상태였던 날을 세어, 그 종목 자신의 라벨을 먼저 매긴다.
         List<SecurityDayCounts> perSecurityCounts = new ArrayList<>();
         for (Map.Entry<Long, List<TradeInfo>> entry : tradesBySecurity.entrySet()) {
-            Map<LocalDate, BigDecimal> closePriceByDay = marketDataPort.findDailyPrices(entry.getKey(), windowStart, today).stream()
+            Map<LocalDate, BigDecimal> closePriceByDay = pricesBySecurity.getOrDefault(entry.getKey(), List.of()).stream()
                     .collect(Collectors.toMap(DailyPriceInfo::priceDate, DailyPriceInfo::closePrice));
             List<DailyPnlWalker.DailyOutcome> outcomes = DailyPnlWalker.walk(entry.getValue(), closePriceByDay, windowStart, today);
 

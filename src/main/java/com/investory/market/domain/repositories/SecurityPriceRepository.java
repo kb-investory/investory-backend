@@ -15,5 +15,9 @@ public interface SecurityPriceRepository {
     // from~to(포함) 기간의 일별 시세 목록, price_date 오름차순
     List<SecurityPrice> findBySecurityIdAndDateRange(Long securityId, LocalDate from, LocalDate to);
 
+    // findBySecurityIdAndDateRange의 배치 버전(#208) — 여러 종목의 시세를 한 번에 조회한다.
+    // 결과는 security_id, price_date 오름차순으로 섞여서 온다(호출측이 필요하면 securityId로 묶을 것).
+    List<SecurityPrice> findBySecurityIdsAndDateRange(List<Long> securityIds, LocalDate from, LocalDate to);
+
     SecurityPrice save(SecurityPrice securityPrice);
 }

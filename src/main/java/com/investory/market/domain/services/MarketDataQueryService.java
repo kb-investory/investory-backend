@@ -61,6 +61,11 @@ public class MarketDataQueryService {
         return securityPriceRepository.findBySecurityIdAndDateRange(securityId, from, to);
     }
 
+    // getStockPrices의 배치 버전(#208) — 여러 종목의 시세를 한 번에 조회한다.
+    public List<SecurityPrice> getStockPrices(List<Long> securityIds, LocalDate from, LocalDate to) {
+        return securityPriceRepository.findBySecurityIdsAndDateRange(securityIds, from, to);
+    }
+
     // keyword/marketType으로 종목을 검색해 페이지 단위로 돌려준다.
     public SecuritySearchResult searchSecurities(SecuritySearchQuery query) {
         int offset = query.page() * query.size();

@@ -41,6 +41,19 @@
         ORDER BY price_date ASC
     </select>
 
+    <!-- findBySecurityIdAndDateRange의 배치 버전(#208) — 여러 종목의 시세를 한 번에 조회한다. -->
+    <select id="findBySecurityIdsAndDateRange" resultMap="securityPriceRowMap">
+        SELECT security_id, price_date, low_price, high_price, open_price, close_price,
+        daily_return_rate, trading_volume, trading_value, created_at
+        FROM security_daily_prices
+        WHERE security_id IN
+        <foreach collection="securityIds" item="securityId" open="(" separator="," close=")">
+            #{securityId}
+        </foreach>
+        AND price_date BETWEEN #{from} AND #{to}
+        ORDER BY security_id ASC, price_date ASC
+    </select>
+
     <!-- surrogate PK가 없어서 useGeneratedKeys를 쓰지 않는다 (그동안 이게 없는 price_id를 요구해서 계속 실패했었음) -->
     <insert id="insert" parameterType="com.investory.market.infra.entities.SecurityPriceRow">
         INSERT INTO security_daily_prices (
