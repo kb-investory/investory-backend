@@ -4,17 +4,20 @@ import com.investory.tendency.domain.services.AnalysisRunService;
 import com.investory.tendency.domain.services.dto.command.RunAnalysisCommand;
 import com.investory.tendency.domain.services.dto.query.GetAnalysisRunDetailQuery;
 import com.investory.tendency.domain.services.dto.query.GetAnalysisRunsQuery;
+import com.investory.tendency.domain.services.dto.result.AnalysisRunAcceptedResult;
 import com.investory.tendency.domain.services.dto.result.AnalysisRunDetailResult;
+import com.investory.tendency.presentation.dto.response.AnalysisRunAcceptedResponse;
 import com.investory.tendency.presentation.dto.response.AnalysisRunDetailResponse;
 import com.investory.tendency.presentation.dto.response.AnalysisRunListResponse;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/tendency")
@@ -26,12 +29,15 @@ public class TendencyController {
         this.analysisRunService = analysisRunService;
     }
 
-    // 성향 분석 실행 — 6개 항목을 한 번에 계산해 저장하고, 그 결과(근거 포함)를 바로 반환한다.
+    // 성향 분석 실행 — #207. 6개 항목 계산은 요청 스레드를 9~13초씩 붙잡던 원인이라 백그라운드로
+    // 옮겼다. REQUESTED 상태의 실행만 즉시 만들고 202로 응답하며, 실제 진행 상태·결과는
+    // GET /tendency/analyses/{analysisRunId}를 폴링해 확인한다.
     @PostMapping("/analyses")
-    @ResponseStatus(HttpStatus.CREATED)
-    public AnalysisRunDetailResponse runAnalysis(@AuthenticationPrincipal Long userId) {
-        AnalysisRunDetailResult result = analysisRunService.runAnalysis(new RunAnalysisCommand(userId));
-        return AnalysisRunDetailResponse.from(result);
+    public ResponseEntity<AnalysisRunAcceptedResponse> runAnalysis(@AuthenticationPrincipal Long userId) {
+        AnalysisRunAcceptedResult result = analysisRunService.runAnalysis(new RunAnalysisCommand(userId));
+        return ResponseEntity.accepted()
+                .location(URI.create("/tendency/analyses/" + result.analysisRunId()))
+                .body(AnalysisRunAcceptedResponse.from(result));
     }
 
     // 성향 분석 이력 목록 조회

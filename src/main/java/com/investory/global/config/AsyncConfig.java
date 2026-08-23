@@ -96,6 +96,32 @@ public class AsyncConfig {
     // connectionTimeout(30s) 동안 커넥션을 기다리다 처리되므로 즉시 실패하지는 않는다 — 다만 이
     // 대기 자체가 지연으로 체감될 수 있으니, 실제 배치 소요 시간을 관찰하고도 병목이면 HikariCP
     // 풀 크기를 키우는 걸 다음으로 검토한다(DB 부하에 영향을 주는 별개 판단이라 이번엔 건드리지 않았다).
+    // AnalysisRunService.runAnalysis()/executeAnalysis() 전용(#207). POST /tendency/analyses가
+    // 요청 스레드에서 6개 분석 항목을 전부 동기로 처리하느라 9~13초 걸리던 걸, 요청 스레드는 REQUESTED
+    // 상태 행만 만들고 즉시 202를 반환하도록 바꾸면서 실제 분석(executeAnalysis)을 이 풀로 옮겼다.
+    // tendencyLlmExecutor와 반드시 분리한다 — executeAnalysis()가 PrincipleAdherenceAnalysisService를
+    // 거쳐 tendencyLlmExecutor에 하위 작업을 제출하고 join()으로 기다리는데, 같은 풀을 쓰면 외부
+    // 작업이 그 풀의 스레드 하나를 잡은 채 같은 풀에 하위 작업을 또 제출해 기다리는 자기잠금이 날 수
+    // 있다(recommendationGenerationExecutor와 같은 이유).
+    //
+    // 시작값(core5/max10/queue100, 유효 수용량 ~110)으로 1000 VU 부하테스트를 돌려본 결과 — 접수된
+    // 111건은 p95 2.66초로 끝나 threshold(<3s)를 가볍게 통과했지만, 나머지 889건은 큐 포화로 제출
+    // 즉시 FAILED 처리됐다(#207 후속, loadtest로 재측정). 즉 병목이 "처리 속도"가 아니라 "입구 큐
+    // 용량"이었다. executeAnalysis()는 대부분 findDailyPrices 등 DB 왕복으로 이뤄져 있어 실제
+    // 처리량은 CPU가 아니라 HikariCP 풀(DatabaseConfig, 현재 60)이 결정하므로 워커 수는 그 값에
+    // 맞추고, 큐는 클라이언트 버스트(최대 1000 VU)를 전부 받아낼 만큼 크게 잡는다 — 입구에서
+    // 거절하는 대신 처리 자체가 자연히 직렬화/대기되도록.
+    @Bean
+    public Executor analysisRunExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(20);
+        executor.setMaxPoolSize(60);
+        executor.setQueueCapacity(1000);
+        executor.setThreadNamePrefix("analysis-run-");
+        executor.initialize();
+        return executor;
+    }
+
     @Bean
     public Executor brokerSyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

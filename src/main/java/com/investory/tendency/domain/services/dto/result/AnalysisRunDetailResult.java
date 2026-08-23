@@ -4,6 +4,7 @@ import java.util.List;
 
 public record AnalysisRunDetailResult(
     AnalysisRunSummaryResult run,
-    List<AnalysisItemResult> items
+    List<AnalysisItemResult> items,
+    String errorMessage
 ) {
 }

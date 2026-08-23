@@ -33,7 +33,7 @@ class TendencyAnalysisPortImplTest {
 
     @Test
     void 최신_실행_결과를_TendencyAnalysisInfo로_매핑한다() {
-        AnalysisRun run = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), 1, 0, "1.0"));
+        AnalysisRun run = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), "1.0"));
         analysisResultRepository.saveAll(List.of(
                 AnalysisResult.create(run.getAnalysisRunId(), "PORTFOLIO_RISK_ALLOCATION", "RISK_LOW_VOLATILITY_DIVERSIFIED", "{}")));
 
@@ -53,7 +53,7 @@ class TendencyAnalysisPortImplTest {
 
     @Test
     void analysisResultId로_단건_조회() {
-        AnalysisRun run = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), 1, 0, "1.0"));
+        AnalysisRun run = analysisRunRepository.save(AnalysisRun.create(USER_ID, LocalDate.now(), LocalDate.now(), "1.0"));
         analysisResultRepository.saveAll(List.of(AnalysisResult.create(run.getAnalysisRunId(), "PORTFOLIO_RISK_ALLOCATION", "CONCENTRATED", "{}")));
         Long analysisResultId = analysisResultRepository.findDetailByAnalysisRunId(run.getAnalysisRunId()).get(0).analysisResultId();
 

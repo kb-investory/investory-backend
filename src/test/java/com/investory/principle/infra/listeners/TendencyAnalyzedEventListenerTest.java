@@ -11,19 +11,19 @@ import com.investory.principle.domain.services.PrincipleService;
 import com.investory.tendency.domain.events.TendencyAnalyzedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.scheduling.annotation.Async;
 
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TendencyAnalyzedEventListenerTest {
 
     private FakePrincipleRecommendationRepository principleRecommendationRepository;
+    private PrincipleService principleService;
     private TendencyAnalyzedEventListener listener;
 
     @BeforeEach
@@ -32,10 +32,10 @@ class TendencyAnalyzedEventListenerTest {
         FakeRecommendationGenerationPort recommendationGenerationPort = new FakeRecommendationGenerationPort();
         recommendationGenerationPort.setNextResult(List.of(new GeneratedRecommendation("text", "reason", null)));
         Executor directExecutor = Runnable::run; // 테스트에서는 호출 스레드에서 그대로 동기 실행
-        PrincipleService principleService = new PrincipleService(
+        principleService = new PrincipleService(
                 new FakePrincipleSetRepository(), principleRecommendationRepository, new FakeRecommendationGenerationRepository(),
                 new FakeTendencyAnalysisPort(), recommendationGenerationPort, directExecutor);
-        listener = new TendencyAnalyzedEventListener(principleService);
+        listener = new TendencyAnalyzedEventListener(principleService, directExecutor);
     }
 
     @Test
@@ -68,13 +68,35 @@ class TendencyAnalyzedEventListenerTest {
         assertEquals(1, principleRecommendationRepository.saveAllCallCount());
     }
 
-    // 이 테스트는 listener.handle()을 직접 호출해서 @Async가 실제로 비동기 실행을 만드는지는
-    // 검증하지 못한다(Spring 프록시를 안 거치므로). 대신 애너테이션 자체가 남아있는지만 지켜서,
-    // 누군가 무심코 지웠을 때 POST /tendency/analyses가 다시 이 리스너의 LLM 호출을 물고
-    // 504로 되돌아가는 회귀를 잡는다 — 실제 원인이었던 문제라 회귀 감지 가치가 크다.
+    // handle()이 추천 생성을 호출 스레드에서 직접 하지 않고 실행기에 제출만 하는지 확인한다 —
+    // 실행하지 않는(제출만 기록하는) 실행기를 주면, handle()이 정상 반환된 시점엔 아직 아무것도
+    // 저장돼 있지 않아야 한다. 누군가 무심코 실행기 제출을 없애고 직접 호출로 되돌리면
+    // POST /tendency/analyses가 다시 이 리스너의 LLM 호출을 물고 504로 되돌아가는 회귀를 잡는다.
     @Test
-    void handle은_Async로_응답_경로에서_분리되어_있다() throws NoSuchMethodException {
-        Method handle = TendencyAnalyzedEventListener.class.getMethod("handle", TendencyAnalyzedEvent.class);
-        assertNotNull(handle.getAnnotation(Async.class));
+    void handle은_추천_생성을_직접_실행하지_않고_실행기에_제출만_한다() {
+        AtomicBoolean submitted = new AtomicBoolean(false);
+        Executor recordingExecutor = command -> submitted.set(true); // 제출만 기록, 실행은 안 함
+        TendencyAnalyzedEventListener recordingListener = new TendencyAnalyzedEventListener(principleService, recordingExecutor);
+
+        recordingListener.handle(new TendencyAnalyzedEvent(100L, 1L, List.of(
+                new TendencyAnalyzedEvent.AnalysisResult(10L, "PORTFOLIO_RISK_ALLOCATION", "CONCENTRATED", "집중투자형"))));
+
+        assertTrue(submitted.get());
+        assertTrue(principleRecommendationRepository.findByAnalysisResultId(10L).isEmpty());
+    }
+
+    // #204 회귀 가드 — 1000 VU 부하테스트에서 tendencyLlmExecutor/principleRecommendationExecutor
+    // 큐가 가득 차면 CompletableFuture 제출 자체가 RejectedExecutionException을 던진다. 예전엔
+    // @Async 프록시 단계에서 이 예외가 곧장 던져져 publishEvent() -> runAnalysis()까지 전파되며
+    // 이미 저장된 분석 결과를 500으로 되돌렸다. handle()은 이 거부를 흡수하고 예외 없이 반환해야 한다.
+    @Test
+    void 실행기_제출이_거부돼도_예외가_전파되지_않는다() {
+        Executor rejectingExecutor = command -> {
+            throw new RejectedExecutionException("simulated queue saturation");
+        };
+        TendencyAnalyzedEventListener rejectingListener = new TendencyAnalyzedEventListener(principleService, rejectingExecutor);
+
+        rejectingListener.handle(new TendencyAnalyzedEvent(100L, 1L, List.of(
+                new TendencyAnalyzedEvent.AnalysisResult(10L, "PORTFOLIO_RISK_ALLOCATION", "CONCENTRATED", "집중투자형"))));
     }
 }

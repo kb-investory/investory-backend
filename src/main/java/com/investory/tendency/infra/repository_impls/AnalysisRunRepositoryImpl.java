@@ -61,4 +61,40 @@ public class AnalysisRunRepositoryImpl implements AnalysisRunRepository {
             throw new TendencyInfraException("성향 분석 실행 이력을 삭제하는 중 오류가 발생했습니다.", e);
         }
     }
+
+    @Override
+    public void markRunning(Long analysisRunId) {
+        try {
+            analysisRunMapper.markRunning(analysisRunId);
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("성향 분석 실행 상태를 갱신하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public void markSuccess(Long analysisRunId, int tradeCount, int journalCount) {
+        try {
+            analysisRunMapper.markSuccess(analysisRunId, tradeCount, journalCount);
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("성향 분석 실행 상태를 갱신하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public void markFailed(Long analysisRunId, String errorMessage) {
+        try {
+            analysisRunMapper.markFailed(analysisRunId, errorMessage);
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("성향 분석 실행 상태를 갱신하는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Override
+    public boolean existsInProgressByUserId(Long userId) {
+        try {
+            return analysisRunMapper.existsInProgressByUserId(userId);
+        } catch (DataAccessException e) {
+            throw new TendencyInfraException("진행 중인 성향 분석 여부를 조회하는 중 오류가 발생했습니다.", e);
+        }
+    }
 }

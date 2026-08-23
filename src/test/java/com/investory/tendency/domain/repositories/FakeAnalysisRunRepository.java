@@ -1,5 +1,6 @@
 package com.investory.tendency.domain.repositories;
 
+import com.investory.tendency.domain.constant.AnalysisRunStatus;
 import com.investory.tendency.domain.model.AnalysisRun;
 
 import java.time.Instant;
@@ -20,7 +21,7 @@ public class FakeAnalysisRunRepository implements AnalysisRunRepository {
         Instant createdAt = Instant.EPOCH.plusSeconds(nextId);
         AnalysisRun saved = AnalysisRun.of(nextId++, analysisRun.getUserId(), analysisRun.getPeriodStart(),
                 analysisRun.getPeriodEnd(), analysisRun.getTradeCount(), analysisRun.getJournalCount(),
-                analysisRun.getAnalysisVersion(), createdAt);
+                analysisRun.getAnalysisVersion(), analysisRun.getRunStatus(), analysisRun.getErrorMessage(), createdAt);
         runs.add(saved);
         return saved;
     }
@@ -43,5 +44,39 @@ public class FakeAnalysisRunRepository implements AnalysisRunRepository {
     @Override
     public void deleteByUserId(Long userId) {
         runs.removeIf(r -> r.getUserId().equals(userId));
+    }
+
+    @Override
+    public void markRunning(Long analysisRunId) {
+        replace(analysisRunId, r -> AnalysisRun.of(r.getAnalysisRunId(), r.getUserId(), r.getPeriodStart(), r.getPeriodEnd(),
+                r.getTradeCount(), r.getJournalCount(), r.getAnalysisVersion(), AnalysisRunStatus.RUNNING, r.getErrorMessage(), r.getCreatedAt()));
+    }
+
+    @Override
+    public void markSuccess(Long analysisRunId, int tradeCount, int journalCount) {
+        replace(analysisRunId, r -> AnalysisRun.of(r.getAnalysisRunId(), r.getUserId(), r.getPeriodStart(), r.getPeriodEnd(),
+                tradeCount, journalCount, r.getAnalysisVersion(), AnalysisRunStatus.SUCCESS, null, r.getCreatedAt()));
+    }
+
+    @Override
+    public void markFailed(Long analysisRunId, String errorMessage) {
+        replace(analysisRunId, r -> AnalysisRun.of(r.getAnalysisRunId(), r.getUserId(), r.getPeriodStart(), r.getPeriodEnd(),
+                r.getTradeCount(), r.getJournalCount(), r.getAnalysisVersion(), AnalysisRunStatus.FAILED, errorMessage, r.getCreatedAt()));
+    }
+
+    @Override
+    public boolean existsInProgressByUserId(Long userId) {
+        return runs.stream()
+                .anyMatch(r -> r.getUserId().equals(userId)
+                        && (r.getRunStatus() == AnalysisRunStatus.REQUESTED || r.getRunStatus() == AnalysisRunStatus.RUNNING));
+    }
+
+    private void replace(Long analysisRunId, java.util.function.UnaryOperator<AnalysisRun> transform) {
+        for (int i = 0; i < runs.size(); i++) {
+            if (runs.get(i).getAnalysisRunId().equals(analysisRunId)) {
+                runs.set(i, transform.apply(runs.get(i)));
+                return;
+            }
+        }
     }
 }

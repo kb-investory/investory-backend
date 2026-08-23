@@ -1,6 +1,7 @@
 package com.investory.tendency.domain.services;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.investory.tendency.domain.constant.AnalysisRunStatus;
 import com.investory.tendency.domain.constant.GainResponseType;
 import com.investory.tendency.domain.constant.LossResponseType;
 import com.investory.tendency.domain.exception.TendencyErrorCode;
@@ -25,6 +26,7 @@ import com.investory.tendency.domain.services.dto.query.AnalyzePrincipleAdherenc
 import com.investory.tendency.domain.services.dto.query.GetAnalysisRunDetailQuery;
 import com.investory.tendency.domain.services.dto.query.GetAnalysisRunsQuery;
 import com.investory.tendency.domain.services.dto.result.AnalysisItemResult;
+import com.investory.tendency.domain.services.dto.result.AnalysisRunAcceptedResult;
 import com.investory.tendency.domain.services.dto.result.AnalysisRunDetailResult;
 import com.investory.tendency.domain.services.dto.result.AnalysisRunSummaryResult;
 import com.investory.tendency.domain.services.dto.result.HoldingPeriodAnalysisResult;
@@ -33,6 +35,7 @@ import com.investory.tendency.domain.services.dto.result.PrincipleAdherenceAnaly
 import com.investory.tendency.domain.services.dto.result.RationaleTendencyResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +49,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 // 6개 항목을 한 번에 실행해서 analysis_runs/analysis_results에 저장하고, 이력/상세를 조회하는 오케스트레이션 서비스.
@@ -63,6 +69,7 @@ public class AnalysisRunService {
     private static final int ANALYSIS_WINDOW_DAYS = 90;
     private static final String ANALYSIS_VERSION = "1.0";
     private static final BigDecimal LOSS_GAIN_THRESHOLD = BigDecimal.valueOf(60, 2);
+    private static final int ERROR_MESSAGE_MAX_LENGTH = 500;
 
     private static final String DIM_PORTFOLIO_RISK = "PORTFOLIO_RISK_ALLOCATION";
     private static final String DIM_BUY_DECISION_BASIS = "PURCHASE_RATIONALE";
@@ -82,6 +89,7 @@ public class AnalysisRunService {
     private final JournalRationalePort journalRationalePort;
     private final ApplicationEventPublisher eventPublisher;
     private final PrincipleRecommendationCleanupPort principleRecommendationCleanupPort;
+    private final Executor analysisRunExecutor;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AnalysisRunService(AnalysisRunRepository analysisRunRepository,
@@ -94,7 +102,8 @@ public class AnalysisRunService {
                                MarketDataPort marketDataPort,
                                JournalRationalePort journalRationalePort,
                                ApplicationEventPublisher eventPublisher,
-                               PrincipleRecommendationCleanupPort principleRecommendationCleanupPort) {
+                               PrincipleRecommendationCleanupPort principleRecommendationCleanupPort,
+                               @Qualifier("analysisRunExecutor") Executor analysisRunExecutor) {
         this.analysisRunRepository = analysisRunRepository;
         this.analysisResultRepository = analysisResultRepository;
         this.portfolioRiskAnalysisService = portfolioRiskAnalysisService;
@@ -106,42 +115,81 @@ public class AnalysisRunService {
         this.marketDataPort = marketDataPort;
         this.journalRationalePort = journalRationalePort;
         this.eventPublisher = eventPublisher;
+        this.analysisRunExecutor = analysisRunExecutor;
     }
 
-    public AnalysisRunDetailResult runAnalysis(RunAnalysisCommand command) {
-        Instant runStart = Instant.now();
+    // 요청 경로(#207) — POST /tendency/analyses가 직접 호출. DB 읽기 없이 REQUESTED 상태의 실행
+    // 행 하나만 만들고 실제 분석(executeAnalysis)은 analysisRunExecutor에 제출한 뒤 즉시 반환한다.
+    // 예전엔 이 메서드가 6개 항목 계산 + 결과 저장 + 이벤트 발행까지 요청 스레드에서 전부 동기로
+    // 처리해 9~13초가 걸렸고, 이게 1000 VU 부하테스트에서 Tomcat/HikariCP 풀 고갈의 근본 원인으로
+    // 확인됐다(GitHub #207). 이미 진행 중인 분석이 있으면 중복 제출을 막는다 — 그렇지 않으면 한
+    // 사용자가 연달아 호출해 공유 실행기를 잠식할 수 있다.
+    public AnalysisRunAcceptedResult runAnalysis(RunAnalysisCommand command) {
         Long userId = command.userId();
+        if (analysisRunRepository.existsInProgressByUserId(userId)) {
+            throw new TendencyException(TendencyErrorCode.ANALYSIS_ALREADY_IN_PROGRESS);
+        }
+
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate windowStart = today.minusDays(ANALYSIS_WINDOW_DAYS - 1L);
+        AnalysisRun saved = analysisRunRepository.save(AnalysisRun.create(userId, windowStart, today, ANALYSIS_VERSION));
 
-        List<TradeInfo> allTrades = tradeLedgerPort.findAllTrades(userId);
+        try {
+            CompletableFuture.runAsync(() -> executeAnalysis(saved.getAnalysisRunId(), userId, windowStart, today), analysisRunExecutor);
+        } catch (RejectedExecutionException e) {
+            log.warn("성향분석 작업 제출 실패(큐 포화) — 즉시 FAILED로 마감합니다. analysisRunId={}", saved.getAnalysisRunId(), e);
+            analysisRunRepository.markFailed(saved.getAnalysisRunId(), "분석 작업을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+            return new AnalysisRunAcceptedResult(saved.getAnalysisRunId(), AnalysisRunStatus.FAILED);
+        }
+        return new AnalysisRunAcceptedResult(saved.getAnalysisRunId(), AnalysisRunStatus.REQUESTED);
+    }
 
-        List<AnalysisResult> results = new ArrayList<>();
-        collectPortfolioRisk(userId, results);
-        collectBuyDecisionBasis(userId, results);
-        collectLossOrGain(allTrades, windowStart, today, true, results);
-        collectLossOrGain(allTrades, windowStart, today, false, results);
-        collectHoldingPeriod(userId, results);
-        collectPrincipleAdherence(userId, results);
+    // 실제 분석 본체 — analysisRunExecutor에서 실행된다. 반드시 SUCCESS 또는 FAILED로 끝나야 한다
+    // (REQUESTED/RUNNING에 영원히 머무는 상태를 만들지 않는다, CLAUDE.md §11).
+    private void executeAnalysis(Long analysisRunId, Long userId, LocalDate windowStart, LocalDate today) {
+        Instant runStart = Instant.now();
+        try {
+            analysisRunRepository.markRunning(analysisRunId);
 
-        int journalCount = journalRationalePort.countJournalsInRange(userId, windowStart, today);
-        AnalysisRun run = AnalysisRun.create(userId, windowStart, today, allTrades.size(), journalCount, ANALYSIS_VERSION);
-        AnalysisRun saved = analysisRunRepository.save(run);
+            List<TradeInfo> allTrades = tradeLedgerPort.findAllTrades(userId);
 
-        List<AnalysisResult> resultsWithRunId = results.stream()
-                .map(r -> AnalysisResult.create(saved.getAnalysisRunId(), r.getAnalysisDimensionCode(), r.getPrimaryAnalysisTypeCode(), r.getEvidenceJson()))
-                .collect(Collectors.toList());
-        analysisResultRepository.saveAll(resultsWithRunId);
+            List<AnalysisResult> results = new ArrayList<>();
+            collectPortfolioRisk(userId, results);
+            collectBuyDecisionBasis(userId, results);
+            collectLossOrGain(allTrades, windowStart, today, true, results);
+            collectLossOrGain(allTrades, windowStart, today, false, results);
+            collectHoldingPeriod(userId, results);
+            collectPrincipleAdherence(userId, results);
 
-        publishAnalyzedEvent(userId, saved.getAnalysisRunId());
+            int journalCount = journalRationalePort.countJournalsInRange(userId, windowStart, today);
+            List<AnalysisResult> resultsWithRunId = results.stream()
+                    .map(r -> AnalysisResult.create(analysisRunId, r.getAnalysisDimensionCode(), r.getPrimaryAnalysisTypeCode(), r.getEvidenceJson()))
+                    .collect(Collectors.toList());
+            analysisResultRepository.saveAll(resultsWithRunId);
 
-        AnalysisRunDetailResult detail = getDetail(new GetAnalysisRunDetailQuery(userId, saved.getAnalysisRunId()));
+            analysisRunRepository.markSuccess(analysisRunId, allTrades.size(), journalCount);
 
-        // 프론트가 실제로 기다리는 POST /tendency/analyses 응답 시간 전체 — 6개 항목 계산을 다 합친 총 소요시간.
-        log.info("성향분석 실행 완료. userId={}, analysisRunId={}, tradeCount={}, totalDurationMs={}",
-                userId, saved.getAnalysisRunId(), allTrades.size(), Duration.between(runStart, Instant.now()).toMillis());
+            // markSuccess 커밋 이후에 발행하고, 여기서 실패해도 SUCCESS를 FAILED로 되돌리지 않는다 —
+            // 분석 자체는 이미 정상적으로 끝나 저장됐으므로.
+            try {
+                publishAnalyzedEvent(userId, analysisRunId);
+            } catch (RuntimeException e) {
+                log.warn("성향분석 완료 이벤트 발행 실패 — 분석 자체는 SUCCESS로 유지합니다. analysisRunId={}", analysisRunId, e);
+            }
 
-        return detail;
+            // 프론트가 폴링으로 확인하게 되는 실제 분석 소요시간 — 6개 항목 계산을 다 합친 총 소요시간.
+            log.info("성향분석 실행 완료. userId={}, analysisRunId={}, tradeCount={}, totalDurationMs={}",
+                    userId, analysisRunId, allTrades.size(), Duration.between(runStart, Instant.now()).toMillis());
+        } catch (Exception e) {
+            log.error("성향분석 실행 실패. userId={}, analysisRunId={}, durationMs={}",
+                    userId, analysisRunId, Duration.between(runStart, Instant.now()).toMillis(), e);
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            analysisRunRepository.markFailed(analysisRunId, truncate(message, ERROR_MESSAGE_MAX_LENGTH));
+        }
+    }
+
+    private String truncate(String message, int maxLength) {
+        return message.length() > maxLength ? message.substring(0, maxLength) : message;
     }
 
     // 저장된 결과를 다시 조회해(표시 이름까지 포함된 AnalysisResultDetail) 이벤트로 발행한다.
@@ -168,7 +216,7 @@ public class AnalysisRunService {
                 .map(this::toItemResult)
                 .collect(Collectors.toList());
 
-        return new AnalysisRunDetailResult(toSummary(run), items);
+        return new AnalysisRunDetailResult(toSummary(run), items, run.getErrorMessage());
     }
 
     // auth.domain.ports.TendencyCleanupPort 구현체(TendencyCleanupPortImpl)에서만 호출된다 — 계정
@@ -321,7 +369,7 @@ public class AnalysisRunService {
 
     private AnalysisRunSummaryResult toSummary(AnalysisRun run) {
         return new AnalysisRunSummaryResult(run.getAnalysisRunId(), run.getPeriodStart(), run.getPeriodEnd(),
-                run.getTradeCount(), run.getJournalCount(), run.getAnalysisVersion(), run.getCreatedAt());
+                run.getTradeCount(), run.getJournalCount(), run.getAnalysisVersion(), run.getRunStatus(), run.getCreatedAt());
     }
 
     private AnalysisItemResult toItemResult(AnalysisResultDetail detail) {
