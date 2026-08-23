@@ -91,8 +91,11 @@ public class AsyncConfig {
     // 스레드로 순차 처리하면 배치 소요 시간이 연결 수에 비례해 선형으로 늘어나 결국 스케줄 주기(5분)를
     // 넘긴다. 계좌별 syncForBatch() 호출을 이 풀에 병렬 제출한다. write 단계(REQUIRES_NEW 트랜잭션)만
     // DB 커넥션을 쥐므로 풀 크기는 HikariCP 기본 풀 크기(10, DatabaseConfig에 명시값 없음)보다 다소
-    // 여유 있게 잡아도 된다 — fetch(외부 HTTP) 단계는 커넥션 없이 대기하기 때문. HikariCP 풀 자체를
-    // 키울지는 DB 부하에 영향을 주는 별개 판단이라 이번엔 건드리지 않았다.
+    // 여유 있게 잡아도 된다 — fetch(외부 HTTP) 단계는 커넥션 없이 대기하기 때문. maxPoolSize(20)가
+    // Hikari 풀보다 큰 상태에서 write 단계가 동시에 몰리면 초과분은 HikariCP의 기본
+    // connectionTimeout(30s) 동안 커넥션을 기다리다 처리되므로 즉시 실패하지는 않는다 — 다만 이
+    // 대기 자체가 지연으로 체감될 수 있으니, 실제 배치 소요 시간을 관찰하고도 병목이면 HikariCP
+    // 풀 크기를 키우는 걸 다음으로 검토한다(DB 부하에 영향을 주는 별개 판단이라 이번엔 건드리지 않았다).
     @Bean
     public Executor brokerSyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

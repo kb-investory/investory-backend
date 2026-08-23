@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 // 연결된 계좌를 주기적으로 재동기화한다(CLAUDE.md §11). 예전엔 활성 연결 전체를 단일 스레드로
@@ -51,11 +52,24 @@ public class BrokerAccountSyncScheduler {
             return;
         }
         List<CompletableFuture<Void>> futures = targets.stream()
-                .map(target -> CompletableFuture.runAsync(() -> syncOne(target), brokerSyncExecutor))
+                .map(this::submitSync)
                 .collect(Collectors.toList());
         futures.forEach(CompletableFuture::join);
         // 배치서버 분리 전/후 성능 비교용. SYNC_BATCH 접두어로 grep해서 elapsedMs를 뽑아 비교한다.
         log.info("SYNC_BATCH targetCount={} elapsedMs={}", targets.size(), System.currentTimeMillis() - start);
+    }
+
+    // brokerSyncExecutor 큐가 가득 차 작업 제출 자체가 거부되는 경우(RejectedExecutionException)도
+    // syncOne() 내부의 RuntimeException과 같은 이유로 여기서 흡수한다 — 연결 하나(를 포함해 이번
+    // 회차에서 제출조차 못 한 연결들)의 실패가 나머지 연결의 동기화나 SYNC_BATCH 요약 로그를
+    // 막으면 안 된다.
+    private CompletableFuture<Void> submitSync(ActiveConnectionSyncTarget target) {
+        try {
+            return CompletableFuture.runAsync(() -> syncOne(target), brokerSyncExecutor);
+        } catch (RejectedExecutionException e) {
+            log.error("계좌 동기화 작업 제출 실패(큐 포화) — 이번 회차에서 건너뜁니다. connectionId={}", target.connectionId(), e);
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     private void syncOne(ActiveConnectionSyncTarget target) {

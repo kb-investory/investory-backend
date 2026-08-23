@@ -29,9 +29,11 @@ import com.investory.broker.domain.services.dto.result.SyncConnectionResult;
 import com.investory.broker.domain.ports.FakeBrokerFeedPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -365,5 +367,47 @@ class BrokerConnectionServiceTest {
 
         assertEquals(ConnectionStatus.DISCONNECTED, result.connectionStatus());
         assertTrue(accountDataCleanupPort.deletedAccountIds().isEmpty());
+    }
+
+    // 실제 syncAccounts()/repository 페이크로 데드락 재시도를 재현하려면 "재시도 시 이전 시도의
+    // 쓰기가 롤백돼 있어야" 정확한데, 인메모리 페이크는 진짜 트랜잭션 롤백을 흉내내지 않는다.
+    // 그래서 재시도 메커니즘 자체는 business 로직과 분리해 retryOnDeadlock()을 직접 검증한다(#203).
+    @Test
+    void 데드락이_MAX_ATTEMPTS_미만이면_재시도_후_성공한다() {
+        AtomicInteger callCount = new AtomicInteger();
+
+        String result = brokerConnectionService.retryOnDeadlock(() -> {
+            if (callCount.incrementAndGet() <= 2) {
+                throw new DeadlockLoserDataAccessException("simulated deadlock", null);
+            }
+            return "ok";
+        }, 1L);
+
+        assertEquals("ok", result);
+        assertEquals(3, callCount.get()); // 실패 2번 + 성공 1번
+    }
+
+    @Test
+    void 데드락이_MAX_ATTEMPTS_이상_반복되면_예외를_그대로_전파한다() {
+        AtomicInteger callCount = new AtomicInteger();
+
+        assertThrows(DeadlockLoserDataAccessException.class, () -> brokerConnectionService.retryOnDeadlock(() -> {
+            callCount.incrementAndGet();
+            throw new DeadlockLoserDataAccessException("simulated deadlock", null);
+        }, 1L));
+
+        assertEquals(3, callCount.get()); // MAX_SYNC_ATTEMPTS만큼만 시도하고 더는 재시도하지 않음
+    }
+
+    @Test
+    void 데드락이_아닌_예외는_재시도하지_않고_바로_전파한다() {
+        AtomicInteger callCount = new AtomicInteger();
+
+        assertThrows(IllegalStateException.class, () -> brokerConnectionService.retryOnDeadlock(() -> {
+            callCount.incrementAndGet();
+            throw new IllegalStateException("데드락이 아닌 다른 오류");
+        }, 1L));
+
+        assertEquals(1, callCount.get());
     }
 }

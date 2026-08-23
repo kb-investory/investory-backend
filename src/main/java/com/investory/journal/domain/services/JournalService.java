@@ -53,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 @Service
@@ -288,10 +289,12 @@ public class JournalService {
 
     // 근거 텍스트별로 LLM 라벨링을 병렬로 시도한다(#196 — 순차 호출이 노트 수만큼 응답 지연을 그대로
     // 누적시켰다). 실패해도 요청 전체를 실패시키지 않고 UNCLASSIFIED로 대체한다 — 라벨링은 부가
-    // 정보이지 journal 작성의 필수 전제조건이 아니다.
+    // 정보이지 journal 작성의 필수 전제조건이 아니다. journalLabelingExecutor 큐가 가득 차 작업
+    // 제출 자체가 거부되는 경우(RejectedExecutionException)도 같은 이유로 UNCLASSIFIED로 대체한다 —
+    // classify() 호출 실패와 마찬가지로 요청을 실패시킬 이유가 아니다.
     private Map<Long, RationaleLabelType> labelTradeNotes(List<TradeNoteCommand> tradeNotes) {
         List<CompletableFuture<Map.Entry<Long, RationaleLabelType>>> futures = tradeNotes.stream()
-                .map(tradeNote -> CompletableFuture.supplyAsync(() -> labelOne(tradeNote), journalLabelingExecutor))
+                .map(this::submitLabeling)
                 .collect(Collectors.toList());
 
         Map<Long, RationaleLabelType> labelsByTradeId = new HashMap<>();
@@ -300,6 +303,16 @@ public class JournalService {
             labelsByTradeId.put(entry.getKey(), entry.getValue());
         }
         return labelsByTradeId;
+    }
+
+    private CompletableFuture<Map.Entry<Long, RationaleLabelType>> submitLabeling(TradeNoteCommand tradeNote) {
+        try {
+            return CompletableFuture.supplyAsync(() -> labelOne(tradeNote), journalLabelingExecutor);
+        } catch (RejectedExecutionException e) {
+            log.warn("근거 라벨링 작업 제출 실패(큐 포화) — UNCLASSIFIED로 대체합니다. tradeId={}", tradeNote.tradeId(), e);
+            return CompletableFuture.completedFuture(
+                    new AbstractMap.SimpleEntry<>(tradeNote.tradeId(), RationaleLabelType.UNCLASSIFIED));
+        }
     }
 
     private Map.Entry<Long, RationaleLabelType> labelOne(TradeNoteCommand tradeNote) {
