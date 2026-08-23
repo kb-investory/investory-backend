@@ -9,6 +9,8 @@ import com.investory.notification.domain.services.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -48,5 +50,15 @@ class TradesIngestedEventListenerTest {
     void handle은_Async로_호출자_흐름에서_분리되어_있다() throws NoSuchMethodException {
         Method handle = TradesIngestedEventListener.class.getMethod("handle", TradesIngestedEvent.class);
         assertNotNull(handle.getAnnotation(Async.class));
+    }
+
+    // #193 회귀 가드: @EventListener로 되돌아가면 트랜잭션 커밋 전에 리스너가 실행돼,
+    // 거래 적재가 롤백돼도 이미 나간 알림이 남는 문제가 재발한다.
+    @Test
+    void handle은_트랜잭션_커밋_이후에만_실행되도록_등록되어_있다() throws NoSuchMethodException {
+        Method handle = TradesIngestedEventListener.class.getMethod("handle", TradesIngestedEvent.class);
+        TransactionalEventListener annotation = handle.getAnnotation(TransactionalEventListener.class);
+        assertNotNull(annotation);
+        assertEquals(TransactionPhase.AFTER_COMMIT, annotation.phase());
     }
 }
