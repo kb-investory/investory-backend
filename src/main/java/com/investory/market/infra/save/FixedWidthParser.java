@@ -1,5 +1,8 @@
 package com.investory.market.infra.save;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -11,6 +14,7 @@ import java.util.List;
  */
 public final class FixedWidthParser {
 
+    private static final Logger log = LoggerFactory.getLogger(FixedWidthParser.class);
     private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private FixedWidthParser() {
@@ -54,6 +58,8 @@ public final class FixedWidthParser {
         try {
             return LocalDate.parse(trimmed, YYYYMMDD);
         } catch (Exception e) {
+            // 상장/상폐일 등이 조용히 null로 저장되면 원인 추적이 불가능해지므로 원본 값을 남긴다.
+            log.warn("yyyyMMdd 형식 파싱 실패. value={}", trimmed, e);
             return null;
         }
     }

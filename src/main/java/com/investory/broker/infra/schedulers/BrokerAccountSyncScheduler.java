@@ -33,7 +33,15 @@ public class BrokerAccountSyncScheduler {
     @Scheduled(fixedDelay = 5 * 60 * 1000L)
     public void syncAllActiveConnections() {
         long start = System.currentTimeMillis();
-        List<ActiveConnectionSyncTarget> targets = brokerConnectionRepository.findAllActiveForSync();
+        List<ActiveConnectionSyncTarget> targets;
+        try {
+            targets = brokerConnectionRepository.findAllActiveForSync();
+        } catch (RuntimeException e) {
+            // 루프 안 계좌별 catch와 달리 이 조회 자체는 보호돼 있지 않았다 — 실패하면 이번 회차
+            // 전체를 건너뛰고 다음 주기(5분 뒤)에 다시 시도한다.
+            log.error("동기화 대상 연결 목록을 조회하는 중 오류가 발생했습니다.", e);
+            return;
+        }
         for (ActiveConnectionSyncTarget target : targets) {
             try {
                 brokerConnectionService.syncForBatch(

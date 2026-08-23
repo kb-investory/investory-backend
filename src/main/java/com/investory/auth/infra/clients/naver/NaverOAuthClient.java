@@ -3,6 +3,8 @@ package com.investory.auth.infra.clients.naver;
 import com.investory.auth.domain.constant.OAuthProviderType;
 import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.infra.clients.OAuthClient;
+import com.investory.auth.infra.exception.AuthInfraErrorCode;
+import com.investory.auth.infra.exception.AuthInfraException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 @Service
@@ -69,9 +72,20 @@ public class NaverOAuthClient implements OAuthClient {
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
         log.debug("Naver token exchange request: redirect_uri={}", redirectUri);
-        ResponseEntity<NaverTokenResponse> response = restTemplate.exchange(tokenUri, HttpMethod.POST, request, NaverTokenResponse.class);
+        ResponseEntity<NaverTokenResponse> response;
+        try {
+            response = restTemplate.exchange(tokenUri, HttpMethod.POST, request, NaverTokenResponse.class);
+        } catch (RestClientException e) {
+            log.error("Naver 토큰 교환 요청이 실패했습니다.", e);
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_TOKEN_EXCHANGE_FAILED, e);
+        }
 
         NaverTokenResponse body = response.getBody();
+        if (body == null) {
+            log.error("Naver 토큰 교환 응답 바디가 비어 있습니다.");
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_TOKEN_EXCHANGE_FAILED,
+                    new IllegalStateException("Naver token response body is null"));
+        }
         String accessToken = body.getAccess_token();
 
         if (accessToken == null || accessToken.trim().isEmpty()) {
@@ -98,9 +112,20 @@ public class NaverOAuthClient implements OAuthClient {
         log.debug("Naver getUserInfo request: access_token_length={}, userInfoUri={}",
                 accessToken != null ? accessToken.length() : 0, userInfoUri);
 
-        ResponseEntity<NaverUserResponse> response = restTemplate.exchange(userInfoUri, HttpMethod.GET, request, NaverUserResponse.class);
+        ResponseEntity<NaverUserResponse> response;
+        try {
+            response = restTemplate.exchange(userInfoUri, HttpMethod.GET, request, NaverUserResponse.class);
+        } catch (RestClientException e) {
+            log.error("Naver 사용자 정보 조회 요청이 실패했습니다.", e);
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_USER_INFO_FETCH_FAILED, e);
+        }
 
         NaverUserResponse body = response.getBody();
+        if (body == null) {
+            log.error("Naver 사용자 정보 응답 바디가 비어 있습니다.");
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_USER_INFO_FETCH_FAILED,
+                    new IllegalStateException("Naver user info response body is null"));
+        }
         NaverUserResponse.Response naverProfile = body.getResponse();
 
         return OAuthUserInfo

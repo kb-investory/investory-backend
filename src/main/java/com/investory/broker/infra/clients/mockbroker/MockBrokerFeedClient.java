@@ -81,6 +81,10 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
             ResponseEntity<MockLoginResponse> response = restTemplate.postForEntity(
                     baseUrl + "/mock/system/connections", entity, MockLoginResponse.class);
             MockLoginResponse body = response.getBody();
+            if (body == null) {
+                throw new BrokerInfraException(ErrorType.EXTERNAL_ERROR, "목 증권사 서버 인증 응답이 비어 있습니다.",
+                        new IllegalStateException("empty login response body"));
+            }
             return new BrokerLoginResult(body.connectionId(), body.orgCode(), body.orgName());
         } catch (HttpClientErrorException.Unauthorized e) {
             throw new BrokerFeedAuthFailedException(e);
@@ -129,6 +133,10 @@ public class MockBrokerFeedClient implements BrokerFeedPort {
             ResponseEntity<ProductsResponse> response = restTemplate.postForEntity(
                     baseUrl + "/v2/invest/accounts/products", entity, ProductsResponse.class);
             ProductsResponse body = response.getBody();
+            if (body == null) {
+                throw new BrokerInfraException(ErrorType.EXTERNAL_ERROR, "증권사 보유종목 응답이 비어 있습니다.",
+                        new IllegalStateException("empty holdings response body"));
+            }
             List<RawHoldingRecord> holdings = body.prodList() == null ? List.of() : body.prodList().stream()
                     .map(this::toRawHoldingRecord)
                     .collect(Collectors.toList());

@@ -3,6 +3,8 @@ package com.investory.auth.infra.clients.kakao;
 import com.investory.auth.domain.constant.OAuthProviderType;
 import com.investory.auth.domain.model.OAuthUserInfo;
 import com.investory.auth.infra.clients.OAuthClient;
+import com.investory.auth.infra.exception.AuthInfraErrorCode;
+import com.investory.auth.infra.exception.AuthInfraException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,6 +12,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
@@ -62,9 +65,20 @@ public class KakaoOAuthClient implements OAuthClient {
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
         log.debug("Kakao token exchange request: redirect_uri={}", redirectUri);
-        ResponseEntity<KakaoTokenResponse> response = restTemplate.exchange(tokenUri, HttpMethod.POST, request, KakaoTokenResponse.class);
+        ResponseEntity<KakaoTokenResponse> response;
+        try {
+            response = restTemplate.exchange(tokenUri, HttpMethod.POST, request, KakaoTokenResponse.class);
+        } catch (RestClientException e) {
+            log.error("Kakao 토큰 교환 요청이 실패했습니다.", e);
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_TOKEN_EXCHANGE_FAILED, e);
+        }
 
         KakaoTokenResponse body = response.getBody();
+        if (body == null) {
+            log.error("Kakao 토큰 교환 응답 바디가 비어 있습니다.");
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_TOKEN_EXCHANGE_FAILED,
+                    new IllegalStateException("Kakao token response body is null"));
+        }
         String accessToken = body.getAccess_token();
 
         if (accessToken == null || accessToken.trim().isEmpty()) {
@@ -85,9 +99,20 @@ public class KakaoOAuthClient implements OAuthClient {
 
         HttpEntity<Void> request = new HttpEntity<>(headers);
 
-        ResponseEntity<KakaoUserResponse> response = restTemplate.exchange(userInfoUri, HttpMethod.GET, request, KakaoUserResponse.class);
+        ResponseEntity<KakaoUserResponse> response;
+        try {
+            response = restTemplate.exchange(userInfoUri, HttpMethod.GET, request, KakaoUserResponse.class);
+        } catch (RestClientException e) {
+            log.error("Kakao 사용자 정보 조회 요청이 실패했습니다.", e);
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_USER_INFO_FETCH_FAILED, e);
+        }
 
         KakaoUserResponse body = response.getBody();
+        if (body == null) {
+            log.error("Kakao 사용자 정보 응답 바디가 비어 있습니다.");
+            throw new AuthInfraException(AuthInfraErrorCode.OAUTH_USER_INFO_FETCH_FAILED,
+                    new IllegalStateException("Kakao user info response body is null"));
+        }
 
         return OAuthUserInfo
                 .builder()

@@ -9,6 +9,8 @@ import javax.servlet.http.HttpServletResponse;
 import com.investory.auth.domain.exception.AuthException;
 import com.investory.auth.domain.ports.TokenProvider;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -26,6 +28,8 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
@@ -54,6 +58,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 보호된 경로에서 AuthorizationFilter가 인증 실패로 판단해 JwtAuthenticationEntryPoint를
                 // 호출하는데, 그때 이 값을 읽어 토큰 없음(기본값)과 구분되는 정확한 401 응답을 만든다.
                 request.setAttribute(AUTH_ERROR_CODE_ATTRIBUTE, e.getErrorCode());
+            } catch (RuntimeException e) {
+                // 서블릿 필터 단계라 DispatcherServlet 이전이고, GlobalExceptionHandler(@RestControllerAdvice)가
+                // 아예 닿지 않는 구간이다 — 여기서 안 잡으면 예외가 필터체인 밖으로 그대로 새어나가 로깅 없이
+                // 컨테이너 기본 에러 처리로 직행한다. AuthException으로 감싸지 않은 예상 밖 실패이므로
+                // AUTH_ERROR_CODE_ATTRIBUTE는 세팅하지 않고, JwtAuthenticationEntryPoint의 기본값(INVALID_TOKEN)에 맡긴다.
+                SecurityContextHolder.clearContext();
+                log.error("토큰 검증 중 예상하지 못한 오류가 발생했습니다.", e);
             }
         }
 
