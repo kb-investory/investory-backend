@@ -53,6 +53,19 @@ public class SecurityPriceRepositoryImpl implements SecurityPriceRepository {
         }
     }
 
+    @Override
+    public List<SecurityPrice> findBySecurityIdsAndDateRange(List<Long> securityIds, LocalDate from, LocalDate to) {
+        if (securityIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            List<SecurityPriceRow> rows = securityPriceMapper.findBySecurityIdsAndDateRange(securityIds, from, to);
+            return rows.stream().map(SecurityPriceRow::toDomain).collect(Collectors.toList());
+        } catch (DataAccessException e) {
+            throw new MarketInfraException(MarketInfraErrorCode.STOCK_PRICE_QUERY_FAILED, e);
+        }
+    }
+
     // PK가 (security_id, price_date) 복합키라 그 두 값 존재 여부로 insert/update를 분기한다 (하루 1회 갱신 기준).
     @Override
     public SecurityPrice save(SecurityPrice securityPrice) {

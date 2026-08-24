@@ -18,6 +18,10 @@ public interface SecurityPriceMapper {
                                                        @Param("from") LocalDate from,
                                                        @Param("to") LocalDate to);
 
+    List<SecurityPriceRow> findBySecurityIdsAndDateRange(@Param("securityIds") List<Long> securityIds,
+                                                        @Param("from") LocalDate from,
+                                                        @Param("to") LocalDate to);
+
     void insert(SecurityPriceRow row);
 
     void update(SecurityPriceRow row);

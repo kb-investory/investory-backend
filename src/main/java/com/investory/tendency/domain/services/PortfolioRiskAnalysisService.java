@@ -18,6 +18,7 @@ import java.math.MathContext;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 // 1번(포트폴리오 위험배분) 분석. 3/4번과 달리 90일 day-walk가 아니라 "현재 보유 스냅샷" 기준.
@@ -66,10 +67,15 @@ public class PortfolioRiskAnalysisService {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate windowStart = today.minusDays(VOLATILITY_WINDOW_DAYS - 1L);
 
+        // 예전엔 보유 종목마다 findDailyPrices()를 순차 호출했다(#208 — collectLossOrGain과 같은
+        // N+1 패턴). 한 번에 배치 조회해 종목별로 나눠 쓴다.
+        List<Long> securityIds = holdings.stream().map(HoldingWeightInfo::securityId).distinct().toList();
+        Map<Long, List<DailyPriceInfo>> pricesBySecurity = marketDataPort.findDailyPrices(securityIds, windowStart, today);
+
         BigDecimal weightedSum = BigDecimal.ZERO;
         BigDecimal totalWeight = BigDecimal.ZERO;
         for (HoldingWeightInfo holding : holdings) {
-            BigDecimal stdev = computeReturnStdev(holding.securityId(), windowStart, today);
+            BigDecimal stdev = computeReturnStdev(pricesBySecurity.getOrDefault(holding.securityId(), List.of()));
             if (stdev == null) {
                 continue;
             }
@@ -83,8 +89,8 @@ public class PortfolioRiskAnalysisService {
     }
 
     // 종목 하나의 일간등락률(dailyReturnRate) 모표준편차(%). 유효 데이터 2건 미만이면 null(산출 불가).
-    private BigDecimal computeReturnStdev(Long securityId, LocalDate from, LocalDate to) {
-        List<BigDecimal> returns = marketDataPort.findDailyPrices(securityId, from, to).stream()
+    private BigDecimal computeReturnStdev(List<DailyPriceInfo> prices) {
+        List<BigDecimal> returns = prices.stream()
                 .map(DailyPriceInfo::dailyReturnRate)
                 .filter(Objects::nonNull)
                 .toList();
