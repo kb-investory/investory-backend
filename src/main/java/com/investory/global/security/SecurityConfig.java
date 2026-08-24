@@ -52,7 +52,6 @@ public class SecurityConfig {
             "/auth/me",
             "/.well-known/jwks.json",
             "/health",
-            "/markets/securities/**",
             "/market/securities/**",
             "/swagger-ui/**",
             "/swagger-resources",
