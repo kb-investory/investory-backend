@@ -37,7 +37,7 @@ public class TradeMatchingService {
     @Transactional
     public void rematch(Long accountId, Long securityId) {
         List<Trade> tradesInOrder = tradeRepository.findAllByAccountIdAndSecurityId(accountId, securityId);
-        List<TradeMatch> matches = match(securityId, tradesInOrder);
+        List<TradeMatch> matches = match(accountId, securityId, tradesInOrder);
 
         tradeMatchRepository.deleteByAccountIdAndSecurityId(accountId, securityId);
         if (!matches.isEmpty()) {
@@ -51,7 +51,7 @@ public class TradeMatchingService {
     // 소진시킨다 — 이게 FIFO(선입선출)의 의미다. 매도 하나가 여러 lot에 걸쳐 소진되면 그만큼
     // TradeMatch가 여러 개 생기고, 반대로 매수 하나가 여러 매도에 나눠 소진될 수도 있다
     // (lot.remainingQuantity가 0이 될 때까지 큐에 남아 다음 매도를 기다림).
-    private List<TradeMatch> match(Long securityId, List<Trade> tradesInOrder) {
+    private List<TradeMatch> match(Long accountId, Long securityId, List<Trade> tradesInOrder) {
         List<TradeMatch> matches = new ArrayList<>();
         Deque<Lot> openLots = new ArrayDeque<>();
 
@@ -68,7 +68,7 @@ public class TradeMatchingService {
                 // 이번에 소진할 수량은 "이 lot에 남은 양"과 "이 매도가 아직 못 채운 양" 중 작은 쪽
                 BigDecimal matchedQuantity = lot.remainingQuantity.min(remaining);
 
-                matches.add(buildMatch(securityId, lot.trade, trade, matchedQuantity));
+                matches.add(buildMatch(accountId, securityId, lot.trade, trade, matchedQuantity));
 
                 lot.remainingQuantity = lot.remainingQuantity.subtract(matchedQuantity);
                 remaining = remaining.subtract(matchedQuantity);
@@ -88,7 +88,7 @@ public class TradeMatchingService {
     // 매칭 한 건(=lot 하나와 매도 하나가 matchedQuantity만큼 만난 것)의 손익을 계산한다.
     // 비용(수수료 등)은 거래 전체에 걸려있는 금액이라, 이번에 매칭된 수량 비율만큼만 나눠서
     // 반영한다 — 그래서 거래당 "1주당 비용(perUnit)"을 먼저 구한 뒤 matchedQuantity를 곱한다.
-    private TradeMatch buildMatch(Long securityId, Trade buy, Trade sell, BigDecimal matchedQuantity) {
+    private TradeMatch buildMatch(Long accountId, Long securityId, Trade buy, Trade sell, BigDecimal matchedQuantity) {
         BigDecimal buyCostPerUnit = perUnit(buy.getTransactionCostAmount(), buy.getQuantity());
         BigDecimal sellCostPerUnit = perUnit(sell.getTransactionCostAmount(), sell.getQuantity());
 
@@ -108,7 +108,7 @@ public class TradeMatchingService {
                 buy.getTradedAt().atZone(ZoneOffset.UTC).toLocalDate(),
                 sell.getTradedAt().atZone(ZoneOffset.UTC).toLocalDate());
 
-        return TradeMatch.of(buy.getTradeId(), sell.getTradeId(), securityId, matchedQuantity,
+        return TradeMatch.of(accountId, buy.getTradeId(), sell.getTradeId(), securityId, matchedQuantity,
                 buy.getUnitPrice(), sell.getUnitPrice(), realizedPnl, returnRate, holdingDays);
     }
 

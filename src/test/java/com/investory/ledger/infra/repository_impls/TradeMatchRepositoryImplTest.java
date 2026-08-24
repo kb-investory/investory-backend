@@ -32,7 +32,7 @@ class TradeMatchRepositoryImplTest {
         DataAccessResourceFailureException cause = new DataAccessResourceFailureException("connection refused");
         TradeMatchRepositoryImpl repository = new TradeMatchRepositoryImpl(new FailingTradeMatchMapper(cause));
 
-        TradeMatch match = TradeMatch.of(1L, 2L, 101L, BigDecimal.TEN,
+        TradeMatch match = TradeMatch.of(1L, 1L, 2L, 101L, BigDecimal.TEN,
                 BigDecimal.valueOf(1000), BigDecimal.valueOf(1200), BigDecimal.valueOf(2000), BigDecimal.valueOf(20), 10L);
 
         LedgerInfraException exception = assertThrows(LedgerInfraException.class,

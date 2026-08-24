@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 @Getter
 public class TradeMatch {
 
+    private final Long accountId;
     private final Long buyTradeId;
     private final Long sellTradeId;
     private final Long securityId;
@@ -19,9 +20,10 @@ public class TradeMatch {
     private final BigDecimal returnRate;
     private final long holdingDays;
 
-    private TradeMatch(Long buyTradeId, Long sellTradeId, Long securityId, BigDecimal matchedQuantity,
+    private TradeMatch(Long accountId, Long buyTradeId, Long sellTradeId, Long securityId, BigDecimal matchedQuantity,
                         BigDecimal buyPrice, BigDecimal sellPrice, BigDecimal realizedPnl,
                         BigDecimal returnRate, long holdingDays) {
+        this.accountId = accountId;
         this.buyTradeId = buyTradeId;
         this.sellTradeId = sellTradeId;
         this.securityId = securityId;
@@ -33,10 +35,10 @@ public class TradeMatch {
         this.holdingDays = holdingDays;
     }
 
-    public static TradeMatch of(Long buyTradeId, Long sellTradeId, Long securityId, BigDecimal matchedQuantity,
-                                 BigDecimal buyPrice, BigDecimal sellPrice, BigDecimal realizedPnl,
-                                 BigDecimal returnRate, long holdingDays) {
-        return new TradeMatch(buyTradeId, sellTradeId, securityId, matchedQuantity, buyPrice, sellPrice,
+    public static TradeMatch of(Long accountId, Long buyTradeId, Long sellTradeId, Long securityId,
+                                 BigDecimal matchedQuantity, BigDecimal buyPrice, BigDecimal sellPrice,
+                                 BigDecimal realizedPnl, BigDecimal returnRate, long holdingDays) {
+        return new TradeMatch(accountId, buyTradeId, sellTradeId, securityId, matchedQuantity, buyPrice, sellPrice,
                 realizedPnl, returnRate, holdingDays);
     }
 }
