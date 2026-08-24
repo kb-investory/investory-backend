@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 @Setter
 @NoArgsConstructor
 public class TradeMatchRow {
+    private Long accountId;
     private Long securityId;
     private Long buyTradeId;
     private Long sellTradeId;
@@ -22,12 +23,13 @@ public class TradeMatchRow {
     private int holdingDays;
 
     public TradeMatch toDomain() {
-        return TradeMatch.of(buyTradeId, sellTradeId, securityId, matchedQuantity, buyPrice, sellPrice,
+        return TradeMatch.of(accountId, buyTradeId, sellTradeId, securityId, matchedQuantity, buyPrice, sellPrice,
                 realizedPnl, returnRate, holdingDays);
     }
 
     public static TradeMatchRow from(TradeMatch match) {
         TradeMatchRow row = new TradeMatchRow();
+        row.accountId = match.getAccountId();
         row.securityId = match.getSecurityId();
         row.buyTradeId = match.getBuyTradeId();
         row.sellTradeId = match.getSellTradeId();
