@@ -10,6 +10,7 @@ import com.investory.broker.domain.ports.dto.RawHoldingBatch;
 import com.investory.broker.domain.ports.dto.RawTradeRecord;
 import com.investory.broker.domain.repositories.InvestmentAccountRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,7 +73,18 @@ public class BrokerAccountSyncService {
     }
 
     // fetchAccountBundles()로 이미 받아온 데이터를 DB에 적재한다. 외부 호출이 없어 트랜잭션이 짧다.
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    //
+    // READ_COMMITTED(#213): 이 트랜잭션 안에서 trade_matches/holding_snapshots에 계좌마다 동시에
+    // bulk insert가 들어가는데, MySQL 기본 격리수준(REPEATABLE READ)은 phantom read 방지를 위해
+    // 보조 인덱스 insert마다 갭락(다음 레코드 없으면 supremum)을 건다. 여러 계좌가 동시에 비슷한
+    // 시점에 insert하면 서로 다른 트랜잭션의 갭락 대기가 순환해 데드락이 난다
+    // (SHOW ENGINE INNODB STATUS의 LATEST DETECTED DEADLOCK으로 확인, investory-backend#213).
+    // 이 메서드는 fetch/write 분리(위 클래스 주석) 덕분에 read-your-writes 이상의 일관성 읽기가
+    // 필요 없는 순수 쓰기 트랜잭션이라 READ_COMMITTED로 낮춰도 안전하다 — FK/유니크 제약 체크에
+    // 필요한 락은 그대로 유지되고, phantom read 방지용 갭락만 빠진다.
+    // 트랜잭션이 실제로 시작되는 지점(REQUIRES_NEW)에만 isolation이 적용된다 — TradeMatchingService.
+    // rematch()처럼 이 트랜잭션에 합류(REQUIRED)하는 메서드에 isolation을 붙여봐야 무시된다.
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public AccountsSyncOutcome syncAccounts(Long userId, Long connectionId, List<AccountSyncBundle> bundles) {
         int accountCount = 0;
         int insertedTradeCount = 0;
